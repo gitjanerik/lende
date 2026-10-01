@@ -1,0 +1,40 @@
+import{A as e,B as t,G as n,K as r,Z as i,m as a,q as o,r as s}from"./_plugin-vue_export-helper-BBCUhnLR.js";import{h as c,l,n as u}from"./utm-CeaN5lSD.js";var d=`lende-ekstern-ny-fane`;function f(){try{return localStorage.getItem(d)===`1`}catch{return!1}}var p=o(f());t(p,e=>{try{localStorage.setItem(d,e?`1`:`0`)}catch{}});function m(){let e=a(()=>p.value?`_blank`:`_self`);function t(e){typeof e==`string`&&e&&(p.value?window.open(e,`_blank`,`noopener`):window.open(e,`_self`))}function n(e){p.value=!!e}return{nyFane:p,eksternTarget:e,apneEkstern:t,settNyFane:n}}function h(e,t){if(!Number.isFinite(e)||e<=0||!Number.isFinite(t))return 14;let n=Math.log2(156543.03392*Math.cos(t*Math.PI/180)/e);return Number.isFinite(n)?Math.min(16,Math.max(4,Math.round(n))):14}function g({lat:e,lon:t,zoom:n=14}){return![e,t,n].every(Number.isFinite)||Math.abs(e)>90||Math.abs(t)>180?null:`https://ut.no/kart#${Math.min(16,Math.max(4,Math.round(n)))}/${e.toFixed(5)}/${t.toFixed(5)}`}function _(e,t){return`https://www.google.com/maps?q=${e.toFixed(6)},${t.toFixed(6)}`}function v(e,t){return`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${e.toFixed(6)},${t.toFixed(6)}`}function y({lat:e,lon:t,zoom:n=14}){if(![e,t,n].every(Number.isFinite)||Math.abs(e)>90||Math.abs(t)>180)return null;let r=Math.min(16,Math.max(3,Math.round(n))),{e:i,n:a}=c(e,t);return`https://vegkart.atlas.vegvesen.no/#kartlag:geodata/@${Math.round(i)},${Math.round(a)},${r}`}function b(e){return e?`https://www.kulturminnesok.no/kart/?id=${encodeURIComponent(e)}`:null}function x(e){return String(e).replace(/[&<>"']/g,e=>({"&":`&amp;`,"<":`&lt;`,">":`&gt;`,'"':`&quot;`,"'":`&apos;`})[e])}function S(e,t,n=`Lende tur`){if(!e?.points?.length)return``;let r=new Date(e.opprettet??Date.now()).toISOString(),i=x(e.navn||`Tur `+new Date(e.opprettet??Date.now()).toLocaleString(`no-NO`)),a=e.points.map(e=>{let n=l(e.x,e.y,t),r=new Date(e.t).toISOString(),i=e.accM==null?``:`\n        <hdop>${(e.accM/5).toFixed(1)}</hdop>`;return`      <trkpt lat="${n.lat.toFixed(7)}" lon="${n.lon.toFixed(7)}">
+        <time>${r}</time>${i}
+      </trkpt>`}).join(`
+`);return`<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Lende"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${x(n)}</name>
+    <time>${r}</time>
+  </metadata>
+  <trk>
+    <name>${i}</name>
+    <trkseg>
+${a}
+    </trkseg>
+  </trk>
+</gpx>
+`}function C(e){if(!e?.points?.length)return``;let t=new Date(e.opprettet??Date.now()),n=t.toISOString(),r=x(e.navn||`Grusrute`),i=e.points.map(([e,t,n])=>{let r=Number.isFinite(n)?`\n      <ele>${n.toFixed(1)}</ele>`:``;return`    <rtept lat="${t.toFixed(7)}" lon="${e.toFixed(7)}">${r}
+    </rtept>`}).join(`
+`);return`<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Lende Ruteplanlegger"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${r}</name>
+    <copyright author="OpenStreetMap contributors">
+      <year>${t.getUTCFullYear()}</year>
+      <license>https://opendatacommons.org/licenses/odbl/1-0/</license>
+    </copyright>
+    <time>${n}</time>
+  </metadata>
+  <rte>
+    <name>${r}</name>
+${i}
+  </rte>
+</gpx>
+`}function w(e,t){let n=C(e);if(!n)return;let r=new Blob([n],{type:`application/gpx+xml`}),i=URL.createObjectURL(r),a=document.createElement(`a`);a.href=i,a.download=t??`${(e.navn||`grusrute`).replace(/[^a-z0-9æøå]+/gi,`-`).toLowerCase()}.gpx`,document.body.appendChild(a),a.click(),document.body.removeChild(a),setTimeout(()=>URL.revokeObjectURL(i),1e3)}function T(e,t,n,r){let i=S(e,t,n);if(!i)return;let a=new Blob([i],{type:`application/gpx+xml`}),o=URL.createObjectURL(a),s=document.createElement(`a`);s.href=o,s.download=r??`${(n||`tur`).replace(/[^a-z0-9æøå]+/gi,`-`).toLowerCase()}.gpx`,document.body.appendChild(s),s.click(),document.body.removeChild(s),setTimeout(()=>URL.revokeObjectURL(o),1e3)}function E(e,t=1){let n=e?.points;if(!n||n.length<2)return 0;let r=0;for(let e=1;e<n.length;e++){let t=n[e].x-n[e-1].x,i=n[e].y-n[e-1].y;r+=Math.hypot(t,i)}return u(r,t)}function D(e){let t=e?.points;return!t||t.length<2?0:t[t.length-1].t-t[0].t}function O(e,t,n,r=.25){if(!n||n.length===0)return t;let i=n[0],a=1/0;for(let e of n){let n=Math.abs(t-e);n<a&&(a=n,i=e)}let o=e-i;if(o===0)return i;let s=o<0?-1:1,c=n.filter(e=>s<0?e<i:e>i).sort((e,t)=>s<0?t-e:e-t),l=i,u=i;for(let t of c){let n=u+s*r*Math.abs(t-u);if(!(s<0?e<=n:e>=n))break;l=t,u=t}return l}function k({expandedHeight:n=.45,minimizedPeek:i=28,maxHeight:c=null,maxTopGapPx:l=null,allowMinimize:u=!0,commitFraction:d=.25,springMs:f=220}={}){let p=o(0),m=o(!1),h=o(!1),g=o(!1),{erLiggende:_}=s(),v=a(()=>u&&!_.value),y=a(()=>!_.value&&m.value),b=a(()=>_.value||h.value),x=o(0),S=o(0),C=o(0),w=r({startY:0,startTranslate:0}),T=a(()=>C.value>0?-(C.value-S.value):0),E=a(()=>v.value?x.value:0),D=a(()=>{let e=[0];return C.value>0&&e.push(T.value),v.value&&e.push(x.value),e.sort((e,t)=>e-t)});function k(){let e=window.innerHeight||800,t=Math.max(i+100,e*n),r=l==null?c?Math.max(t,e*c):0:Math.max(t,e-l);if(_.value){S.value=r>0?r:t,x.value=0,C.value=0;return}S.value=t,x.value=t-i,C.value=r}k(),t(_,()=>{k(),L(0)}),window.addEventListener(`resize`,k,{passive:!0}),e(()=>window.removeEventListener(`resize`,k));let A=a(()=>x.value<=0?0:Math.max(0,Math.min(1,p.value/x.value))),j=a(()=>Math.max(0,S.value-p.value)),M=a(()=>g.value?.6:1),N=a(()=>({height:Math.max(i,S.value-p.value)+`px`,transition:g.value?`none`:`height ${f}ms cubic-bezier(0.2, 0.8, 0.2, 1)`}));function P(e){g.value=!0,w.startY=e.clientY??e.touches?.[0]?.clientY??0,w.startTranslate=p.value;try{e.currentTarget.setPointerCapture?.(e.pointerId)}catch{}e.preventDefault()}function F(e){if(!g.value)return;let t=(e.clientY??e.touches?.[0]?.clientY??0)-w.startY;p.value=Math.max(T.value,Math.min(E.value,w.startTranslate+t))}function I(){if(g.value){if(g.value=!1,Math.abs(p.value-w.startTranslate)<4){L(w.startTranslate);return}L(O(p.value,w.startTranslate,D.value,d))}}function L(e){p.value=e,m.value=v.value&&Math.abs(e-x.value)<1,h.value=C.value>0&&Math.abs(e-T.value)<1}function R(e){L(e&&v.value?x.value:0)}function z(e){L(e&&C.value>0?T.value:0)}function B(e){let t=D.value;if(t.length<2)return!1;let n=0;for(let e=1;e<t.length;e++)Math.abs(t[e]-p.value)<Math.abs(t[n]-p.value)&&(n=e);let r=n+(e<0?-1:1);return r<0||r>=t.length?!1:(L(t[r]),!0)}function V(){p.value=0,m.value=!1,h.value=!1,g.value=!1}return{translateY:p,progress:A,enTilstand:_,isMinimized:y,isMaximized:b,isDragging:g,dragRangePx:x,expandedPx:S,minimizedPeek:i,visibleHeightPx:j,drawerHeightStyle:N,handleOpacity:M,onPointerDown:P,onPointerMove:F,onPointerUp:I,setMinimized:R,setMaximized:z,stegSnap:B,snapPoints:D,reset:V}}var A=e=>typeof e==`function`?e():i(e);function j(e,t={}){let{basePx:n=12,needPx:r=132,mapWidthPx:i=null,panelMode:o=null}=t,s=`calc(env(safe-area-inset-bottom, 0px) + ${n}px)`,c=a(()=>(A(e)||[]).filter(e=>e&&e.drawer&&!!A(e.open))),l=a(()=>{let e=A(i);return e?Math.max(0,(e-700)/2)>=r:!1}),u=a(()=>!!A(o)||l.value),d=a(()=>{let e=0;for(let t of c.value){let n=A(t.drawer.visibleHeightPx)||0;if(n>(A(t.drawer.minimizedPeek)||0)+8)return null;n>e&&(e=n)}return e}),f=a(()=>!u.value&&c.value.length>0&&d.value===null);return{bottomStyle:a(()=>{if(u.value)return s;let e=d.value;return e?`${e+n}px`:s}),hidden:f,roomy:l}}function M(){let e=o(navigator.onLine!==!1),t=()=>{e.value=navigator.onLine!==!1};return window.addEventListener(`online`,t),window.addEventListener(`offline`,t),n(()=>{window.removeEventListener(`online`,t),window.removeEventListener(`offline`,t)}),{erPaaNett:a(()=>e.value),erOffline:a(()=>!e.value)}}export{T as a,E as c,_ as d,v as f,m as h,k as i,b as l,h as m,j as n,w as o,g as p,O as r,D as s,M as t,y as u};
