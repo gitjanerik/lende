@@ -43,6 +43,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { usePinchZoom } from '../composables/usePinchZoom.js'
 import { dekningsSkala } from '../lib/viewFit.js'
 import { zoomBroek, zoomFraBroek } from '../lib/navKontroller.js'
+import { sporingFokus, sporingSkala } from '../lib/sporingSenter.js'
 import ZoomSkyv from '../components/kontroller/ZoomSkyv.vue'
 import RetningsRose from '../components/kontroller/RetningsRose.vue'
 import { useUserPosition } from '../composables/useUserPosition.js'
@@ -2132,8 +2133,27 @@ function onShortcutMeasure() {
 }
 // Sporing var en snarvei til v5.1.0, ble en fane i innstillinger, og er nå en
 // snarvei igjen (v6.6.0) — den hører hjemme sammen med det man GJØR.
+// Sporing sentrerer kartet på brukeren, over skuffa. Første fix kan komme
+// sekunder etter trykket, så ønsket huskes til posisjonen finnes.
+const sentrerPaaMegVenter = ref(false)
+function sentrerPaaMeg() {
+  const m = meta.value
+  const r = wrapperRef.value?.getBoundingClientRect()
+  if (!m || !r || userPos.svgX == null || userPos.isOutsideMap) return false
+  const f = sporingFokus(r.width, r.height)
+  panTo(userPos.svgX, userPos.svgY, {
+    vbWidth: m.widthM, vbHeight: m.heightM,
+    targetScale: sporingSkala(scale.value), focusX: f.x, focusY: f.y,
+  })
+  return true
+}
+watch(() => [userPos.svgX, userPos.svgY], () => {
+  if (sentrerPaaMegVenter.value && sentrerPaaMeg()) sentrerPaaMegVenter.value = false
+})
+watch(sporingOpen, (apen) => { if (!apen) sentrerPaaMegVenter.value = false })
 function onShortcutSporing() {
   startSporing()
+  sentrerPaaMegVenter.value = !sentrerPaaMeg()
   closeDrawer()
   lukkFunksjonsSkuffer()
   sporingDrawer.reset()
