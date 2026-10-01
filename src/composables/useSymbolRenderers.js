@@ -784,9 +784,8 @@ export function useSymbolRenderers({
 
   /**
    * Render alle synlige GPS-spor i et eget SVG-lag som ligger mellom kart-
-   * innholdet og annotation/user-laget. Stilen styres av tracker.trackStyle
-   * — 'line' (polyline med marsjerende prikker), 'footprints' eller
-   * 'breadcrumbs'. Live-tracket (det som spilles inn nå) har ekstra
+   * innholdet og annotation/user-laget. Sporet tegnes alltid som linje
+   * (polyline med marsjerende prikker). Live-tracket (det som spilles inn nå) har ekstra
    * pulserende hode-markør så brukeren ser at opptaket lever.
    */
   function renderTracks() {
@@ -816,14 +815,10 @@ export function useSymbolRenderers({
     const s = scale.value || 1
     const haloW = 7 / s
     const lineW = 3.5 / s
-    // Circle/ellipse-radii er geometri, ikke stroke → fortsatt user-units
-    const dotR  = pxToUserUnits(2.5)
-    const footW = pxToUserUnits(5)
 
     const TRACK_COLOR = '#ec4899'         // magenta — kontrasterer mot ISOM
     const HALO_COLOR  = 'rgba(255,255,255,0.85)'
 
-    const style = tracker.trackStyle.value
     for (const tr of tracker.tracks.value) {
       if (!tracker.visibleTrackIds.value.has(tr.id)) continue
       if (!tr.points || tr.points.length === 0) continue
@@ -831,79 +826,38 @@ export function useSymbolRenderers({
       const g = document.createElementNS(ns, 'g')
       g.setAttribute('data-track-id', tr.id)
 
-      if (style === 'breadcrumbs') {
-        // Diskrete prikker hver ~10 m. Bruk avstands-basert sampling så
-        // tett-pakkede punkter ikke gir cluster.
-        const pts = sampleByDistance(tr.points, 10)
-        for (const p of pts) {
-          const c = document.createElementNS(ns, 'circle')
-          c.setAttribute('cx', p.x); c.setAttribute('cy', p.y)
-          c.setAttribute('r', dotR)
-          c.setAttribute('fill', TRACK_COLOR)
-          c.setAttribute('stroke', HALO_COLOR)
-          c.setAttribute('stroke-width', pxToUserUnits(1.5))
-          g.appendChild(c)
-        }
-      } else if (style === 'footprints') {
-        // Fotavtrykk: små elliptiske prikker alternerende venstre/høyre av
-        // bevegelses-retningen, ~5 m mellomrom. Rotasjon følger lokal vinkel.
-        const pts = sampleByDistance(tr.points, 5)
-        for (let i = 0; i < pts.length; i++) {
-          const p = pts[i]
-          const next = pts[i + 1] ?? pts[i - 1] ?? p
-          const dx = next.x - p.x
-          const dy = next.y - p.y
-          const angDeg = Math.atan2(dy, dx) * 180 / Math.PI
-          const side = (i % 2 === 0) ? 1 : -1
-          const off = footW * 0.6
-          const perpAng = (angDeg + 90) * Math.PI / 180
-          const fx = p.x + Math.cos(perpAng) * off * side
-          const fy = p.y + Math.sin(perpAng) * off * side
-          const fp = document.createElementNS(ns, 'ellipse')
-          fp.setAttribute('cx', fx); fp.setAttribute('cy', fy)
-          fp.setAttribute('rx', footW * 0.45)
-          fp.setAttribute('ry', footW * 0.85)
-          fp.setAttribute('transform', `rotate(${angDeg},${fx},${fy})`)
-          fp.setAttribute('fill', TRACK_COLOR)
-          fp.setAttribute('stroke', HALO_COLOR)
-          fp.setAttribute('stroke-width', pxToUserUnits(1))
-          fp.setAttribute('opacity', '0.9')
-          g.appendChild(fp)
-        }
-      } else {
-        // Default: to-lags polyline med marsjerende prikker. Halo bak gir
-        // lesbarhet på både lyse og mørke kart-temaer.
-        const d = pointsToPathD(tr.points)
-        const halo = document.createElementNS(ns, 'path')
-        halo.setAttribute('d', d)
-        halo.setAttribute('fill', 'none')
-        halo.setAttribute('stroke', HALO_COLOR)
-        halo.setAttribute('stroke-width', haloW)
-        halo.setAttribute('stroke-linecap', 'round')
-        halo.setAttribute('stroke-linejoin', 'round')
-        g.appendChild(halo)
+      // To-lags polyline med marsjerende prikker. Halo bak gir
+      // lesbarhet på både lyse og mørke kart-temaer.
+      const d = pointsToPathD(tr.points)
+      const halo = document.createElementNS(ns, 'path')
+      halo.setAttribute('d', d)
+      halo.setAttribute('fill', 'none')
+      halo.setAttribute('stroke', HALO_COLOR)
+      halo.setAttribute('stroke-width', haloW)
+      halo.setAttribute('stroke-linecap', 'round')
+      halo.setAttribute('stroke-linejoin', 'round')
+      g.appendChild(halo)
 
-        const line = document.createElementNS(ns, 'path')
-        line.setAttribute('d', d)
-        line.setAttribute('fill', 'none')
-        line.setAttribute('stroke', TRACK_COLOR)
-        line.setAttribute('stroke-width', lineW)
-        line.setAttribute('stroke-linecap', 'round')
-        line.setAttribute('stroke-linejoin', 'round')
-        // Marsjerende prikker: stiplet + animasjon på offset. Dasharray
-        // arver også non-scaling-stroke, så CSS-px / pinch-scale.
-        const dash = 6 / s
-        const gap = 8 / s
-        line.setAttribute('stroke-dasharray', `${dash} ${gap}`)
-        const anim = document.createElementNS(ns, 'animate')
-        anim.setAttribute('attributeName', 'stroke-dashoffset')
-        anim.setAttribute('from', String(dash + gap))
-        anim.setAttribute('to', '0')
-        anim.setAttribute('dur', '1.4s')
-        anim.setAttribute('repeatCount', 'indefinite')
-        line.appendChild(anim)
-        g.appendChild(line)
-      }
+      const line = document.createElementNS(ns, 'path')
+      line.setAttribute('d', d)
+      line.setAttribute('fill', 'none')
+      line.setAttribute('stroke', TRACK_COLOR)
+      line.setAttribute('stroke-width', lineW)
+      line.setAttribute('stroke-linecap', 'round')
+      line.setAttribute('stroke-linejoin', 'round')
+      // Marsjerende prikker: stiplet + animasjon på offset. Dasharray
+      // arver også non-scaling-stroke, så CSS-px / pinch-scale.
+      const dash = 6 / s
+      const gap = 8 / s
+      line.setAttribute('stroke-dasharray', `${dash} ${gap}`)
+      const anim = document.createElementNS(ns, 'animate')
+      anim.setAttribute('attributeName', 'stroke-dashoffset')
+      anim.setAttribute('from', String(dash + gap))
+      anim.setAttribute('to', '0')
+      anim.setAttribute('dur', '1.4s')
+      anim.setAttribute('repeatCount', 'indefinite')
+      line.appendChild(anim)
+      g.appendChild(line)
 
       // Live-puls på siste punkt mens opptaket pågår. Gjør det visuelt
       // tydelig at hovedet av sporet er "her og nå" og at appen henter
@@ -942,23 +896,6 @@ export function useSymbolRenderers({
       d += ` L${points[i].x.toFixed(1)},${points[i].y.toFixed(1)}`
     }
     return d
-  }
-
-  /** Sample punkter med min-avstand i SVG-meter. Beholder første og siste. */
-  function sampleByDistance(points, minDistM) {
-    if (points.length <= 1) return points.slice()
-    const out = [points[0]]
-    for (let i = 1; i < points.length; i++) {
-      const last = out[out.length - 1]
-      const dx = points[i].x - last.x
-      const dy = points[i].y - last.y
-      if (Math.hypot(dx, dy) >= minDistM) out.push(points[i])
-    }
-    // Sørg for at siste punkt alltid er med (viktig for live-puls)
-    if (out[out.length - 1] !== points[points.length - 1]) {
-      out.push(points[points.length - 1])
-    }
-    return out
   }
 
   function updateUserDot() {

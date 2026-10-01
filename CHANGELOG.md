@@ -1,3 +1,9 @@
+## 2026-10-01 — v7.9.23: Sporing tegner alltid linje
+
+Valgknappene Linje / Fotspor / Brødsmuler i Sporing er fjernet. Spor tegnes alltid som linje med marsjerende prikker; fotspor- og brødsmule-tegningen, `setStyle` og den lagrede stilen (`lende:track-style`, `trackStyle` per kart) er tatt ut. Gamle kart med en lagret stil tegnes som linje, og feltet ignoreres.
+
+---
+
 ## 2026-09-25 — v7.9.22: «Om Lende» og Innstillinger forteller om den nye høydekurve-trappen
 
 Høydekurve-punktet under «Teknikken» i «Om Lende» sier nå hvilke ekvidistanser som finnes (5/10/20/25/50 m) og hvilke kartbredder de krever: 5 m opp til og med 4 km, 10 m til og med 6 km, 20 m til og med 10 km, mens 25 og 50 m alltid går. Info-teksten under kartbredden i Innstillinger sto igjen med den gamle trappen fra før v7.9.21 («fra 6 km krever de 20 m») og er rettet til den samme.

@@ -31,29 +31,6 @@ const MAX_ACCURACY_M = 50
 const MAX_TIME_GAP_MS = 60_000
 const AUTO_SAVE_INTERVAL_MS = 10_000
 
-// Persistent (across maps) preferanse for sist-brukte stil. Per-map-
-// trackStyle vinner over denne ved load — globalen er bare initialverdi
-// for kart som ennå ikke har en stil lagret.
-const GLOBAL_STYLE_LS_KEY = 'lende:track-style'
-
-export const TRACK_STYLES = [
-  { key: 'line',       label: 'Linje',     desc: 'Glatt sti med marsjerende prikker' },
-  { key: 'footprints', label: 'Fotspor',   desc: 'Fotavtrykk langs ruten' },
-  { key: 'breadcrumbs', label: 'Brødsmuler', desc: 'Diskrete prikker hver ~10 m' },
-]
-
-function readGlobalStyle() {
-  try {
-    const v = localStorage.getItem(GLOBAL_STYLE_LS_KEY)
-    if (v && TRACK_STYLES.some(s => s.key === v)) return v
-  } catch { /* private mode */ }
-  return 'line'
-}
-
-function writeGlobalStyle(v) {
-  try { localStorage.setItem(GLOBAL_STYLE_LS_KEY, v) } catch { /* private mode */ }
-}
-
 function genId() {
   return 't' + Math.random().toString(36).slice(2, 10)
 }
@@ -67,7 +44,6 @@ function genId() {
 export function useTrackRecorder(mapId, userPos) {
   const tracks = ref([])              // ferdige + pågående; sistnevnte har sluttet=null
   const isRecording = ref(false)
-  const trackStyle = ref(readGlobalStyle())    // 'line' | 'footprints' | 'breadcrumbs'
   const visibleTrackIds = ref(new Set())  // hvilke spor som vises på kartet
   const wakeLockActive = ref(false)
   let activeTrackId = null
@@ -135,8 +111,6 @@ export function useTrackRecorder(mapId, userPos) {
     tracks.value = entry?.tracks ?? []
     // Default: alle synlige
     visibleTrackIds.value = new Set(tracks.value.map(t => t.id))
-    if (entry?.trackStyle) trackStyle.value = entry.trackStyle
-    else trackStyle.value = readGlobalStyle()
   }
 
   async function persist() {
@@ -144,7 +118,6 @@ export function useTrackRecorder(mapId, userPos) {
     const entry = await loadMap(mapId)
     if (!entry) return
     entry.tracks = JSON.parse(JSON.stringify(tracks.value))
-    entry.trackStyle = trackStyle.value
     await saveMap(entry)
     lastSavedAt = Date.now()
   }
@@ -251,12 +224,6 @@ export function useTrackRecorder(mapId, userPos) {
     await persist()
   }
 
-  async function setStyle(key) {
-    trackStyle.value = key
-    writeGlobalStyle(key)
-    await persist()
-  }
-
   const activeTrack = computed(() => {
     if (!isRecording.value || activeTrackId == null) return null
     return tracks.value.find(t => t.id === activeTrackId) ?? null
@@ -270,8 +237,8 @@ export function useTrackRecorder(mapId, userPos) {
   })
 
   return {
-    tracks, isRecording, trackStyle, visibleTrackIds, activeTrack, wakeLockActive,
+    tracks, isRecording, visibleTrackIds, activeTrack, wakeLockActive,
     load, persist, startRecording, stopRecording, deleteTrack,
-    toggleVisibility, renameTrack, setStyle,
+    toggleVisibility, renameTrack,
   }
 }
