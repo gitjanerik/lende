@@ -11,7 +11,7 @@
 // kommer fra. Feilen den finnes for er stille: en for liten boks ser ut som at
 // «declutteren bare valgte det navnet».
 import { describe, it, expect } from 'vitest'
-import { gjettetBoks, kandidatId } from './useNavnLod.js'
+import { gjettetBoks, kandidatId, senterForskyvning } from './useNavnLod.js'
 import { isomCatalog } from '../lib/symbolizer.js'
 
 // mm er en CSS-absolutt enhet, og inne i viewBoxen er 1 CSS-px = 1 user-unit.
@@ -63,5 +63,19 @@ describe('kandidatId', () => {
     const fjell = { name: 'Åsli', kind: 'topp', x: 900, y: 50 }
     expect(kandidatId(gard)).not.toBe(kandidatId(fjell))
     expect(kandidatId(gard)).toBe(kandidatId({ ...gard, x: 100.1 }))
+  })
+})
+
+describe('senterForskyvning', () => {
+  it('toppnavn: boksens senter ligger halve bredden til høyre for toppen', () => {
+    const box = { bw: 200, bh: 40, cx: 102, cy: -5 }
+    expect(senterForskyvning(box, { getAttribute: () => '2mm' }, 'peak')).toEqual({ dx: 102, dy: -5 })
+  })
+  it('vanlig tekst: forskyvning er senter minus x/y-ankeret', () => {
+    const el = { getAttribute: (n) => (n === 'x' ? '50' : '20') }
+    expect(senterForskyvning({ cx: 50, cy: 18 }, el, 'stedsnavn')).toEqual({ dx: 0, dy: -2 })
+  })
+  it('gjettet boks uten senter gir ingen forskyvning', () => {
+    expect(senterForskyvning({ bw: 8, bh: 6, gjettet: true }, {}, 'peak')).toEqual({ dx: 0, dy: 0 })
   })
 })
