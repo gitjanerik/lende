@@ -262,9 +262,12 @@ describe('buildIsomCss — veitunnel stiplet i veifargen, uten casing (v2.4.22)'
     expect(rule).toContain('stroke-linecap: butt')
   })
 
-  it('skogsbilvei (504, uten overlay) får stiplet basis-strek', () => {
-    expect(css).toMatch(/\[data-iso="504"\] path\[data-tunnel="yes"\] \{ stroke-dasharray:/)
-    expect(css).not.toContain('[data-iso="504"] path[data-tunnel="yes"]:not(.overlay)')
+  // v7.9.27: skogsvegen er hul — overlayet er den lyse kjernen, så det er
+  // KANTEN som stiples. Motsatt vei ville tunnelen vært lys stipling på lyst ark.
+  it('skogsbilvei (504, hul veg) stipler kanten og skjuler kjernen', () => {
+    expect(css).toMatch(/\[data-iso="504"\] path\[data-tunnel="yes"\]:not\(\.overlay\) \{ stroke-dasharray:/)
+    expect(css).toContain('[data-iso="504"] path.overlay[data-tunnel="yes"] { display: none }')
+    expect(css).not.toContain('[data-iso="504"] path[data-tunnel="yes"]:not(.overlay) { display: none }')
   })
 
   it('tunnel-dashen er tydelig lengre enn sti-stiplingen (505 = 0.36mm)', () => {

@@ -1,3 +1,9 @@
+## 2026-10-17 — v7.9.27: Skogsveien er en hul veg — to mørke kanter med lys kjerne
+
+Skogsveien (504) var én heltrukken mørk strek, i Turkart gråbrun, med en lys kant som falt tilbake på bakgrunnsfargen og derfor ikke syntes. Den gikk i ett med høydekurvene (én brun strek) og kraftlinja (én svart strek med tverrmerker). Nå tegnes den som en hul veg: to mørke kanter med en smal, lys kjerne — en form ingen annen linje på kartet har. Totalbredden er uendret (som småvegen), men kjernen er smal (0,08 mm), så kantene er over tre ganger så tunge som småvegens og veien leses som en dobbeltstrek og ikke som en smal småveg. Den er bygd som 501–503 (kant + kjerne) og følger vei-passene, så den kobler rent i kryss. Alle temaer har fått et eget kant/kjerne-par; i mørke temaer er kjernen bakgrunnen, så veien blir to lyse streker. I tunnel stiples kanten og kjernen skjules. Kartene må bygges på nytt for å få det nye symbolet.
+
+---
+
 ## 2026-10-01 — v7.9.26: Sporing sentrerer kartet på deg, grend/gård-navn viker for snarvei-raden
 
 **Sporing.** Trykk på snarveien flytter nå utsnittet så blå prikk står 30 % ned fra toppen — midt i den delen av kartet sporingsskuffa (ca. 40 % nedenfra) ikke dekker — og zoomer godt inn (minst 12×, aldri ut). Kommer første GPS-fix først etter trykket, sentreres det når den kommer; lukkes skuffa før det, droppes ønsket.

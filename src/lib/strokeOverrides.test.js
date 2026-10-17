@@ -66,10 +66,10 @@ describe('skogsveg har sin egen strek-gruppe', () => {
     }
   })
 
-  it('slideren treffer både strek og casing på 504', () => {
+  it('slideren treffer både kant og kjerne på 504', () => {
     const css = buildStrokeOverrideCss({ skogsVei: 1.5 })
-    expect(css).toContain('.isom-map [data-iso="504"] { stroke-width: calc(0.12mm * var(--stroke-scale, 1) * 1.5) !important; }')
-    expect(css).toContain('.isom-map [data-iso="504"] path.casing { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 1.5) !important; }')
+    expect(css).toContain('.isom-map [data-iso="504"] { stroke-width: calc(0.18mm * var(--stroke-scale, 1) * 1.5) !important; }')
+    expect(css).toContain('.isom-map [data-iso="504"] path.overlay { stroke-width: calc(0.08mm * var(--stroke-scale, 1) * 1.5) !important; }')
     expect(css).not.toContain('data-iso="503"')
   })
 })

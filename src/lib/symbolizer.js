@@ -951,7 +951,12 @@ export function buildIsomCss(catalog = isomCatalogDefault, patternIds, options =
     // Samme mm som før ved nøytral skala, men regnet av den effektive bredden.
     const tunnelDash = dashCss(dashFaktorer({ widthMm: w, dasharray: [dash, gap] }), effektivBredde(w, code))
     const dashRule = `stroke-dasharray: ${tunnelDash}; stroke-linecap: butt`
-    if (ov) {
+    // Skogsvegen (504, hul veg fra v7.9.27) er snudd: der er overlayet den LYSE
+    // kjernen og kanten er det som bærer fargen, så tunnelen stiples i kanten.
+    if (ov && code === '504') {
+      rules.push(`${root} [data-iso="${code}"] path.overlay[data-tunnel="yes"] { display: none }`)
+      rules.push(`${root} [data-iso="${code}"] path[data-tunnel="yes"]:not(.overlay) { ${dashRule} }`)
+    } else if (ov) {
       rules.push(`${root} [data-iso="${code}"] path[data-tunnel="yes"]:not(.overlay) { display: none }`)
       rules.push(`${root} [data-iso="${code}"] path.overlay[data-tunnel="yes"] { ${dashRule} }`)
     } else {

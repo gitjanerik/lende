@@ -270,22 +270,38 @@ describe('skogsveg (504) leses som veg, ikke som sti', () => {
     expect(d('505').stroke.dasharray).toBeDefined()
   })
 
-  it('504 har tyngre strek enn 505, og casingen er aldri smalere', () => {
+  it('504 har tyngre strek enn 505', () => {
     expect(d('504').stroke.widthMm).toBeGreaterThan(d('505').stroke.widthMm)
-    expect(d('504').casingStroke.widthMm).toBeGreaterThanOrEqual(d('505').casingStroke.widthMm)
   })
 
   // v7.9.14: med 0,30 mm casing var skogsvegen dobbelt så bred som småvegen,
   // og småvegens tynne svarte kant så ut som stumper ved siden av den.
   it('504 har SAMME totalbredde som småvegen (503)', () => {
-    expect(d('504').casingStroke.widthMm).toBe(d('503').stroke.widthMm)
+    expect(d('504').stroke.widthMm).toBe(d('503').stroke.widthMm)
   })
 
-  it('504 er lettere enn småvegen (503), som er den over den igjen', () => {
-    expect(d('504').stroke.widthMm).toBeLessThan(d('503').stroke.widthMm)
-    // ...og 503 er den eneste av de to som bærer farge.
-    expect(d('503').overlayStroke).toBeDefined()
-    expect(d('504').overlayStroke).toBeUndefined()
+  // v7.9.27: hul veg. Én mørk strek gikk i ett med høydekurvene og kraftlinja;
+  // to kanter med lys kjerne har ingen annen linje på kartet. Kantene må være
+  // klart tykkere enn 503s, ellers er skogsvegen bare en smalere småveg.
+  it('504 er hul: mørk kant, lys kjerne, og tykkere kanter enn 503', () => {
+    const kant = (k) => (d(k).stroke.widthMm - d(k).overlayStroke.widthMm) / 2
+    expect(d('504').overlayStroke).toBeDefined()
+    expect(d('504').casingStroke).toBeUndefined()
+    expect(kant('504')).toBeGreaterThanOrEqual(2 * kant('503'))
+    expect(d('504').overlayStroke.widthMm).toBeGreaterThan(kant('504'))
+  })
+
+  it('i hvert tema skiller kjernen seg tydelig fra kanten', () => {
+    const lum = (hex) => {
+      const n = parseInt(String(hex).replace('#', ''), 16)
+      return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255
+    }
+    for (const [navn, t] of Object.entries(katalog.themes)) {
+      const v = t.categories?.['504']
+      if (!v) continue
+      expect(v.overlayStroke?.color, navn).toBeDefined()
+      expect(Math.abs(lum(v.stroke.color) - lum(v.overlayStroke.color)), navn).toBeGreaterThan(0.25)
+    }
   })
 })
 
