@@ -330,16 +330,16 @@
       },
       "504": {
         "label": "Skogsvei",
-        "$comment": "v7.9.14: SAMME TOTALBREDDE SOM SMÅVEGEN (503, 0,18 mm). v7.8.37 ga skogsvegen 0,16 mm strek i 0,30 mm casing for å skille den fra stien — men på kartet ble den dobbelt så bred som bilvegen den er et trinn under, og småvegens svarte kant så ut som stumper ved siden av. Nå: 0,12 mm heltrukken strek i 0,18 mm lys casing. Skillet mot 503 er fargen (503 har et lyst/oransje overlay-fyll med sort kant, 504 er mørk med lys kant), skillet mot stien er rytmen (heltrukken mot stiplet) og at vegstreken er tyngre. Casing-fargen faller tilbake på var(--bg) i CSS, så ingen tema-blokk trenger å sette den.",
-        "casingStroke": {
-          "color": "#fbf7ec",
+        "$comment": "v7.9.27: HUL VEG — to mørke kanter med lys kjerne. Fram til nå var skogsvegen én heltrukken mørk strek i en lys casing som falt tilbake på var(--bg), altså usynlig mot bakgrunnen; i Turkart var streken dessuten gråbrun. Den gikk derfor i ett med høydekurvene (én brun strek) og kraftlinja (én svart strek). Nå er den bygd som 501–503 (stroke = kant, overlayStroke = kjerne) og følger vei-passene, så den kobler rent i kryss med småvegen. Totalbredden er uendret (0,18 mm = 503). Skillet mot 503 er at kjernen er SMAL (0,08 mm): kantene er 0,05 mm hver mot 503s 0,015, så 504 leses som en mørk dobbeltstrek og 503 som en farget eller hvit veg. I tunnel stiples KANTEN og kjernen skjules (symbolizer) — en lys stipling ville ikke synes.",
+        "stroke": {
+          "color": "#1a1a1a",
           "widthMm": 0.18,
           "linecap": "round",
           "linejoin": "round"
         },
-        "stroke": {
-          "color": "#1a1a1a",
-          "widthMm": 0.12,
+        "overlayStroke": {
+          "color": "#fbf7ec",
+          "widthMm": 0.08,
           "linecap": "round",
           "linejoin": "round"
         }
@@ -1820,7 +1820,10 @@
         },
         "504": {
           "stroke": {
-            "color": "#4a4038"
+            "color": "#262626"
+          },
+          "overlayStroke": {
+            "color": "#f3ead2"
           }
         },
         "505": {
@@ -2120,6 +2123,9 @@
         "504": {
           "stroke": {
             "color": "#a09786"
+          },
+          "overlayStroke": {
+            "color": "#f7f4ea"
           }
         },
         "505": {
@@ -2419,6 +2425,9 @@
         "504": {
           "stroke": {
             "color": "#2b2b2b"
+          },
+          "overlayStroke": {
+            "color": "#fcfbf7"
           }
         },
         "505": {
@@ -2718,6 +2727,9 @@
         "504": {
           "stroke": {
             "color": "#2b2b2b"
+          },
+          "overlayStroke": {
+            "color": "#fbfdfe"
           }
         },
         "505": {
@@ -3053,6 +3065,9 @@
         "504": {
           "stroke": {
             "color": "#dac7a1"
+          },
+          "overlayStroke": {
+            "color": "#14181c"
           }
         },
         "505": {
@@ -3431,6 +3446,9 @@
         "504": {
           "stroke": {
             "color": "#312d27"
+          },
+          "overlayStroke": {
+            "color": "#faf5ea"
           }
         },
         "505": {
@@ -3804,6 +3822,9 @@
         "504": {
           "stroke": {
             "color": "#cccfd7"
+          },
+          "overlayStroke": {
+            "color": "#16203c"
           }
         },
         "505": {
@@ -4177,6 +4198,9 @@
         "504": {
           "stroke": {
             "color": "#c7d2d3"
+          },
+          "overlayStroke": {
+            "color": "#0c2a2e"
           }
         },
         "505": {
@@ -4550,6 +4574,9 @@
         "504": {
           "stroke": {
             "color": "#d6cec8"
+          },
+          "overlayStroke": {
+            "color": "#39210e"
           }
         },
         "505": {
@@ -4923,6 +4950,9 @@
         "504": {
           "stroke": {
             "color": "#cad2cb"
+          },
+          "overlayStroke": {
+            "color": "#142a18"
           }
         },
         "505": {
@@ -5296,6 +5326,9 @@
         "504": {
           "stroke": {
             "color": "#52515a"
+          },
+          "overlayStroke": {
+            "color": "#0d0520"
           }
         },
         "505": {
