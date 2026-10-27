@@ -1,3 +1,9 @@
+## 2026-10-27 — v7.9.29: Personvern-teksten sier hva Wikipedia og SNL får
+
+Personvern-seksjonen i «Om Lende» la Store norske leksikon og Wikipedia i samme liste som kildene kartet bygges fra, men de får noe annet og bare på forespørsel: ved langt trykk på kartet eller Info-snarveien sendes punktets koordinater til Wikipedia (geosearch, nærmeste artikkel) og stedsnavnet til SNL, som ikke har koordinater. Det har nå sitt eget avsnitt, som også sier at punktet er brukerens posisjon om det er der man trykker. Nominatim står som det det er — søketeksten, ikke kartutsnittet.
+
+---
+
 ## 2026-10-27 — v7.9.28: Personvern-seksjon i «Om Lende»
 
 «Om Lende» (/om og hovedmenyens «Om appen») har fått en egen personvern-seksjon nederst. Den sier det som faktisk er sant i koden: ingen konto, ingen informasjonskapsler og ingen analyse eller sporing; kart, ruter, GPS-spor og markeringer ligger i nettleserens IndexedDB og innstillingene i localStorage; kartutsnittet sendes til de åpne kildene (OSM, Kartverket, NVE, Miljødirektoratet, SNL, Wikipedia, BRouter) og via vår Cloudflare-Worker til MET, Kulturminnesøk og NVE HydAPI; og delte kartfiler tar aldri med GPS-spor eller markeringer. Øverst i «Om» står en «Personvern»-lenke som ruller ned til seksjonen — både på /om (vinduet ruller) og i modalen (modal-kroppen ruller); rullingen finner nærmeste rullbare forelder selv i stedet for `scrollIntoView`, som også ville rullet overflow-hidden-forfedre. Legges det til en ny ekstern kilde, skal den nevnes her.

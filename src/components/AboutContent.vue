@@ -696,14 +696,23 @@ function tilPersonvern() {
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Det som må sendes for å lage kartet.</strong>
         For å bygge et kart sendes kartutsnittet — og dermed omtrent hvor du er —
-        til de åpne kildene: OpenStreetMap (Overpass og Nominatim ved søk),
-        Kartverket/Geonorge, NVE, Miljødirektoratet, Store norske leksikon og
-        Wikipedia, og til BRouter når du planlegger en rute.
+        til de åpne kildene: OpenStreetMap (Overpass), Kartverket/Geonorge, NVE
+        og Miljødirektoratet, og til BRouter når du planlegger en rute. Søker du
+        etter et sted, går søketeksten til OpenStreetMap (Nominatim).
         Værvarsel, kulturminner og vannmålestasjoner går via vår egen
         Cloudflare-Worker, som mellomlagrer svarene en kort stund, men ikke hvem
-        som spurte. Som
-        ved alle nettforespørsler ser mottakeren IP-adressen din. GPS-posisjonen
-        din sendes aldri noe sted av seg selv.
+        som spurte.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Fakta om et sted.</strong>
+        Holder du fingeren på kartet, eller trykker på Info, sendes koordinatene
+        til punktet til Wikipedia for å finne nærmeste artikkel, og stedsnavnet
+        til Store norske leksikon. Det skjer bare når du ber om det. Er punktet
+        din egen posisjon, er det posisjonen din som sendes.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Som ved alle nettforespørsler ser mottakeren IP-adressen din.
+        GPS-posisjonen din sendes aldri noe sted av seg selv.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Deling skjer bare når du ber om det.</strong>
