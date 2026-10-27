@@ -1,3 +1,11 @@
+## 2026-10-27 — v7.9.28: Personvern-seksjon i «Om Lende»
+
+«Om Lende» (/om og hovedmenyens «Om appen») har fått en egen personvern-seksjon nederst. Den sier det som faktisk er sant i koden: ingen konto, ingen informasjonskapsler og ingen analyse eller sporing; kart, ruter, GPS-spor og markeringer ligger i nettleserens IndexedDB og innstillingene i localStorage; kartutsnittet sendes til de åpne kildene (OSM, Kartverket, NVE, Miljødirektoratet, SNL, Wikipedia, BRouter) og via vår Cloudflare-Worker til MET, Kulturminnesøk og NVE HydAPI; og delte kartfiler tar aldri med GPS-spor eller markeringer. Øverst i «Om» står en «Personvern»-lenke som ruller ned til seksjonen — både på /om (vinduet ruller) og i modalen (modal-kroppen ruller); rullingen finner nærmeste rullbare forelder selv i stedet for `scrollIntoView`, som også ville rullet overflow-hidden-forfedre. Legges det til en ny ekstern kilde, skal den nevnes her.
+
+I samme slengen: vite 8.3.0 → 8.3.5 for et nytt high-varsel (GHSA-9jrq-w75r-8gcw m.fl.) som stoppet `npm audit --omit=dev`-gaten i CI. `npm audit fix` kræsjer på npm 10 (`edgesOut`), så lockfila er oppdatert med npm 11.
+
+---
+
 ## 2026-10-17 — v7.9.27: Skogsveien er en hul veg — to mørke kanter med lys kjerne
 
 Skogsveien (504) var én heltrukken mørk strek, i Turkart gråbrun, med en lys kant som falt tilbake på bakgrunnsfargen og derfor ikke syntes. Den gikk i ett med høydekurvene (én brun strek) og kraftlinja (én svart strek med tverrmerker). Nå tegnes den som en hul veg: to mørke kanter med en smal, lys kjerne — en form ingen annen linje på kartet har. Totalbredden er uendret (som småvegen), men kjernen er smal (0,08 mm), så kantene er over tre ganger så tunge som småvegens og veien leses som en dobbeltstrek og ikke som en smal småveg. Den er bygd som 501–503 (kant + kjerne) og følger vei-passene, så den kobler rent i kryss. Alle temaer har fått et eget kant/kjerne-par; i mørke temaer er kjernen bakgrunnen, så veien blir to lyse streker. I tunnel stiples kanten og kjernen skjules. Kartene må bygges på nytt for å få det nye symbolet.

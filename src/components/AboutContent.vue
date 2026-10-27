@@ -31,6 +31,26 @@ async function onInstallClick() {
     await promptInstall()
   } catch { /* avvist eller utilgjengelig — ingen handling */ }
 }
+
+// Ruller selv i stedet for scrollIntoView: innholdet bor både på /om (vinduet
+// ruller) og i AboutModal (modal-kroppen ruller), og scrollIntoView ruller også
+// forfedre som er overflow-hidden — som MapView-rota modalen kan ligge over.
+const personvernRef = ref(null)
+function tilPersonvern() {
+  const maal = personvernRef.value
+  if (!maal) return
+  let flate = maal.parentElement
+  while (flate && !(/(auto|scroll)/.test(getComputedStyle(flate).overflowY)
+                    && flate.scrollHeight > flate.clientHeight)) {
+    flate = flate.parentElement
+  }
+  const marg = parseFloat(getComputedStyle(maal).scrollMarginTop) || 0
+  const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+  const topp = maal.getBoundingClientRect().top - marg
+  if (flate) flate.scrollTo({ top: flate.scrollTop + topp - flate.getBoundingClientRect().top, behavior })
+  else window.scrollTo({ top: window.scrollY + topp, behavior })
+  maal.focus({ preventScroll: true })
+}
 </script>
 
 <template>
@@ -61,6 +81,15 @@ async function onInstallClick() {
         <strong class="font-semibold text-ink-2">ut i lende</strong>
         med stil – med mest mulig grusvei fra A til B.
       </p>
+      <a href="#personvern" @click.prevent="tilPersonvern"
+         class="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2
+                underline underline-offset-4 decoration-ink/30 active:text-ink">
+        <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6z"/>
+        </svg>
+        Personvern
+      </a>
 
       <!-- «Installer som app»: rett under innledningen, vises kun når appen
            ikke alt kjører installert (standalone) og nettleseren tilbyr
@@ -646,6 +675,42 @@ async function onInstallClick() {
           ikke godkjent for navigasjon til sjøs eller i nødsituasjoner.</p>
       </div>
       <VersjonSjekk class="text-[11px] text-ink-4 pt-1" />
+    </section>
+
+    <!-- Personvern. Holdes i takt med hva appen faktisk sender: legges det til
+         en ny ekstern kilde eller sporing, skal den stå her. -->
+    <section id="personvern" ref="personvernRef" tabindex="-1"
+             class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-3 scroll-mt-20 outline-none">
+      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Personvern</h3>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Lende har ingen innlogging, ingen konto og ingen database hos oss. Vi
+        bruker ikke informasjonskapsler, analyseverktøy eller annen sporing.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Det du lager, blir på enheten din.</strong>
+        Kart, ruter, GPS-spor, markeringer og stjernemerkinger lagres i
+        nettleseren (IndexedDB), og innstillingene dine i localStorage. Du
+        sletter alt ved å slette kartene i appen eller tømme nettstedsdataene
+        for denne siden.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Det som må sendes for å lage kartet.</strong>
+        For å bygge et kart sendes kartutsnittet — og dermed omtrent hvor du er —
+        til de åpne kildene: OpenStreetMap (Overpass og Nominatim ved søk),
+        Kartverket/Geonorge, NVE, Miljødirektoratet, Store norske leksikon og
+        Wikipedia, og til BRouter når du planlegger en rute.
+        Værvarsel, kulturminner og vannmålestasjoner går via vår egen
+        Cloudflare-Worker, som mellomlagrer svarene en kort stund, men ikke hvem
+        som spurte. Som
+        ved alle nettforespørsler ser mottakeren IP-adressen din. GPS-posisjonen
+        din sendes aldri noe sted av seg selv.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Deling skjer bare når du ber om det.</strong>
+        En delingslenke inneholder kartutsnittet, og en delt kartfil inneholder
+        hele kartet — men aldri GPS-spor eller markeringer. Lenker ut av appen,
+        som «Åpne i Google Maps», tar med seg koordinatene til den tjenesten.
+      </p>
     </section>
   </div>
 </template>
