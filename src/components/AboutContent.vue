@@ -706,11 +706,6 @@ function tilPersonvern() {
         din sendes aldri noe sted av seg selv.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        <strong class="text-ink">Lende-chatten</strong> er bare tilgjengelig med
-        en personlig tilgangsnøkkel. Det du skriver, sammen med utdrag av kartet,
-        sendes til Cloudflare Workers AI for å lage svaret.
-      </p>
-      <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Deling skjer bare når du ber om det.</strong>
         En delingslenke inneholder kartutsnittet, og en delt kartfil inneholder
         hele kartet — men aldri GPS-spor eller markeringer. Lenker ut av appen,
