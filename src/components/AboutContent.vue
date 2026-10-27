@@ -31,6 +31,26 @@ async function onInstallClick() {
     await promptInstall()
   } catch { /* avvist eller utilgjengelig — ingen handling */ }
 }
+
+// Ruller selv i stedet for scrollIntoView: innholdet bor både på /om (vinduet
+// ruller) og i AboutModal (modal-kroppen ruller), og scrollIntoView ruller også
+// forfedre som er overflow-hidden — som MapView-rota modalen kan ligge over.
+const personvernRef = ref(null)
+function tilPersonvern() {
+  const maal = personvernRef.value
+  if (!maal) return
+  let flate = maal.parentElement
+  while (flate && !(/(auto|scroll)/.test(getComputedStyle(flate).overflowY)
+                    && flate.scrollHeight > flate.clientHeight)) {
+    flate = flate.parentElement
+  }
+  const marg = parseFloat(getComputedStyle(maal).scrollMarginTop) || 0
+  const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+  const topp = maal.getBoundingClientRect().top - marg
+  if (flate) flate.scrollTo({ top: flate.scrollTop + topp - flate.getBoundingClientRect().top, behavior })
+  else window.scrollTo({ top: window.scrollY + topp, behavior })
+  maal.focus({ preventScroll: true })
+}
 </script>
 
 <template>
@@ -61,6 +81,15 @@ async function onInstallClick() {
         <strong class="font-semibold text-ink-2">ut i lende</strong>
         med stil – med mest mulig grusvei fra A til B.
       </p>
+      <a href="#personvern" @click.prevent="tilPersonvern"
+         class="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2
+                underline underline-offset-4 decoration-ink/30 active:text-ink">
+        <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6z"/>
+        </svg>
+        Personvern
+      </a>
 
       <!-- «Installer som app»: rett under innledningen, vises kun når appen
            ikke alt kjører installert (standalone) og nettleseren tilbyr
@@ -650,7 +679,8 @@ async function onInstallClick() {
 
     <!-- Personvern. Holdes i takt med hva appen faktisk sender: legges det til
          en ny ekstern kilde eller sporing, skal den stå her. -->
-    <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-3">
+    <section id="personvern" ref="personvernRef" tabindex="-1"
+             class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-3 scroll-mt-20 outline-none">
       <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Personvern</h3>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Lende har ingen innlogging, ingen konto og ingen database hos oss. Vi
