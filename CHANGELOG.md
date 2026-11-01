@@ -1,3 +1,9 @@
+## 2026-11-01 — v7.9.31: Dependabot venter 7 dager på nye versjoner
+
+Dependabot foreslår ikke lenger en ny pakkeversjon før den har ligget ute i 7 dager (major-versjoner 14) — `cooldown` i `.github/dependabot.yml`, for alle fire npm-katalogene og GitHub Actions. Kaprede npm-versjoner blir som regel oppdaget og trukket i løpet av timer til et par døgn, så ventetiden gjør at vi aldri er blant de første som henter dem. GitHubs standard er 3 dager. Sikkerhetsoppdateringer er ikke omfattet og kommer som før.
+
+---
+
 ## 2026-11-01 — v7.9.30: Nye kart får stier igjen — Overpass får 60 s per forsøk
 
 Nye kart stoppet på «Fikk ikke lastet stier og detaljer. Kartet viser bare terreng nå.» Målt fra en GitHub-runner med en ekte spørring (4 × 4 km i Hole): overpass-api.de brukte 39 s til første byte, mens klient-taket per forsøk var 30 s — så hvert av de tre forsøkene ble avbrutt rett før svaret kom. De andre speilene hjalp ikke: overpass.kumi.systems svarer ikke i det hele tatt, overpass.openstreetmap.fr svarer nå 403 («only available to white-listed usages») på nettleser-kall med Origin, og maps.mail.ru gir 504. Baseline-taket er hevet til 60 s og skaleres med 0,5 s per km² over 16 km² opp til 120 s (8 × 8 km-arket får 84 s), og serverens `[timeout:N]` følger som før. Det døde kumi-speilet er byttet med overpass.private.coffee, som svarer, men tregt og med eldre data — det er en reserve, ikke en vinner. openstreetmap.fr står igjen fordi headless/MCP/fasit fortsatt får svar derfra.

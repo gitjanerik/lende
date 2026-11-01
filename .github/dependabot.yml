@@ -11,6 +11,11 @@
 # i uka ville drept PR-per-endring-modellen. Major står ALENE: det er de som
 # trenger en ekte gjennomgang, og de skal ikke kunne gjemme seg i en samle-PR.
 #
+# `cooldown` (v7.9.31): en ny versjon foreslås først når den har ligget ute i
+# 7 dager, major i 14. Kaprede npm-versjoner blir som regel oppdaget og trukket
+# innen et par døgn; ventetiden gjør at vi aldri er blant de første som henter
+# dem. GitHubs egen standard er 3 dager. Sikkerhetsoppdateringer venter ikke.
+#
 # Merk: `cloudflare/proxy` og `cloudflare/ai-worker` har ingen `package-lock.json`
 # (bare wrangler som dev-avhengighet). Dependabot oppdaterer da manifestet alene,
 # som er riktig her — Workerne bundles av wrangler ved deploy.
@@ -22,6 +27,9 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     commit-message:
       prefix: 'deps'
     groups:
@@ -41,6 +49,9 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     commit-message:
       prefix: 'deps(mcp-worker)'
     groups:
@@ -54,6 +65,9 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     commit-message:
       prefix: 'deps(proxy)'
     groups:
@@ -67,6 +81,9 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     commit-message:
       prefix: 'deps(ai-worker)'
     groups:
@@ -80,6 +97,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: 'deps(actions)'
     groups:
