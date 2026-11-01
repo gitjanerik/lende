@@ -1,3 +1,9 @@
+## 2026-11-01 — v7.9.33: Plan for kart uten å vente på Overpass
+
+Ingen kodeendring. `docs/PLAN_OSM_UAVHENGIG.md` beskriver den vedtatte planen for å få Overpass ut av den kritiske stien: fase 1 legger N50-veger inn i baken og bygger et N50-ark når OSM ikke har svart innen få sekunder (OSM blir påfyll), fase 2 baker OSM selv fra Geofabriks Norge-uttrekk til fliser i R2 i samme JSON-form som Overpass svarer med. Målingene fra 1. november står i planen, og CLAUDE.md peker dit fra merknaden om kritisk sti.
+
+---
+
 ## 2026-11-01 — v7.9.32: Overpass-429 — vent på ledig plass, og ikke bruk den på proben
 
 v7.9.30 rettet ikke feilen. En reproduksjon i Chromium fra GitHub viste den ekte årsaken: overpass-api.de gir hver IP to plasser, og tetthets-proben som fyres rett før hovedspørringen gir opp etter 8 s mens plassen fortsatt er opptatt — så hovedspørringen fikk 429. Backoffen var 1,5 og 4 s, og på mobilnett deler mange brukere samme IP (CGNAT), så tre 429 på rad ga et kart uten stier. Nå: (1) ved 429 spør vi `/api/status` hvor lenge det er til neste ledige plass og venter så lenge (5–45 s, 15 s om statusen ikke svarer), og vi prøver fire ganger i stedet for tre; (2) proben hoppes over for ark på 4 km eller mindre, der den nesten aldri endrer noe, og server-taket dens følger klient-taket så en oppgitt sondering ikke holder plassen; (3) private.coffee er fjernet igjen — den henger, og et speil som henger holder hele kappløpet og dermed neste forsøk mot overpass-api.de i opptil 60 s. Målt i Chromium etterpå: 2 km uten 429 på 34 s, 8 km med én 429 som ventes ut, 59 s.
