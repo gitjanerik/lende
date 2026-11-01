@@ -44,12 +44,12 @@ const PROBE_TIMEOUT_S = 20
  * parentesene ville statement nr. 2 overskrive resultatsettet `_` og vi ville
  * bare telt den siste selektoren.
  */
-export function buildDensityProbeQuery(bbox) {
+export function buildDensityProbeQuery(bbox, { timeoutS = PROBE_TIMEOUT_S } = {}) {
   const blocks = DENSITY_CATEGORIES.map(
     (c) => `(\n  ${c.selectors.join('\n  ')}\n);\nout count;`,
   ).join('\n')
   return `
-[out:json][timeout:${PROBE_TIMEOUT_S}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
+[out:json][timeout:${timeoutS}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
 ${blocks}
 `.trim()
 }
@@ -88,7 +88,10 @@ export async function probeDensity(bbox, { signal, timeoutMs = 12000 } = {}) {
   const arealKm2 = bboxAreaKm2(bbox)
   if (!(arealKm2 > 0)) return null
   try {
-    const body = 'data=' + encodeURIComponent(buildDensityProbeQuery(bbox))
+    // Server-taket = klient-taket: en sondering vi har gitt opp skal ikke holde
+    // en av IP-ens få Overpass-plasser mens hovedspørringen trenger den.
+    const timeoutS = Math.min(PROBE_TIMEOUT_S, Math.ceil(timeoutMs / 1000))
+    const body = 'data=' + encodeURIComponent(buildDensityProbeQuery(bbox, { timeoutS }))
     // Fredede kulturminner er gratis å telle (resultType=hits) og er en av de
     // tetteste kildene i byer. fetchFredaCount svelger sine egne feil (→ null).
     const [json, freda] = await Promise.all([

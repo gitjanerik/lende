@@ -75,6 +75,7 @@ function registrerEntry(id, entry) { ferskEntry = { id, entry } }
 // Restbudsjett for sekundærkildene, målt fra at OSM + DEM + vann er inne.
 // Se assembleAndBuildFull for hvorfor det er så romslig som det er.
 const SEKUNDAER_BUDSJETT_MS = 5000
+const TETTHET_MIN_BREDDE_KM = 4
 
 const EMPTY_SJOKART = {
   dybdeareal: [], dybdekontur: [], grunne: [], lanterne: [], dybdepunkt: [],
@@ -304,7 +305,12 @@ export async function buildMapFromCenter({
   let effHalfKm = halfKm
   let detaljNivaa = 'full'
   let tetthet = null
-  if (!explicitUtmBbox && !ignorerTetthet) {
+  // Under 4 km bredde endrer sonderingen nesten aldri noe (bredden kan ikke
+  // klampes under 2 km, og «sparsom» slår først inn ved ekstrem tetthet), men den
+  // koster én av IP-ens to Overpass-plasser rett før hovedspørringen — og ga 429
+  // på hovedspørringen hver gang i nov. 2026 (v7.9.32).
+  const tetthetVerdt = halfKm * 2 > TETTHET_MIN_BREDDE_KM
+  if (!explicitUtmBbox && !ignorerTetthet && tetthetVerdt) {
     onProgress('Måler datamengden i området …')
     // 8 s tak, ikke standard-12: dette er den ene ventetiden vi LEGGER TIL foran
     // byggingen (bredden må være avgjort før DEM-extenten snappes). Timer den

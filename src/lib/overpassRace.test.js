@@ -36,8 +36,8 @@ describe('overpassTimeoutForBbox — areal-skalert klient-tak', () => {
 describe('fetchOverpass speil-kappløp', () => {
   it('returnerer det første speilet som svarer (det raske vinner)', async () => {
     vi.stubGlobal('fetch', vi.fn((url) => {
-      if (url.includes('coffee')) return Promise.resolve(okRes({ elements: ['rask'] }))
-      // de: treg — løser etter en makro-task, så coffee vinner kappløpet
+      if (url.includes('fr')) return Promise.resolve(okRes({ elements: ['rask'] }))
+      // de: treg — løser etter en makro-task, så fr vinner kappløpet
       return new Promise(resolve => setTimeout(() => resolve(okRes({ elements: ['treg'] })), 50))
     }))
     const data = await fetchOverpass(bbox)
@@ -54,7 +54,7 @@ describe('fetchOverpass speil-kappløp', () => {
       json: async () => { jsonKalt.push(navn); return { elements: [navn] } },
     })
     vi.stubGlobal('fetch', vi.fn((url, { signal }) => {
-      if (url.includes('coffee')) return Promise.resolve(svar('coffee'))
+      if (url.includes('fr')) return Promise.resolve(svar('fr'))
       // De to andre svarer med hoder senere; de skal da alt være avbrutt.
       return new Promise((resolve, reject) => {
         const t = setTimeout(() => resolve(svar('treg')), 30)
@@ -62,14 +62,14 @@ describe('fetchOverpass speil-kappløp', () => {
       })
     }))
     const data = await fetchOverpass(bbox)
-    expect(data.elements).toEqual(['coffee'])
+    expect(data.elements).toEqual(['fr'])
     await new Promise(r => setTimeout(r, 60))
-    expect(jsonKalt).toEqual(['coffee'])
+    expect(jsonKalt).toEqual(['fr'])
   })
 
   it('faller over til et annet speil når ett feiler', async () => {
     vi.stubGlobal('fetch', vi.fn((url) => {
-      if (url.includes('coffee')) return Promise.reject(new Error('nett-feil'))
+      if (url.includes('fr')) return Promise.reject(new Error('nett-feil'))
       return Promise.resolve(okRes({ elements: ['de-ok'] }))
     }))
     const data = await fetchOverpass(bbox)
@@ -105,5 +105,43 @@ describe('fetchOverpass speil-kappløp', () => {
     ctrl.abort()
     await expect(fetchOverpass(bbox, { signal: ctrl.signal })).rejects.toThrow(/Avbrutt/)
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('429 fra Overpass — vent på ledig plass', () => {
+  it('leser ventetiden fra /api/status', async () => {
+    const { slotVentetidFraStatus } = await import('./overpassClient.js')
+    const status = `Connected as: 123
+Current time: 2026-11-01T21:40:00Z
+Announced endpoint: none
+Rate limit: 2
+Slot available after: 2026-11-01T21:40:12Z, in 12 seconds.
+Slot available after: 2026-11-01T21:40:30Z, in 30 seconds.
+Currently running queries (pid, space limit, time limit, start time):`
+    expect(slotVentetidFraStatus(status)).toBe(12000)
+    expect(slotVentetidFraStatus('Rate limit: 2\n2 slots available now.\n')).toBe(0)
+    expect(slotVentetidFraStatus('ingenting')).toBeNull()
+  })
+  it('klemmer ventetiden til [5, 45] s og faller tilbake til 15 s', async () => {
+    const { ventetidEtter429 } = await import('./overpassClient.js')
+    expect(ventetidEtter429(null)).toBe(15000)
+    expect(ventetidEtter429(0)).toBe(5000)
+    expect(ventetidEtter429(12000)).toBe(13000)
+    expect(ventetidEtter429(300000)).toBe(45000)
+  })
+  it('venter etter et 429-kappløp og lykkes på neste forsøk', async () => {
+    vi.useFakeTimers()
+    let kall = 0
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      if (url.includes('/api/status')) return Promise.resolve({ ok: true, text: async () => 'Slot available after: x, in 20 seconds.' })
+      kall++
+      return Promise.resolve(kall <= 3 ? errRes(429) : okRes({ elements: ['ok'] }))
+    }))
+    const meldinger = []
+    const p = fetchOverpass(bbox, { onProgress: m => meldinger.push(m) })
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(meldinger.some(m => /opptatt — venter 21 s/.test(m))).toBe(true)
+    await vi.advanceTimersByTimeAsync(15000)
+    expect((await p).elements).toEqual(['ok'])
   })
 })
