@@ -8,9 +8,10 @@
 // første gyldige svaret. Alle støtter CORS for browser-fetch.
 const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-  // Svarer 403 «only available to white-listed usages» på nettleser-kall (med
-  // Origin) fra nov. 2026 — står igjen fordi headless/MCP/fasit får svar.
+  // Avviser nettleser-kall fra nov. 2026 (403 / CORS) og feiler da straks — står
+  // igjen fordi headless/MCP/fasit får svar. kumi.systems og private.coffee ble
+  // målt og forkastet i v7.9.32: begge henger, og et speil som henger holder
+  // hele kappløpet — og dermed neste forsøk mot overpass-api.de — i opptil 60 s.
   'https://overpass.openstreetmap.fr/api/interpreter',
 ]
 const OVERPASS_HEADERS = {
@@ -29,8 +30,8 @@ export const OVERPASS_TIMEOUT_MAX_MS = 120000
 // Overpass-speilene feiler ofte forbigående (429/502/504/timeout under last) og
 // lykkes på neste forsøk. Vi prøver på nytt med backoff i stedet for å gi opp
 // etter ett kappløp.
-const OVERPASS_ATTEMPTS = 3
-const OVERPASS_BACKOFF_MS = [1500, 4000]   // ventetid før forsøk 2 og 3
+const OVERPASS_ATTEMPTS = 4
+const OVERPASS_BACKOFF_MS = [1500, 4000, 8000]
 
 // Ett kappløp mellom speilene: første gyldige svar vinner, resten avbrytes
 // (sparer båndbredde/last). Hvert speil har egen AbortController, lenket til
@@ -92,6 +93,49 @@ export const delay = (ms, signal) => new Promise((resolve, reject) => {
   }, { once: true })
 })
 
+// Overpass gir hver IP noen få samtidige plasser og svarer 429 når de er tatt.
+// På mobil deler mange brukere samme IP (CGNAT), så 1,5 og 4 s backoff var tre
+// 429 på rad og et kart uten stier (v7.9.32). /api/status sier når neste plass
+// er ledig; vi venter så lenge, innenfor et tak.
+const OVERPASS_STATUS_URL = 'https://overpass-api.de/api/status'
+const SLOT_VENT_MIN_MS = 5000
+const SLOT_VENT_MAKS_MS = 45000
+const SLOT_VENT_FALLBACK_MS = 15000
+
+export function slotVentetidFraStatus(tekst) {
+  if (typeof tekst !== 'string') return null
+  const ledige = tekst.match(/(\d+)\s+slots? available now/i)
+  if (ledige && Number(ledige[1]) > 0) return 0
+  const sek = [...tekst.matchAll(/in\s+(-?\d+)\s+seconds?/gi)].map(m => Number(m[1]))
+  if (!sek.length) return null
+  return Math.max(0, Math.min(...sek)) * 1000
+}
+
+export function ventetidEtter429(statusMs) {
+  const ms = statusMs == null ? SLOT_VENT_FALLBACK_MS : statusMs + 1000
+  return Math.min(SLOT_VENT_MAKS_MS, Math.max(SLOT_VENT_MIN_MS, ms))
+}
+
+async function hentSlotVentetid(signal) {
+  try {
+    const ctl = new AbortController()
+    const t = setTimeout(() => ctl.abort(), 5000)
+    const avbryt = () => ctl.abort()
+    signal?.addEventListener('abort', avbryt, { once: true })
+    try {
+      const res = await fetch(OVERPASS_STATUS_URL, { signal: ctl.signal })
+      return res.ok ? slotVentetidFraStatus(await res.text()) : null
+    } finally {
+      clearTimeout(t)
+      signal?.removeEventListener('abort', avbryt)
+    }
+  } catch {
+    return null
+  }
+}
+
+const erRateLimit = (e) => /Overpass-feil 429\b/.test(e?.message ?? '')
+
 // Retry-loop med backoff rundt speil-kappløpet. onProgress varsler brukeren
 // før hvert nye forsøk — tidligere var retries usynlige og spinneren så «død»
 // ut i opptil flere minutter.
@@ -100,9 +144,14 @@ export async function fetchOverpassWithRetry(body, { signal, timeoutMs, onProgre
   for (let attempt = 0; attempt < OVERPASS_ATTEMPTS; attempt++) {
     if (signal?.aborted) throw new DOMException('Avbrutt', 'AbortError')
     if (attempt > 0) {
-      const backoff = OVERPASS_BACKOFF_MS[attempt - 1] ?? OVERPASS_BACKOFF_MS.at(-1)
+      let backoff = OVERPASS_BACKOFF_MS[attempt - 1] ?? OVERPASS_BACKOFF_MS.at(-1)
+      if (erRateLimit(lastErr)) {
+        backoff = Math.max(backoff, ventetidEtter429(await hentSlotVentetid(signal)))
+        onProgress?.(`Overpass er opptatt — venter ${Math.round(backoff / 1000)} s på ledig plass …`)
+      } else {
+        onProgress?.(`Henter kartdata … (forsøk ${attempt + 1} av ${OVERPASS_ATTEMPTS})`)
+      }
       console.warn(`[Overpass] forsøk ${attempt} feilet (${lastErr?.message ?? lastErr}) — prøver igjen om ${backoff} ms`)
-      onProgress?.(`Henter kartdata … (forsøk ${attempt + 1} av ${OVERPASS_ATTEMPTS})`)
       await delay(backoff, signal)
     }
     try {

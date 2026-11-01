@@ -113,7 +113,7 @@ describe('fetchOverpass — synlig progresjon under retries', () => {
     fail = false
     await vi.advanceTimersByTimeAsync(3000)
     await p
-    expect(onProgress).toHaveBeenCalledWith(expect.stringMatching(/forsøk 2 av 3/))
+    expect(onProgress).toHaveBeenCalledWith(expect.stringMatching(/forsøk 2 av 4/))
     // Må ikke starte med Bygger/Lagrer (MapPickerView-state-heuristikken)
     for (const [msg] of onProgress.mock.calls) {
       expect(msg).not.toMatch(/^(Bygger|Lagrer)/)

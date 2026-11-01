@@ -1,3 +1,9 @@
+## 2026-11-01 — v7.9.32: Overpass-429 — vent på ledig plass, og ikke bruk den på proben
+
+v7.9.30 rettet ikke feilen. En reproduksjon i Chromium fra GitHub viste den ekte årsaken: overpass-api.de gir hver IP to plasser, og tetthets-proben som fyres rett før hovedspørringen gir opp etter 8 s mens plassen fortsatt er opptatt — så hovedspørringen fikk 429. Backoffen var 1,5 og 4 s, og på mobilnett deler mange brukere samme IP (CGNAT), så tre 429 på rad ga et kart uten stier. Nå: (1) ved 429 spør vi `/api/status` hvor lenge det er til neste ledige plass og venter så lenge (5–45 s, 15 s om statusen ikke svarer), og vi prøver fire ganger i stedet for tre; (2) proben hoppes over for ark på 4 km eller mindre, der den nesten aldri endrer noe, og server-taket dens følger klient-taket så en oppgitt sondering ikke holder plassen; (3) private.coffee er fjernet igjen — den henger, og et speil som henger holder hele kappløpet og dermed neste forsøk mot overpass-api.de i opptil 60 s. Målt i Chromium etterpå: 2 km uten 429 på 34 s, 8 km med én 429 som ventes ut, 59 s.
+
+---
+
 ## 2026-11-01 — v7.9.31: Dependabot venter 7 dager på nye versjoner
 
 Dependabot foreslår ikke lenger en ny pakkeversjon før den har ligget ute i 7 dager (major-versjoner 14) — `cooldown` i `.github/dependabot.yml`, for alle fire npm-katalogene og GitHub Actions. Kaprede npm-versjoner blir som regel oppdaget og trukket i løpet av timer til et par døgn, så ventetiden gjør at vi aldri er blant de første som henter dem. GitHubs standard er 3 dager. Sikkerhetsoppdateringer er ikke omfattet og kommer som før.
