@@ -8,7 +8,9 @@
 // første gyldige svaret. Alle støtter CORS for browser-fetch.
 const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  // Svarer 403 «only available to white-listed usages» på nettleser-kall (med
+  // Origin) fra nov. 2026 — står igjen fordi headless/MCP/fasit får svar.
   'https://overpass.openstreetmap.fr/api/interpreter',
 ]
 const OVERPASS_HEADERS = {
@@ -19,8 +21,10 @@ const OVERPASS_HEADERS = {
 
 // Klient-side tak PER FORSØK på Overpass-ventetid. Se mapBuilder.js
 // (overpassTimeoutForBbox) for areal-skaleringen som bygger på disse.
-export const OVERPASS_TIMEOUT_MS = 30000
-export const OVERPASS_TIMEOUT_MAX_MS = 90000   // matcher [timeout:90] i spørringen
+// 60 s og ikke 30 (v7.9.30): i nov. 2026 brukte overpass-api.de 39 s til første
+// byte på et 4 × 4 km-ark, så et 30 s-tak avbrøt hvert forsøk rett før svaret.
+export const OVERPASS_TIMEOUT_MS = 60000
+export const OVERPASS_TIMEOUT_MAX_MS = 120000
 
 // Overpass-speilene feiler ofte forbigående (429/502/504/timeout under last) og
 // lykkes på neste forsøk. Vi prøver på nytt med backoff i stedet for å gi opp

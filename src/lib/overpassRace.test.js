@@ -8,30 +8,36 @@ const errRes = (status) => ({ ok: false, status, text: async () => 'feil' })
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('overpassTimeoutForBbox — areal-skalert klient-tak', () => {
-  it('lite kart (~1 km²) bruker baseline 30 s', () => {
-    expect(overpassTimeoutForBbox(bbox)).toBe(30000)
+  it('lite kart (~1 km²) bruker baseline 60 s', () => {
+    expect(overpassTimeoutForBbox(bbox)).toBe(60000)
   })
-  it('stort kyst-/by-kart (~14 km, ~190 km²) klatrer mot 90 s', () => {
+  it('standardarket 8 × 8 km får mer enn baseline', () => {
+    const std = { south: 59.76, north: 59.832, west: 10.36, east: 10.503 }
+    const t = overpassTimeoutForBbox(std)
+    expect(t).toBeGreaterThan(75000)
+    expect(t).toBeLessThan(95000)
+  })
+  it('stort kyst-/by-kart (~14 km, ~190 km²) klatrer mot taket', () => {
     // 14 km bredt kvadrat rundt 59.8°N
     const big = { south: 59.74, north: 59.866, west: 10.3, east: 10.54 }
     const t = overpassTimeoutForBbox(big)
-    expect(t).toBeGreaterThan(60000)
-    expect(t).toBeLessThanOrEqual(90000)
+    expect(t).toBeGreaterThan(100000)
+    expect(t).toBeLessThanOrEqual(120000)
   })
-  it('klamper aldri over serverens 90 s-grense', () => {
+  it('klamper aldri over taket på 120 s', () => {
     const huge = { south: 59, north: 60, west: 10, east: 12 }
-    expect(overpassTimeoutForBbox(huge)).toBe(90000)
+    expect(overpassTimeoutForBbox(huge)).toBe(120000)
   })
   it('tåler manglende bbox', () => {
-    expect(overpassTimeoutForBbox(null)).toBe(30000)
+    expect(overpassTimeoutForBbox(null)).toBe(60000)
   })
 })
 
 describe('fetchOverpass speil-kappløp', () => {
   it('returnerer det første speilet som svarer (det raske vinner)', async () => {
     vi.stubGlobal('fetch', vi.fn((url) => {
-      if (url.includes('kumi')) return Promise.resolve(okRes({ elements: ['rask'] }))
-      // de: treg — løser etter en makro-task, så kumi vinner kappløpet
+      if (url.includes('coffee')) return Promise.resolve(okRes({ elements: ['rask'] }))
+      // de: treg — løser etter en makro-task, så coffee vinner kappløpet
       return new Promise(resolve => setTimeout(() => resolve(okRes({ elements: ['treg'] })), 50))
     }))
     const data = await fetchOverpass(bbox)
@@ -48,7 +54,7 @@ describe('fetchOverpass speil-kappløp', () => {
       json: async () => { jsonKalt.push(navn); return { elements: [navn] } },
     })
     vi.stubGlobal('fetch', vi.fn((url, { signal }) => {
-      if (url.includes('kumi')) return Promise.resolve(svar('kumi'))
+      if (url.includes('coffee')) return Promise.resolve(svar('coffee'))
       // De to andre svarer med hoder senere; de skal da alt være avbrutt.
       return new Promise((resolve, reject) => {
         const t = setTimeout(() => resolve(svar('treg')), 30)
@@ -56,14 +62,14 @@ describe('fetchOverpass speil-kappløp', () => {
       })
     }))
     const data = await fetchOverpass(bbox)
-    expect(data.elements).toEqual(['kumi'])
+    expect(data.elements).toEqual(['coffee'])
     await new Promise(r => setTimeout(r, 60))
-    expect(jsonKalt).toEqual(['kumi'])
+    expect(jsonKalt).toEqual(['coffee'])
   })
 
   it('faller over til et annet speil når ett feiler', async () => {
     vi.stubGlobal('fetch', vi.fn((url) => {
-      if (url.includes('kumi')) return Promise.reject(new Error('nett-feil'))
+      if (url.includes('coffee')) return Promise.reject(new Error('nett-feil'))
       return Promise.resolve(okRes({ elements: ['de-ok'] }))
     }))
     const data = await fetchOverpass(bbox)

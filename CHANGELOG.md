@@ -1,3 +1,9 @@
+## 2026-11-01 — v7.9.30: Nye kart får stier igjen — Overpass får 60 s per forsøk
+
+Nye kart stoppet på «Fikk ikke lastet stier og detaljer. Kartet viser bare terreng nå.» Målt fra en GitHub-runner med en ekte spørring (4 × 4 km i Hole): overpass-api.de brukte 39 s til første byte, mens klient-taket per forsøk var 30 s — så hvert av de tre forsøkene ble avbrutt rett før svaret kom. De andre speilene hjalp ikke: overpass.kumi.systems svarer ikke i det hele tatt, overpass.openstreetmap.fr svarer nå 403 («only available to white-listed usages») på nettleser-kall med Origin, og maps.mail.ru gir 504. Baseline-taket er hevet til 60 s og skaleres med 0,5 s per km² over 16 km² opp til 120 s (8 × 8 km-arket får 84 s), og serverens `[timeout:N]` følger som før. Det døde kumi-speilet er byttet med overpass.private.coffee, som svarer, men tregt og med eldre data — det er en reserve, ikke en vinner. openstreetmap.fr står igjen fordi headless/MCP/fasit fortsatt får svar derfra.
+
+---
+
 ## 2026-10-27 — v7.9.29: Personvern-teksten sier hva Wikipedia og SNL får
 
 Personvern-seksjonen i «Om Lende» la Store norske leksikon og Wikipedia i samme liste som kildene kartet bygges fra, men de får noe annet og bare på forespørsel: ved langt trykk på kartet eller Info-snarveien sendes punktets koordinater til Wikipedia (geosearch, nærmeste artikkel) og stedsnavnet til SNL, som ikke har koordinater. Det har nå sitt eget avsnitt, som også sier at punktet er brukerens posisjon om det er der man trykker. Nominatim står som det det er — søketeksten, ikke kartutsnittet.

@@ -50,13 +50,13 @@ import {
 // bor i overpassClient.js (v12.1.0) — delt med Ruteplanleggerens grusvei-
 // overlay. Areal-skaleringen av taket er kart-spesifikk og bor her:
 // Server-spørringen har timeout:90, men uten et klient-tak henger «Fyller inn
-// stier og detaljer …»-spinneren til server-timeouten slår inn. 30 s er romslig
-// for et par km², men taket MÅ skalere med arealet: et stort kart (200–400 km²)
+// stier og detaljer …»-spinneren til server-timeouten slår inn. Baseline er
+// 60 s (v7.9.30 — de offentlige speilene bruker nå 40 s på et lite ark), men taket MÅ skalere med arealet: et stort kart (200–400 km²)
 // i tett kyst-/byområde gir en spørring som lovlig bruker 40–80 s på serveren.
 // Se overpassTimeoutForBbox.
 
-// Skaler klient-taket med kart-arealet. ~16 km² (4×4) → 30 s; ~200 km² (≈14 km)
-// → 90 s; klampet til [30, 90] s. Et større utsnitt = flere OSM-elementer =
+// Skaler klient-taket med kart-arealet. ~16 km² (4×4) → 60 s; ~200 km² (≈14 km)
+// → 120 s; klampet til [60, 120] s. Et større utsnitt = flere OSM-elementer =
 // lengre lovlig server-tid, så taket må følge med ellers avbryter vi gyldige svar.
 export function bboxAreaKm2(bbox) {
   if (!bbox) return 0
@@ -69,8 +69,8 @@ export function bboxAreaKm2(bbox) {
 export function overpassTimeoutForBbox(bbox) {
   if (!bbox) return OVERPASS_TIMEOUT_MS
   const areaKm2 = bboxAreaKm2(bbox)
-  // 30 s baseline + 0.34 s per km² over 16 km² → ~90 s ved ~190 km².
-  const scaled = OVERPASS_TIMEOUT_MS + Math.max(0, areaKm2 - 16) * 340
+  // 60 s baseline + 0.5 s per km² over 16 km² → 84 s ved 8 × 8 km, tak 120 s.
+  const scaled = OVERPASS_TIMEOUT_MS + Math.max(0, areaKm2 - 16) * 500
   return Math.round(Math.min(OVERPASS_TIMEOUT_MAX_MS, Math.max(OVERPASS_TIMEOUT_MS, scaled)))
 }
 // timeoutS: server-timeouten skal matche klient-taket (overpassTimeoutForBbox)

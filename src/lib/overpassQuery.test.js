@@ -48,12 +48,12 @@ describe('buildBuildingsQuery', () => {
 })
 
 describe('fetchOverpass — server-timeout følger klient-taket', () => {
-  it('lite kart sender [timeout:30] og beholder bygninger i hovedspørringen', async () => {
+  it('lite kart sender [timeout:60] og beholder bygninger i hovedspørringen', async () => {
     const fetchSpy = vi.fn(() => Promise.resolve(okRes({ elements: [] })))
     vi.stubGlobal('fetch', fetchSpy)
     await fetchOverpass(smallBbox)
     const body = bodyOf(nonProbeCalls(fetchSpy)[0])
-    expect(body).toContain('[timeout:30]')
+    expect(body).toContain('[timeout:60]')
     expect(body).toContain('way["building"];')
   })
 })
