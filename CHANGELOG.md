@@ -1,3 +1,9 @@
+## 2026-11-01 — v7.9.34: Avhengigheter fra Dependabot tatt inn (#521, #508, #493, #462)
+
+De fire åpne Dependabot-PR-ene tatt inn på egen gren. Appen: vue 3.5.44, vue-router 5.4.0, three 0.186.1, @vitejs/plugin-vue 6.0.10, playwright 1.64.1, @napi-rs/canvas 1.0.13, linkedom 0.18.14, source-serif-4 5.3.1. Workerne: wrangler 4.152.0 i alle tre; i MCP-Workeren også agents 0.23 → 0.30.1 og zod 4.6.7. `agents` er 0.x, så minor-hoppet er brytende selv om Dependabot la det i patch/minor-gruppen — `boot:workers` og `mcp:protokoll` er grønne, og `createLegacyMcpHandler` finnes fortsatt. To avvik fra robotens forslag: `@modelcontextprotocol/sdk` er 1.32.1 og ikke 1.32.2, fordi agents 0.30.1 krever nøyaktig 1.32.1 som peer (robotens lockfile brøt det), og rot-treet følger samme versjon så de to katalogene ikke spriker. Versjonene er låst til det roboten foreslo og ikke nyere, i tråd med 7-dagers ventetiden fra v7.9.31.
+
+---
+
 ## 2026-11-01 — v7.9.33: Plan for kart uten å vente på Overpass
 
 Ingen kodeendring. `docs/PLAN_OSM_UAVHENGIG.md` beskriver den vedtatte planen for å få Overpass ut av den kritiske stien: fase 1 legger N50-veger inn i baken og bygger et N50-ark når OSM ikke har svart innen få sekunder (OSM blir påfyll), fase 2 baker OSM selv fra Geofabriks Norge-uttrekk til fliser i R2 i samme JSON-form som Overpass svarer med. Målingene fra 1. november står i planen, og CLAUDE.md peker dit fra merknaden om kritisk sti.
