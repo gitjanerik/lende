@@ -277,7 +277,7 @@ jobs:
 
       - name: Hent kartet fra forjobben
         if: needs.kart.outputs.har == '1'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: royk-kart
           path: .royk-kart
