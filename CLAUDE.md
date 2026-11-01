@@ -127,6 +127,10 @@ skrev dem dit (og finalize en gang til). Alt annet — gjenåpning, nabofliser, 
 bygg brukeren navigerte vekk fra — går mot IndexedDB som før. Én plass fordi et
 kart som aldri hentes ikke skal holde megabyte i live lenger enn til neste bygg.
 
+**OVERPASS SKAL UT AV DEN KRITISKE STIEN — se `docs/PLAN_OSM_UAVHENGIG.md`
+(vedtatt nov. 2026, ikke påbegynt).** De offentlige speilene er målt nede eller
+strupet (2 plasser per IP på overpass-api.de); v7.9.32 er et plaster.
+
 **Kritisk sti er OSM + DEM + VANN, og bare det.** Sekundærkildene (Sjøkart,
 kulturminner, Turrutebasen, N50-sti, N50-areal) får et RESTBUDSJETT på 5 s målt
 fra at kritisk sti er inne. De fyres alle ved t = 0, altså parallelt med
