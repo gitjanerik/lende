@@ -1,3 +1,9 @@
+## 2026-11-14 — v8.0.2: Personvern-teksten uten «Worker»
+
+Avsnittet i «Om appen» om hva som sendes for å lage kartet snakket om «vår egen Worker», «Cloudflare-Worker», Overpass og Nominatim — ord som sier lite til den som ikke har bygget appen. Det sier nå det samme i vanlige ord: kartdata, værvarsel, kulturminner og vannmålestasjoner hentes gjennom Lendes egen server, som husker svarene en kort stund, men ikke hvem som spurte; svarer den ikke, hentes kartdataene rett fra OpenStreetMap, og et stedssøk går til OpenStreetMap. Den tekniske beskrivelsen under «Rammeverk og kilder» står som før.
+
+---
+
 ## 2026-11-14 — v8.0.1: Arket dekker ikke lenger over naboflisa
 
 Utvidet man Stormoen-kartet sørover, sto det en kilometerbred lys glipe uten relieff mellom arket og den nye flisa. Kartbyggeren klipper ikke flatene mot arkkanten, så skog, elver og jorder kommer med i hele sin lengde, opptil to kilometer utenfor arket. Fordi arket må vise naboflisene rundt seg, var det overskuddet synlig, og det ble tegnet oppå naboflisa, som ligger bak det aktive arket. Kartlagene klippes nå til arkets egen kant når kartet åpnes, så naboflisa vises helt inn til sømmen. Lagene står som før direkte under kartroten; GPS-prikken, spøkelsesflisene og overleggene klippes ikke. Feilen gjaldt alle kart med nabofliser, ikke bare dem som kom fra de nye OSM-flisene.
