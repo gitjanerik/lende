@@ -160,7 +160,12 @@ at DEM + vann + N50-sti er inne, så OSM-arket. Fire ting er lette å «rydde» 
    manifest er klientens cache-nøkkel. Fliser i v3-formatet (flagg-byte for
    tunnel/bru); sti-flisene er fortsatt v2. Der OSM er inne, er OSM autoritativ
    for veger, og en N50-veg ved siden av OSM-tvillingen er en dobbel strek.
-Kant-utvidelsen (`terrainFirst: false`) venter fortsatt på OSM. Headless har
+**Kant-utvidelsen bruker `n50Ark: true` (v7.9.38)**, ikke terreng-først: ingen
+preview, men samme frist. Kommer ikke OSM, lagres N50-arket som flisa
+(`partial` + `utenOsm`) og `osmArk` returneres som et løfte — flisa teller som
+ferdig, og mosaikken tegnes på nytt ÉN gang når alle OSM-arkene har svart
+(`tegnOsmArkNaarDeKommer`). OSM-arket lagres IKKE om flisa er kappet bort i
+mellomtida, ellers ville kappingen blitt opphevet av et bakgrunnsbygg. Headless har
 `osm: 'krev' | 'fallback' | 'av'`; MCP-verktøyene bruker `fallback`, fasit og
 probene `krev` — de måler OSM-pipelinen og skal ikke få et N50-ark i stedet.
 

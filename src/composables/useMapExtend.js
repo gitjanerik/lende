@@ -892,6 +892,7 @@ export function useMapExtend({
     const plan = toBuild.map(({ center, utmBbox }) => ({ opts: autoMapBuildOpts(center), utmBbox }))
     leggTilVentende(plan)
     let tegnet = false
+    const osmArk = []
     byggAvbryter = new AbortController()
     const framdrift = lagFramdrift({
       ord: { stor: 'Utsnitt', liten: 'utsnitt', en: 'Bygger nytt utsnitt …' },
@@ -908,7 +909,8 @@ export function useMapExtend({
         toBuild.map(({ utmBbox }, i) => () => buildMapFromCenter({
           ...plan[i].opts,
           utmBbox,   // eksakt ±W/±H-offset → flukter med aktiv flis
-          terrainFirst: false,   // full flis med en gang
+          terrainFirst: false,
+          n50Ark: true,   // N50-arket når Overpass er sent ute, OSM-arket etterpå
           signal: byggAvbryter.signal,
           onProgress: (msg) => framdrift.onProgress(i, msg),
         })),
@@ -920,6 +922,7 @@ export function useMapExtend({
       utfall.forEach((u, i) => {
         if (u.status === 'ok' && u.verdi?.id) {
           builtIds.push(u.verdi.id)
+          if (u.verdi.osmArk) osmArk.push(u.verdi.osmArk)
           fjernVentende(toBuild[i].utmBbox)   // denne er i boks
         } else if (u.status === 'avbrutt') {
           avbrutt++
@@ -978,7 +981,26 @@ export function useMapExtend({
       autoMapArmed = true
       extendingMap = false
       refreshMosaicGaps()
+      tegnOsmArkNaarDeKommer(osmArk)
     }
+  }
+
+  // Fliser som ble ferdige som N50-ark (n50Ark i buildMapFromCenter) får
+  // OSM-arket sitt i bakgrunnen. Mosaikken tegnes på nytt ÉN gang når alle har
+  // svart, ikke per flis: hver omtegning leser hele arket ut av IndexedDB.
+  // Feiler Overpass, blir N50-arket stående og ingenting tegnes om.
+  function tegnOsmArkNaarDeKommer(lofter) {
+    if (!lofter.length) return
+    Promise.allSettled(lofter).then(async (svar) => {
+      if (!svar.some(r => r.status === 'fulfilled' && r.value)) return
+      // En utvidelse som pågår tegner mosaikken selv når den er ferdig.
+      if (extendingMap) return
+      try {
+        await renderGhostTiles()
+        await nextTick()
+        refreshMosaicGaps()
+      } catch { /* mosaikk-render er fail-safe */ }
+    })
   }
 
   // ── Mosaikk-reparasjon ──────────────────────────────────────────────────────
@@ -1100,6 +1122,7 @@ export function useMapExtend({
     const builtIds = []
     let failed = 0
     let avbrutt = 0
+    const osmArk = []
     byggAvbryter = new AbortController()
     const framdrift = lagFramdrift({
       ord: { stor: 'Flis', liten: 'flis', en: 'Bygger flis …' },
@@ -1116,6 +1139,7 @@ export function useMapExtend({
           ...c.opts,
           utmBbox: c.utmBbox,
           terrainFirst: false,
+          n50Ark: true,
           signal: byggAvbryter.signal,
           onProgress: (msg) => framdrift.onProgress(i, msg),
         })),
@@ -1127,6 +1151,7 @@ export function useMapExtend({
       utfall.forEach((u, i) => {
         if (u.status === 'ok' && u.verdi?.id) {
           builtIds.push(u.verdi.id)
+          if (u.verdi.osmArk) osmArk.push(u.verdi.osmArk)
           fjernVentende(cells[i].utmBbox)
         } else if (u.status === 'avbrutt') {
           avbrutt++
@@ -1151,6 +1176,7 @@ export function useMapExtend({
       autoMapArmed = true
       extendingMap = false
       refreshMosaicGaps()
+      tegnOsmArkNaarDeKommer(osmArk)
       if (avbrutt) {
         showAutoMapToast(builtIds.length
           ? `Avbrutt — bygde ${builtIds.length} ${ord.flertall}, ${cells.length - builtIds.length} gjenstår`
