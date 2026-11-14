@@ -18,6 +18,37 @@ const XLINK_NS = 'http://www.w3.org/1999/xlink'
 export const STI_ISO_KODER = ['501', '502', '503', '504', '505', '506', '507', '509']
 const STI_SELEKTOR = STI_ISO_KODER.map((k) => `[data-iso="${k}"]`).join(',')
 
+export const ARK_KLIPP_ID = 'lende-ark-klipp'
+
+// Byggeren klipper ikke flatene mot arket — en skogteig eller en elv kommer med
+// i hele sin lengde, opptil kilometre utenfor kanten. Med `overflow: visible`
+// over (for spøkelsene) ble det overskuddet tegnet OPPÅ naboflisene, som ligger
+// bak den aktive: skogen fra arket dekket relieffet i nabo-arket, og sømmen så
+// ut som en kilometerbred glipe. Klippet står på hvert innholds-lag og ikke på
+// en innpakning rundt dem — lagene MÅ forbli direkte barn av roten
+// (insertBefore-fella, `svg.children`-ankrene). Det som legges til senere
+// (spøkelsene, brukerlaget, overleggene) klippes ikke.
+function klippTilArket(svg, doc) {
+  const [x, y, w, h] = (svg.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number)
+  if (![x, y, w, h].every(Number.isFinite) || !(w > 0) || !(h > 0)) return
+  let defs = null
+  for (const c of svg.children) if (c.localName === 'defs') { defs = c; break }
+  if (!defs) {
+    defs = doc.createElementNS(NS, 'defs')
+    svg.insertBefore(defs, svg.firstChild)
+  }
+  const klipp = doc.createElementNS(NS, 'clipPath')
+  klipp.setAttribute('id', ARK_KLIPP_ID)
+  klipp.setAttribute('clipPathUnits', 'userSpaceOnUse')
+  const rekt = doc.createElementNS(NS, 'rect')
+  for (const [k, v] of [['x', x], ['y', y], ['width', w], ['height', h]]) rekt.setAttribute(k, String(v))
+  klipp.appendChild(rekt)
+  defs.appendChild(klipp)
+  for (const c of svg.children) {
+    if (c.localName === 'g' && !c.hasAttribute('clip-path')) c.setAttribute('clip-path', `url(#${ARK_KLIPP_ID})`)
+  }
+}
+
 export function byggVertSvg(sourceRoot, { doc = document } = {}) {
   const svg = doc.createElementNS(NS, 'svg')
   svg.setAttribute('viewBox', sourceRoot.getAttribute('viewBox'))
@@ -53,6 +84,8 @@ export function byggVertSvg(sourceRoot, { doc = document } = {}) {
   while (sourceRoot.firstChild) {
     svg.appendChild(adopter(sourceRoot.firstChild))
   }
+
+  klippTilArket(svg, doc)
 
   // v10.2.9 (perf): detalj-lagene (data-detail="1": dybdepunkt/dybdekurve) er
   // usynlige på hovedkartet (display:none) men kostet likevel parse,
