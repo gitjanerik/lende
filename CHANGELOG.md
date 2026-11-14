@@ -1,3 +1,9 @@
+## 2026-11-14 — v8.0.4: En oppdatering sletter ikke lenger de utvidede flisene
+
+Hver versjonsoppdatering åpnet med «Kartet er slettet», enda kartet sto i «Mine kart». Årsaken var en regel fra tida med automatiske nabofliser: en auto-flis bygd med en annen app-versjon ble regnet som utdatert cache og slettet i det spøkelsesflisene ble tegnet. I dag bygges de flisene bare når brukeren trykker på en lende-pil, og hver PR bumper versjonen — så hver oppdatering slettet alle utvidelsene av arket, og sto man i en av dem, ble kartet slettet under en. Versjons-porten er fjernet: et ark bygd med eldre kode er fortsatt et gyldig ark. Fliser som allerede er slettet, kommer ikke tilbake.
+
+---
+
 ## 2026-11-14 — v8.0.3: «Rammeverk og kilder» uten «Cloudflare-Worker»
 
 Avsnittet i «Om appen» sier nå at værvarsel, kulturminner og vannmålestasjoner hentes gjennom Lendes egen lille server fordi kildene ikke kan spørres rett fra nettleseren, og at den samme serveren leverer OpenStreetMap-dataene klargjort én gang i måneden — samme grep som personvern-teksten i v8.0.2. CLAUDE.md er samtidig rettet om git-historikken: å skrive om master for å kvitte seg med gamle flis-utgaver ble målt til å spare om lag 3 MB av 138, så den ryddejobben er lagt bort.
