@@ -17,7 +17,10 @@ import MapLibrary from './MapLibrary.vue'
 import GpsFeilVarsel from './GpsFeilVarsel.vue'
 import MapPickerContent from './MapPickerContent.vue'
 import VersjonSjekk from './VersjonSjekk.vue'
+import { useOsmOppdatering } from '../composables/useOsmOppdatering.js'
 import { useFokusFelle } from '../composables/useFokusFelle.js'
+
+const { sistOppdatert: osmSistOppdatert } = useOsmOppdatering()
 
 // Global hovedmeny — slide-in fra venstre. Montert én gang i App.vue og styrt av
 // den delte useAppMenu-tilstanden, så meny-knappen i enhver visning åpner denne.
@@ -531,6 +534,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </span>Om appen
           </button>
           <VersjonSjekk class="am-version" />
+          <p v-if="osmSistOppdatert" class="am-version am-osm">Kartdata (OSM) fra {{ osmSistOppdatert }}</p>
         </div>
       </div>
     </aside>
@@ -853,6 +857,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding-top: 12px;
 }
 .am-version { font-size: 0.75em; color: var(--am-dim); padding: 4px 4px 0; }
+.am-osm { margin: 0; padding-top: 0; }
 
 .menu-fade-enter-active, .menu-fade-leave-active { transition: opacity 0.25s ease; }
 .menu-fade-enter-from, .menu-fade-leave-to { opacity: 0; }

@@ -20,6 +20,7 @@ on:
     branches: [master]
     paths:
       - 'cloudflare/proxy/**'
+      - 'src/lib/osmPakke.js'
       - '.github/workflows/deploy-proxy.yml'
 
 jobs:
@@ -49,6 +50,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NVE_HYDAPI_KEY: ${{ secrets.NVE_HYDAPI_KEY }}
+      - name: Opprett R2-bøtta for OSM-flisene (idempotent)
+        # Bindingen i wrangler.toml krever at bøtta finnes, ellers feiler deploy.
+        run: npx wrangler r2 bucket create lende-osm || echo "Bøtta finnes trolig allerede — OK."
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy Worker (siste versjon = wrangler.toml)
         run: npx wrangler deploy
         env:
@@ -69,6 +76,16 @@ jobs:
           echo "$H" | grep -qi 'access-control-allow-origin' \
             || { echo "::error::404 uten CORS-header — dette er Cloudflares 404, ikke vår. Er workeren deployet?"; echo "$H"; exit 1; }
           echo "OK (404 fra vår worker)"
+
+          echo "— OSM-ruta —"
+          KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/osm/manifest.json")
+          case "$KODE" in
+            200) echo "OK (200) — $(curl -s "$BASE/osm/manifest.json" | head -c 300)" ;;
+            404) echo "::notice::OSM-ruta svarer, men ingen bake er lastet opp ennå — kjør «Bygg OSM-fliser» uten utsnitt." ;;
+            *)   echo "::error::Uventet status $KODE fra OSM-ruta (503 = bøtta er ikke bundet)."; exit 1 ;;
+          esac
+          KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/osm/b/x/59_10.bin")
+          [ "$KODE" = 404 ] || { echo "::error::OSM-ruta slapp gjennom en rå bøtte-nøkkel ($KODE)"; exit 1; }
 
           echo "— NVE-ruta —"
           KODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/Stations?Active=1")

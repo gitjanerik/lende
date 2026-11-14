@@ -44,7 +44,7 @@ describe('metaFromSvgMeta — hvitelisten', () => {
 
 describe('metaFromSvgMeta — diagnose-feltene Utvikler-fanen leser', () => {
   const DIAGNOSE = [
-    'appVersion', 'nveInnsjoStatus', 'sjokartStatus', 'turruteStatus', 'n50VannStatus',
+    'appVersion', 'nveInnsjoStatus', 'sjokartStatus', 'turruteStatus', 'n50VannStatus', 'osmStatus',
     'tetthet', 'detaljNivaa', 'coastal', 'kystStatus', 'demSource', 'demResolutionM',
     'depthSource',
   ]
@@ -56,6 +56,7 @@ describe('metaFromSvgMeta — diagnose-feltene Utvikler-fanen leser', () => {
       nveInnsjoStatus: { state: 'ok', features: 12 },
       sjokartStatus: { state: 'innlands' },
       turruteStatus: { state: 'ok', ruter: 8, nye: 4 },
+      osmStatus: { kilde: 'fliser', osmTid: '2026-11-13T21:22:20Z' },
       n50VannStatus: { state: 'ok', fliser: 2, flater: 41, dekning: true },
       tetthet: { indeks: 255, klasse: 'middels', fraBreddeKm: 8, tilBreddeKm: 8 },
       detaljNivaa: 'lett',

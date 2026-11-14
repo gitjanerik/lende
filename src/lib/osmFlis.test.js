@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   parseSelektorer, osmSelektorer, treffer, filterNokler, flisNoklerForBbox, slaSammenFliser, elementBbox,
   flisNoklerForSegment, flisNoklerForElement, elementIBbox, delteIder, deltFilnavn,
+  nesteOsmBake, OSM_BAKE_PLAN,
 } from './osmFlis.js'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { buildOverpassQuery } from './mapBuilder.js'
 
 describe('osmSelektorer', () => {
@@ -129,5 +132,19 @@ describe('slaSammenFliser', () => {
   })
   it('elementBbox leser relasjonsmedlemmene', () => {
     expect(elementBbox(rel)).toEqual({ south: 59.86, north: 59.86, west: 10.46, east: 10.46 })
+  })
+})
+
+describe('nesteOsmBake', () => {
+  it('neste 1. i måneden kl. 02:23 UTC', () => {
+    expect(nesteOsmBake(new Date('2026-11-14T10:00:00Z')).toISOString()).toBe('2026-12-01T02:23:00.000Z')
+    expect(nesteOsmBake(new Date('2026-12-01T02:22:00Z')).toISOString()).toBe('2026-12-01T02:23:00.000Z')
+    expect(nesteOsmBake(new Date('2026-12-01T02:23:00Z')).toISOString()).toBe('2027-01-01T02:23:00.000Z')
+  })
+
+  it('planen er den samme som cron-linja workflowen kjører på', () => {
+    const yml = readFileSync(resolve(__dirname, '../../.github/workflows/bygg-osm-fliser.yml'), 'utf8')
+    const cron = yml.match(/cron:\s*'([^']+)'/)[1].split(/\s+/)
+    expect(cron).toEqual([String(OSM_BAKE_PLAN.minutt), String(OSM_BAKE_PLAN.time), String(OSM_BAKE_PLAN.dag), '*', '*'])
   })
 })

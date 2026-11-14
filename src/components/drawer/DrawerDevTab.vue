@@ -72,6 +72,16 @@ const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
 // Tetthets-linja: «915 /km² · svært tett → sparsom · bredde 8 → 6 km».
 // meta.tetthet er null på kart bygget før v5.0.0 og på kart der sonderingen
 // ikke kjørte (nett nede) — da vises ingen linje i stedet for et falskt «full».
+// Hvor OSM kom fra (fase 2 i docs/PLAN_OSM_UAVHENGIG.md). Uten denne raden er
+// et kart bygget av Overpass fordi flisene feilet ikke til å skille fra et
+// bygget av flisene — og da merker ingen at Workeren eller baken er nede.
+const osmStatusTekst = computed(() => {
+  const s = props.meta?.osmStatus
+  if (!s) return ''
+  if (s.kilde === 'fliser') return `fliser fra ${s.osmTid?.slice(0, 10) ?? 'ukjent dato'}`
+  return s.flisFeil ? `Overpass (fliser feilet: ${s.flisFeil})` : 'Overpass'
+})
+
 const tetthetTekst = computed(() => {
   const t = props.meta?.tetthet
   if (!t || !Number.isFinite(Number(t.indeks))) return ''
@@ -232,6 +242,15 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
         <span class="text-[11px] text-right break-all"
               :class="meta?.nveInnsjoStatus?.state === 'ok' ? 'text-ink-3' : 'text-amber-300/80'">
           {{ nveInnsjoStatusText }}
+        </span>
+      </div>
+    </div>
+    <div v-if="osmStatusTekst" class="mb-2 px-1">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-ink-4 text-[11px]">OSM</span>
+        <span class="text-[11px] text-right break-all"
+              :class="meta?.osmStatus?.kilde === 'fliser' ? 'text-ink-3' : 'text-amber-300/80'">
+          {{ osmStatusTekst }}
         </span>
       </div>
     </div>

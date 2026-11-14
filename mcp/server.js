@@ -415,7 +415,7 @@ server.registerTool(
     const widthKm = effHalfKm * 2
     const minEq = minEquidistanceForWidthKm(widthKm)
     const effEq = Math.max(equidistanceM ?? DEFAULT_EQUIDISTANCE_M, minEq)
-    const built = await buildMapHeadless({ lat, lon, halfKm: effHalfKm, equidistanceM: effEq, osm: 'fallback' })
+    const built = await buildMapHeadless({ lat, lon, halfKm: effHalfKm, equidistanceM: effEq, osm: 'fallback', osmKilde: 'auto' })
     const slug = navn.replace(/[^a-z0-9æøå]+/gi, '-').toLowerCase()
     const svgPath = resolve(filsti ?? resolve(tmpdir(), 'lende-mcp', `${slug}.svg`))
     mkdirSync(dirname(svgPath), { recursive: true })

@@ -25,9 +25,19 @@
 //    flere ødelegger cachen deres, og vil etter hvert gi 400) og cacher, så tjue
 //    turgåere på samme fjell koster MET ett kall.
 //
+// 4) OSM-flisene (docs/PLAN_OSM_UAVHENGIG.md, fase 2) fra R2-bøtta `lende-osm`:
+//      GET /osm/manifest.json
+//      GET /osm/<rad>_<kol>.json.gz
+//      GET /osm/delt/<type>_<id>.json.gz
+//    Flisene ligger PAKKET per 1° × 1° (src/lib/osmPakke.js), og ruta leser
+//    ut én flis med en range-GET etter pakkens indeks. Klienten ser enkeltfiler.
+//    Ikke en proxy mot noe — bare en lesesti inn i vår egen bøtte.
+//
 // Alt annet gir 404 — Worker-en er bevisst ingen åpen proxy. Query-strengen
 // videresendes uendret (unntatt METs koordinat-avrunding); svaret speiles med
 // CORS-headere så nettleseren godtar det.
+
+import { osmStiErGyldig, osmPakkeForSti, pakkeNokkel, indeksNokkel } from '../../../src/lib/osmPakke.js'
 
 const HYDAPI_ORIGIN = 'https://hydapi.nve.no'
 const HYDAPI_PATHS = new Set(['/api/v1/Stations', '/api/v1/Observations'])
@@ -260,6 +270,66 @@ async function proxyMet(url, cors, ctx) {
   })
 }
 
+const OSM_PREFIX = '/osm/'
+// Manifestet er det som byttes ved en ny bake, så det må aldri bli stående
+// lenge. Flisene er nøklet på baken i URL-en (`?t=`) og kan caches i en uke.
+const OSM_MANIFEST_S = 300
+const OSM_FLIS_S = 604800
+
+let osmManifest = null
+const osmIndekser = new Map()
+
+async function lesOsmManifest(env) {
+  if (osmManifest && Date.now() - osmManifest.hentet < OSM_MANIFEST_S * 1000) return osmManifest.verdi
+  const obj = await env.OSM.get('manifest.json')
+  const verdi = obj ? await obj.json() : null
+  osmManifest = { verdi, hentet: Date.now() }
+  return verdi
+}
+
+async function lesOsmIndeks(env, prefiks, pakke) {
+  const n = indeksNokkel(prefiks, pakke)
+  if (osmIndekser.has(n)) return osmIndekser.get(n)
+  const obj = await env.OSM.get(n)
+  const indeks = obj ? await obj.json() : null
+  if (osmIndekser.size > 500) osmIndekser.clear()
+  osmIndekser.set(n, indeks)
+  return indeks
+}
+
+/** Hvor i bøtta en klient-sti ligger: { nokkel, offset, lengde } eller null. */
+export async function finnOsmFlis(env, sti) {
+  if (!osmStiErGyldig(sti)) return null
+  const manifest = await lesOsmManifest(env)
+  if (!manifest?.prefiks) return null
+  const pakke = osmPakkeForSti(sti)
+  const pos = (await lesOsmIndeks(env, manifest.prefiks, pakke))?.[sti]
+  if (!pos) return null
+  return { nokkel: pakkeNokkel(manifest.prefiks, pakke), offset: pos[0], lengde: pos[1] }
+}
+
+export function nullstillOsmCache() { osmManifest = null; osmIndekser.clear() }
+
+async function serverOsm(url, cors, env) {
+  if (!env.OSM) return new Response('OSM-bøtta er ikke koblet til', { status: 503, headers: cors })
+  const sti = url.pathname.slice(OSM_PREFIX.length)
+  if (sti === 'manifest.json') {
+    const obj = await env.OSM.get('manifest.json')
+    if (!obj) return new Response('Not Found', { status: 404, headers: cors })
+    return new Response(obj.body, {
+      headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${OSM_MANIFEST_S}` },
+    })
+  }
+  const flis = await finnOsmFlis(env, sti)
+  const obj = flis && await env.OSM.get(flis.nokkel, { range: { offset: flis.offset, length: flis.lengde } })
+  if (!obj) return new Response('Not Found', { status: 404, headers: cors })
+  // application/gzip og INGEN Content-Encoding: klienten pakker ut selv, så
+  // ingen mellomledd får lov til å gjøre det for den — eller to ganger.
+  return new Response(obj.body, {
+    headers: { ...cors, 'Content-Type': 'application/gzip', 'Cache-Control': `public, max-age=${OSM_FLIS_S}` },
+  })
+}
+
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin')
@@ -276,6 +346,7 @@ export default {
     if (HYDAPI_PATHS.has(url.pathname)) return proxyHydApi(url, cors, env)
     if (url.pathname.startsWith(RA_PREFIX)) return proxyBrukerminner(request, url, cors, ctx)
     if (url.pathname.startsWith(MET_PREFIX)) return proxyMet(url, cors, ctx)
+    if (url.pathname.startsWith(OSM_PREFIX)) return serverOsm(url, cors, env)
     return new Response('Not Found', { status: 404, headers: cors })
   },
 }

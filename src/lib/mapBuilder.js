@@ -824,6 +824,7 @@ export function buildSvg(elements, bbox, options = {}) {
     sjokartStatus = null,          // utfall av Sjøkart-WFS-hentingen (summarizeSjokartStatus)
     nveInnsjoStatus = null,        // utfall av NVE-innsjø-hentingen (n50Fetcher onStatus)
     turruteStatus = null,          // utfall av Turrutebasen-hentingen (turrutebasenFetcher onStatus)
+    osmStatus = null,              // hvor OSM kom fra: fliser eller Overpass (lib/osmKilde.js)
     n50StiStatus = null,           // utfall av N50-sti-hentingen (n50StiFetcher onStatus)
     n50VannStatus = null,          // utfall av N50-elveflate-hentingen (n50ArealFetcher onStatus)
     kulturminner = [],             // Kulturminnesøk brukerminner (hentet i createMapFlow)
@@ -2733,6 +2734,7 @@ export function buildSvg(elements, bbox, options = {}) {
     sjokartStatus,                 // ok/tom/timeout/feil/innlands + evt. WFS-feil (Utvikler-fanen)
     nveInnsjoStatus,               // ok (N innsjøer) / feil + melding (Utvikler-fanen)
     turruteStatus,                 // ok (N ruter / M nye strekk) / feil (Utvikler-fanen)
+    osmStatus,                     // fliser (med bake-tid) / Overpass (+ hvorfor) (Utvikler-fanen)
     n50StiStatus,                  // ok (N fliser / M nye strekk) / feil (Utvikler-fanen)
     n50VannStatus,                 // ok (N fliser / M elveflater) / feil (Utvikler-fanen)
     demResolutionM: dem?.transform

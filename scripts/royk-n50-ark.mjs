@@ -43,6 +43,9 @@ const browser = await chromium.launch()
 const ctx = await browser.newContext({ serviceWorkers: 'block' })
 let blokkert = 0
 await ctx.route(/api\/interpreter/, (route) => { blokkert++; return route.abort('connectionrefused') })
+// OSM-flisene (v8.0.0) er den andre veien til OSM. Uten denne ville testen målt
+// flisene og ikke N50-arket — og blitt rød den dagen baken første gang er oppe.
+await ctx.route(/\/osm\/(manifest\.json|.*\.json\.gz)/, (route) => route.abort('connectionrefused'))
 const page = await ctx.newPage()
 const feil = []
 page.on('pageerror', (e) => feil.push(e.message))

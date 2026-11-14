@@ -3,7 +3,8 @@
 // Kjører i ren Node — ingen IndexedDB, ingen Web Worker.
 
 import { DOMParser, parseHTML } from 'linkedom'
-import { fetchOverpass, buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.js'
+import { buildSvg, bboxFromCenter } from '../src/lib/mapBuilder.js'
+import { fetchOsm } from '../src/lib/osmKilde.js'
 import { fetchDEM } from '../src/lib/demFetcher.js'
 import { fillDemVoidsFromTerrarium } from '../src/lib/terrariumDem.js'
 import { fetchN50Water } from '../src/lib/n50Fetcher.js'
@@ -186,6 +187,12 @@ export async function buildMapHeadless({
   // bygger N50-arket når Overpass feiler (MCP-verktøyene), og 'av' bygger det
   // uten å spørre. Resultatet sier fra med `utenOsm`. Se lib/n50Ark.js.
   osm = 'krev',
+  // Hvor OSM hentes fra (lib/osmKilde.js): 'overpass' (standard — fasit og
+  // probene måler Overpass-pipelinen), 'fliser' (bare de bakte flisene) eller
+  // 'auto' (fliser, så Overpass — MCP-verktøyene). `osmFlisBase` overstyrer
+  // URL-en til flisene, f.eks. en lokal bake i CI.
+  osmKilde = 'overpass',
+  osmFlisBase,
 }) {
   let effHalfKm = halfKm
   let bbox = bboxFromCenter(lat, lon, effHalfKm)
@@ -227,9 +234,9 @@ export async function buildMapHeadless({
   let n50ArealStatus = null
   let n50VannStatus = null
   const [overpass, n50Water, dem, turruteRoutes, skiloyper, n50StiLinjer, n50Areal, n50Rivers, n50VegLinjer] = await Promise.all([
-    osm === 'av' ? Promise.resolve(null) : fetchOverpass(bbox).catch((e) => {
+    osm === 'av' ? Promise.resolve(null) : fetchOsm(bbox, { kilde: osmKilde, flisBase: osmFlisBase }).catch((e) => {
       if (osm !== 'fallback') throw e
-      console.error(`[buildMapHeadless] Overpass feilet (${e?.message ?? e}) — bygger N50-arket`)
+      console.error(`[buildMapHeadless] OSM feilet (${e?.message ?? e}) — bygger N50-arket`)
       return null
     }),
     fetchN50Water(bbox).catch(() => []),
@@ -336,8 +343,11 @@ export async function buildMapHeadless({
     detaljNivaa,
     tetthet,
     n50StiStatus,
+    osmStatus: overpass?.meta
+      ? { kilde: overpass.meta.kilde, osmTid: overpass.meta.osmTid ?? null, flisFeil: overpass.meta.flisFeil ?? null }
+      : null,
   })
-  return { svg, counts, meta, dem, bbox, halfKm: effHalfKm, tetthet, utenOsm }
+  return { svg, counts, meta, dem, bbox, halfKm: effHalfKm, tetthet, utenOsm, osmKilde: overpass?.meta?.kilde ?? null }
 }
 
 /**

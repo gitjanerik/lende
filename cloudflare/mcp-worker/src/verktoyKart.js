@@ -194,6 +194,9 @@ export function registerKartVerktoy(server, ctx) {
         n50VannBase: env.N50_VANN_BASE,
         n50VegBase: env.N50_VEG_BASE,
         osm: 'fallback',
+        // Flisene først. Et kall fra én workers.dev-Worker til en annen kan bli
+        // nektet av Cloudflare; da faller fetchOsm til Overpass som før.
+        osmKilde: 'auto',
       })
 
       const ref = nyKartRef(navn)

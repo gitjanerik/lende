@@ -30,7 +30,24 @@ const argv = process.argv.slice(2)
 const oppdater = argv.includes('--oppdater')
 const jsonIdx = argv.indexOf('--json')
 const jsonUt = jsonIdx >= 0 ? argv[jsonIdx + 1] : null
-const valgte = argv.filter((a, i) => !a.startsWith('--') && !(jsonIdx >= 0 && i === jsonIdx + 1))
+// `--osm fliser` bygger fra de bakte OSM-flisene i stedet for Overpass —
+// fase 2 i docs/PLAN_OSM_UAVHENGIG.md sin verifisering: samme kart, samme fasit.
+// `--osm-base <url>` peker på en bake som ikke er lastet opp (CI).
+const osmIdx = argv.indexOf('--osm')
+const osmKilde = osmIdx >= 0 ? argv[osmIdx + 1] : 'overpass'
+const baseIdx = argv.indexOf('--osm-base')
+const osmFlisBase = baseIdx >= 0 ? argv[baseIdx + 1] : undefined
+// `--mot <rapport.json>`: sammenlign med en annen kjørings metrikker i stedet for
+// den lagrede fasiten. Fliser mot Overpass SAMME dag måler transporten alene;
+// mot baseline.json ville hver OSM-redigering siden sist sett ut som et avvik.
+const motIdx = argv.indexOf('--mot')
+const motFil = motIdx >= 0 ? argv[motIdx + 1] : null
+const verdiIdx = new Set([jsonIdx, osmIdx, baseIdx, motIdx].filter(i => i >= 0).map(i => i + 1))
+const valgte = argv.filter((a, i) => !a.startsWith('--') && !verdiIdx.has(i))
+if (oppdater && osmKilde !== 'overpass') {
+  console.error('--oppdater skriver fasiten, og fasiten er Overpass-pipelinen. Kjør den uten --osm.')
+  process.exit(2)
+}
 const steder = valgte.length ? STEDER.filter(s => valgte.includes(s.id)) : STEDER
 
 if (!steder.length) {
@@ -38,7 +55,9 @@ if (!steder.length) {
   process.exit(2)
 }
 
-const fasit = lesFasit()
+const fasit = motFil
+  ? Object.fromEntries(JSON.parse(readFileSync(motFil, 'utf8')).filter(r => r.metrikker).map(r => [r.id, r.metrikker]))
+  : lesFasit()
 const rapport = []
 let brudd = 0
 let byggFeil = 0
@@ -54,7 +73,10 @@ for (const sted of steder) {
       // kjøringer, og da måler vi ikke samme kart som fasiten.
       detaljNivaa: 'full',
       tetthetAv: true,
+      osmKilde,
+      osmFlisBase,
     })
+    if (osmKilde !== 'overpass') console.log(`  OSM fra ${bygget.osmKilde}`)
     svg = bygget.svg
   } catch (e) {
     console.error(`  ✗ bygging feilet: ${e.message}`)
