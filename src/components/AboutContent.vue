@@ -709,13 +709,11 @@ function tilPersonvern() {
         <strong class="text-ink">Det som må sendes for å lage kartet.</strong>
         For å bygge et kart sendes kartutsnittet — og dermed omtrent hvor du er —
         til de åpne kildene: Kartverket/Geonorge, NVE og Miljødirektoratet, og
-        til BRouter når du planlegger en rute. OpenStreetMap-dataene hentes fra
-        vår egen Worker; bare når den ikke svarer, går utsnittet til
-        OpenStreetMap (Overpass). Søker du
-        etter et sted, går søketeksten til OpenStreetMap (Nominatim).
-        Kartflisene, værvarsel, kulturminner og vannmålestasjoner går via vår egen
-        Cloudflare-Worker, som mellomlagrer svarene en kort stund, men ikke hvem
-        som spurte.
+        til BRouter når du planlegger en rute. Kartdata fra OpenStreetMap,
+        værvarsel, kulturminner og vannmålestasjoner hentes gjennom Lendes egen
+        server. Den husker svarene en kort stund, men ikke hvem som spurte.
+        Svarer den ikke, hentes kartdataene rett fra OpenStreetMap. Søker du
+        etter et sted, går søketeksten til OpenStreetMap.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Fakta om et sted.</strong>
