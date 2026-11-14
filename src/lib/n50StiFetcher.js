@@ -34,6 +34,11 @@ const BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_N50_STI_URL) ||
   `${(typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'}data/n50-sti/`
 
+// Vegene (bilveg + jernbane) har sin egen katalog — se bygg-n50-sti.mjs.
+const VEG_BASE =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_N50_VEG_URL) ||
+  `${(typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/'}data/n50-veg/`
+
 const FLIS_TIMEOUT_MS = 15000
 
 /**
@@ -61,12 +66,16 @@ async function hentBytesViaFetch(url, signal) {
 // Manifestet listar hvilke fliser som FINNES. Uten det ville hvert kart bedt
 // om fliser over hav og utland og fylt konsollen med 404. Hentes én gang per
 // økt; feiler den, faller vi tilbake til å prøve flisene direkte.
-let manifestLover = null
-export function nullstillManifestCache() { manifestLover = null; nullstillFlisNokler() }
+//
+// Nøklet på basePath: sti- og veg-katalogen har hver sitt manifest, og én
+// felles slot ville gitt den andre som spurte den førstes flisliste tilbake —
+// samme felle som n50ArealFetcher gikk i med to kataloger (v7.9.0).
+const manifestLover = new Map()
+export function nullstillManifestCache() { manifestLover.clear(); nullstillFlisNokler() }
 
 async function hentManifest(basePath, hentBytes, signal) {
-  if (!manifestLover) {
-    manifestLover = (async () => {
+  if (!manifestLover.has(basePath)) {
+    manifestLover.set(basePath, (async () => {
       try {
         const { bytes } = await hentBytes(`${basePath}manifest.json`, signal)
         if (!bytes) return null
@@ -75,9 +84,9 @@ async function hentManifest(basePath, hentBytes, signal) {
         const m = JSON.parse(tekst)
         return Array.isArray(m?.fliser) ? new Set(m.fliser) : null
       } catch { return null }
-    })()
+    })())
   }
-  return manifestLover
+  return manifestLover.get(basePath)
 }
 
 /** Ligger noen del av linja innenfor bboxen? Fliser er større enn kartet. */
@@ -175,3 +184,34 @@ export function n50StiElementerFra(linjer, alleredeTegnet, status = null) {
   return elementer
 }
 
+
+/**
+ * N50-vegnettet (bilveg + jernbane) for et bbox. Samme flis-format og samme
+ * henting som stiene, egen katalog. Brukes bare i N50-arket: OSM er
+ * autoritativ for veger og har dem alle, så de blandes ikke inn når OSM er der.
+ */
+export function fetchN50VegLinjer(bbox, opts = {}) {
+  return fetchN50StiLinjer(bbox, { ...opts, basePath: opts.basePath ?? VEG_BASE })
+}
+
+// N50 vegkategori → OSM highway, så symbolizer, ruteren og navne-lagene
+// behandler vegene som de OSM-vegene de står i stedet for. E → 501, R/F → 502,
+// K/P → 503 — samme trapp som OSM trunk/primary/secondary/residential/service.
+const VEG_HIGHWAY = {
+  'veg-e': 'trunk', 'veg-r': 'primary', 'veg-f': 'secondary',
+  'veg-k': 'residential', 'veg-p': 'service',
+}
+
+/** N50-veglinjer → OSM-aktige way-elementer for buildSvg(). */
+export function n50VegTilElementer(linjer) {
+  const ut = []
+  for (const [i, l] of (linjer ?? []).entries()) {
+    const tags = l.type === 'bane' ? { railway: 'rail' } : VEG_HIGHWAY[l.type] ? { highway: VEG_HIGHWAY[l.type] } : null
+    if (!tags) continue
+    if (l.tunnel) tags.tunnel = 'yes'
+    if (l.bru) tags.bridge = 'yes'
+    tags['lende:n50veg'] = l.type
+    ut.push({ type: 'way', id: `n50veg-${i}`, geometry: l.geometry, tags, _source: 'n50veg' })
+  }
+  return ut
+}

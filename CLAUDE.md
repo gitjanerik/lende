@@ -129,12 +129,12 @@ bygg brukeren navigerte vekk fra — går mot IndexedDB som før. Én plass ford
 kart som aldri hentes ikke skal holde megabyte i live lenger enn til neste bygg.
 
 **OVERPASS SKAL UT AV DEN KRITISKE STIEN — se `docs/PLAN_OSM_UAVHENGIG.md`
-(vedtatt nov. 2026, fase 1b levert i v7.9.35).** De offentlige speilene er målt
+(vedtatt nov. 2026, fase 1 levert i v7.9.35–36).** De offentlige speilene er målt
 nede eller strupet (2 plasser per IP på overpass-api.de); v7.9.32 er et plaster.
 
 **N50-ARKET (v7.9.35, `lib/n50Ark.js`).** Terreng-først har nå TRE trinn: DEM-
 previewen, så N50-arket når OSM ikke har svart innen `OSM_VENT_MS` (4 s) etter
-at DEM + vann + N50-sti er inne, så OSM-arket. Tre ting er lette å «rydde» bort:
+at DEM + vann + N50-sti er inne, så OSM-arket. Fire ting er lette å «rydde» bort:
 1. **Finalize kommer i to ledd.** Den første resolver med N50-arket og legger
    OSM-arket i `mapFinalizers` som NESTE; `consumeTerrainFinalize` konsumerer på
    nytt etter re-renderen når entryen har `utenOsm`. En kaller som bare venter
@@ -147,6 +147,11 @@ at DEM + vann + N50-sti er inne, så OSM-arket. Tre ting er lette å «rydde» b
    og dermed også det kyst-oppgraderte DEM-et. N50-arket tar bare det de rekker
    innen restbudsjettet og bygges som INNLAND ellers — en falsk DEM-sjø flommer
    land (Hattfjelldal), en manglende sjø fylles inn av OSM-arket.
+4. **Vegene (v7.9.36) brukes BARE i N50-arket.** De bakes med `--lag veg` til
+   `public/data/n50-veg/` — egen katalog av samme grunn som `n50-vann`: et
+   manifest er klientens cache-nøkkel. Fliser i v3-formatet (flagg-byte for
+   tunnel/bru); sti-flisene er fortsatt v2. Der OSM er inne, er OSM autoritativ
+   for veger, og en N50-veg ved siden av OSM-tvillingen er en dobbel strek.
 Kant-utvidelsen (`terrainFirst: false`) venter fortsatt på OSM. Headless har
 `osm: 'krev' | 'fallback' | 'av'`; MCP-verktøyene bruker `fallback`, fasit og
 probene `krev` — de måler OSM-pipelinen og skal ikke få et N50-ark i stedet.

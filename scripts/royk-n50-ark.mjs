@@ -5,7 +5,7 @@
 // Overpass blokkeres i nettleseren (alle speil går til /api/interpreter), og
 // kartet bygges med appens egen buildMapFromCenter i dev-serveren. Sjekkene:
 //   1. finalize resolver med N50-arket (utenOsm, partial) — ikke en feil.
-//   2. arket har stier fra N50-flisene, ikke bare terreng.
+//   2. arket har stier og veger fra N50-flisene, ikke bare terreng.
 //   3. OSM-arket ligger i registeret som NESTE finalize, og det feiler.
 //   4. etter omlasting sier banneret at kartet mangler OSM-detaljene, ikke at
 //      det «viser bare terreng».
@@ -59,6 +59,8 @@ try {
       utenOsm: ark.utenOsm, partial: ark.partial, source: ark.source,
       stilag: /data-layer="sti"/.test(ark.svg),
       n50sti: /N50-sti \(\d+ strekk\)/.test(ark.source),
+      n50veg: /N50-veg \(\d+ strekk\)/.test(ark.source),
+      vegLag: /data-layer="vei-(liten|stor)"/.test(ark.svg),
       harNeste: !!neste, nesteFeil,
     }
   }, SENTER)
@@ -68,6 +70,7 @@ try {
     `utenOsm=${svar.utenOsm} partial=${svar.partial} etter ${sek} s`)
   sjekk('kilden sier at OSM venter', String(svar.source).startsWith('N50 (OSM venter)'), svar.source)
   sjekk('arket har N50-stier', svar.n50sti && svar.stilag, svar.source)
+  sjekk('arket har N50-veger', svar.n50veg && svar.vegLag, svar.source)
   sjekk('OSM-arket er neste finalize, og det feiler', svar.harNeste && !!svar.nesteFeil, svar.nesteFeil)
   sjekk('Overpass ble faktisk blokkert', blokkert > 0, `${blokkert} forespørsler`)
 

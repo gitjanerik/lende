@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   berorerBbox, n50StiTilElementer, n50StiElementerFra, fetchN50StiLinjer,
-  nullstillManifestCache,
+  nullstillManifestCache, fetchN50VegLinjer, n50VegTilElementer,
 } from './n50StiFetcher.js'
 import { kodeFlis } from './n50StiPakke.js'
 import { travelLineGeometries } from './linjeDedup.js'
@@ -171,5 +171,50 @@ describe('fetchN50StiLinjer', () => {
     vi.stubGlobal('fetch', f)
     expect(await fetchN50StiLinjer(null, { basePath: '/d/' })).toEqual([])
     expect(f).not.toHaveBeenCalled()
+  })
+})
+
+describe('N50-vegene', () => {
+  beforeEach(() => { nullstillManifestCache() })
+  afterEach(() => { vi.unstubAllGlobals(); nullstillManifestCache() })
+  const svar = (body) => {
+    const bytes = body instanceof Uint8Array ? body : new TextEncoder().encode(JSON.stringify(body))
+    return { ok: true, status: 200, arrayBuffer: async () => bytes.buffer }
+  }
+  const g = [{ lat: 59.84, lon: 10.07 }, { lat: 59.84, lon: 10.09 }]
+
+  it('sti- og veg-katalogen har hvert sitt manifest', async () => {
+    // Med én felles slot fikk den andre katalogen den førstes flisliste.
+    const sti = kodeFlis([{ type: 'sti', geometry: g }])
+    const veg = kodeFlis([{ type: 'veg-k', geometry: g, bru: true }], { medFlagg: true })
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url === '/sti/manifest.json') return svar({ fliser: ['59.5_10.0'] })
+      if (url === '/veg/manifest.json') return svar({ fliser: ['59.5_10.0'] })
+      return svar(url.startsWith('/veg/') ? veg : sti)
+    }))
+    const s = await fetchN50StiLinjer(BBOX, { basePath: '/sti/' })
+    const v = await fetchN50VegLinjer(BBOX, { basePath: '/veg/' })
+    expect(s.map(l => l.type)).toEqual(['sti'])
+    expect(v.map(l => [l.type, l.bru])).toEqual([['veg-k', true]])
+  })
+
+  it('vegene blir OSM-aktige veger med riktig ISOM-kode', () => {
+    const els = n50VegTilElementer(['veg-e', 'veg-r', 'veg-f', 'veg-k', 'veg-p', 'bane']
+      .map(type => ({ type, geometry: g })))
+    expect(els.map(e => classifyToIsom(e)?.code)).toEqual(['501', '502', '502', '503', '503', '515'])
+    expect(els.every(e => e._source === 'n50veg' && e.tags['lende:n50veg'])).toBe(true)
+  })
+
+  it('tunnel og bru blir OSM-taggene symbolizer kjenner', () => {
+    const [t, b] = n50VegTilElementer([
+      { type: 'veg-r', geometry: g, tunnel: true },
+      { type: 'bane', geometry: g, bru: true },
+    ])
+    expect(t.tags.tunnel).toBe('yes')
+    expect(b.tags.bridge).toBe('yes')
+  })
+
+  it('sti-typer i veg-katalogen droppes', () => {
+    expect(n50VegTilElementer([{ type: 'sti', geometry: g }, { type: 'annet', geometry: g }])).toEqual([])
   })
 })

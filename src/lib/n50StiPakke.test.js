@@ -91,6 +91,38 @@ describe('koding — rundtur', () => {
     expect(ut.map(l => l.type)).toEqual(TYPER)
   })
 
+  it('sti-typene står foran i tabellen — rekkefølgen ER kodingen', () => {
+    expect(TYPER.slice(0, 4)).toEqual(['sti', 'traktorveg', 'barmarksloype', 'annet'])
+  })
+
+  it('uten flagg er flisa v2 og byte-identisk med en sti-bake', () => {
+    const inn = [{ type: 'sti', merket: true, geometry: sti(59.84, 10.08, 5) }]
+    const v2 = kodeFlis(inn)
+    expect(v2[5]).toBe(2)
+    expect(lesFlis(v2)[0]).not.toHaveProperty('tunnel')
+  })
+
+  it('v3 bærer tunnel og bru per linje', () => {
+    const g = sti(59.84, 10.08, 4)
+    const inn = [
+      { type: 'veg-e', geometry: g, tunnel: true },
+      { type: 'veg-k', geometry: g, bru: true },
+      { type: 'bane', geometry: g },
+    ]
+    const ut = lesFlis(kodeFlis(inn, { medFlagg: true }))
+    expect(ut.map(l => [l.type, !!l.tunnel, !!l.bru])).toEqual([
+      ['veg-e', true, false], ['veg-k', false, true], ['bane', false, false],
+    ])
+    expect(ut[0].geometry).toHaveLength(4)
+  })
+
+  it('delPaaFliser tar med tunnel og bru over flisgrensa', () => {
+    const geometry = [{ lat: 59.99, lon: 10.5 }, { lat: 60.01, lon: 10.5 }]
+    const deler = delPaaFliser({ type: 'veg-r', tunnel: true, geometry })
+    expect(deler.length).toBe(2)
+    expect(deler.every(d => d.tunnel)).toBe(true)
+  })
+
   it('ukjent type faller til «annet» i stedet for å ødelegge flisa', () => {
     const ut = lesFlis(kodeFlis([{ type: 'gangbru-over-bekk', geometry: sti(59.8, 10.1, 4) }]))
     expect(ut[0].type).toBe('annet')

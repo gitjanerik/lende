@@ -297,7 +297,7 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
     <div class="flex items-start gap-2">
       <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
         <template v-if="detailsFailed === 'n50'">
-          Fikk ikke lastet detaljer fra OpenStreetMap. Kartet viser stier og vann fra Kartverket.
+          Fikk ikke lastet detaljer fra OpenStreetMap. Kartet viser stier, veger og vann fra Kartverket.
         </template>
         <template v-else>Fikk ikke lastet stier og detaljer. Kartet viser bare terreng nå.</template>
       </div>
