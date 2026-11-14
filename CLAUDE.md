@@ -410,13 +410,14 @@ To ryddejobber, med ulik risiko. **Den første er gjort, den andre står igjen:*
    historikk vi er i ferd med å kaste), og **«ingen endringer i dist» er borte
    som begrep**: uten en forelder finnes det ingenting å diffe mot, og sjekken
    hadde aldri noe å spare fordi hver PR bumper `CACHE_VERSION` i `sw.js`.
-2. **master — STÅR IGJEN, og det er der flisene ligger.** `.git` er 223 MB pack
-   mot 129 MB bakte fliser i arbeidstreet (117 areal + 12 sti).
-   `git filter-repo` kan droppe gamle flis-blobs fra historikken, etterfulgt av
-   force-push. Det omskriver delt historikk. Repoet har én eier, så prisen er
-   lav — men gjør det som en egen, bevisst operasjon, ikke som et biprodukt av
-   en bake. Merk at `build-vardasen-map.yml` kloner med `fetch-depth: 0`, så
-   hver deploy betaler for den pakka.
+2. **master — MÅLT OG LAGT BORT (v8.0.3). Ikke gjør det.** Notatet her sa at
+   `.git` var 223 MB pack mot 129 MB fliser, og at `git filter-repo` ville
+   spare forskjellen. Tallet var fra før utskillingen fra svg-insights. Målt i
+   november 2026 på master alene (574 commits, `--single-branch`, gc): **138 MB
+   pack**, mot **134 MB** for ett eneste øyeblikksbilde av HEAD. Historikken
+   koster altså ~3 MB — flisene deltakomprimeres mot hverandre fordi hver bake
+   endrer lite. En omskriving ville brutt hver commit-SHA i CHANGELOG og PR-er
+   for 2 % plass. Det er arbeidstreet som veier, ikke historikken.
 
 GitHubs grenser, for kontekst: **100 MB per fil** er hard sperre (største flis
 er 2,4 MB, god margin), **5 GB repo** er der GitHub tar kontakt, og

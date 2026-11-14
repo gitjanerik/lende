@@ -651,9 +651,10 @@ function tilPersonvern() {
         d3-contour, polygon-clipping og graphology. Appen kjører fullt og helt i
         nettleseren som en installerbar PWA — ingen konto og ingen database hos oss.
         Kartdata hentes direkte fra kildene, og ruteberegningen i Ruteplanleggeren
-        går til BRouter (brouter.de); en liten Cloudflare-Worker står foran NVE,
-        Kulturminnesøk og MET fordi de krever nøkkel, CORS eller en identifiserende
-        klient, og serverer de ferdigbakte OpenStreetMap-flisene.
+        går til BRouter (brouter.de). Værvarsel, kulturminner og vannmålestasjoner
+        hentes gjennom Lendes egen lille server, fordi de kildene ikke kan spørres
+        rett fra nettleseren. Den samme serveren leverer kartdataene fra
+        OpenStreetMap, ferdig klargjort én gang i måneden.
       </p>
       <div class="text-[12px] leading-relaxed text-ink-3 space-y-1 pt-1 border-t border-ink/10">
         <p>Kartdata © <strong class="text-ink-2">OpenStreetMap</strong>-bidragsytere (ODbL),
