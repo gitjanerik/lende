@@ -39,6 +39,14 @@ import { MAKS_MINUTTER, klemMinutter } from './holdVaken.js'
 import { useMapLayerControl, sendLagKommando } from '../composables/useMapLayerControl.js'
 import { useMapHighlight, sendMerkeKommando } from '../composables/useMapHighlight.js'
 import { useRutePreferanse } from '../composables/useRutePreferanse.js'
+import { wgs84BboxFromMeta } from './utm.js'
+import { cacheGet, cacheSet, kulturminneBboxKey, fredetKulturminneBboxKey, hydroBboxKey, TTL } from './protectedAreaCache.js'
+import { fetchKulturminnerMedStatus } from './kulturminneFetcher.js'
+import { fetchFredaKulturminner } from './kulturminneWfs.js'
+import { fetchStationsForBbox } from './nveHydApi.js'
+import {
+  byggIndeks, tell, sok as sokInnhold, naermeste, naermesteFor, kort, beskriv as beskrivInnhold,
+} from './kartInnhold.js'
 
 // Router lastes lat: da kan testene importere de rene delene (buildTourQuery,
 // projectForModel) uten å evaluere hele router→view-treet.
@@ -292,6 +300,37 @@ export const AI_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'kartinnhold',
+      description:
+        'Kulturminner, hydrologiske målestasjoner (NVE), stier og veier i kartet brukeren står i. ' +
+        'All telling og alle avstander regnes ut av appen — bruk tallene ORDRETT, regn aldri selv. ' +
+        'handling «tell»: antall per type, fordelt på kategori. «sok»: finn objekter på navn/type ' +
+        '(«gravhaug», «Pukerudlinna», «bautastein»). «naermeste»: nærmeste objekter av typen «mot» fra ' +
+        'ett objekt (id), et stedsnavn i kartet (sted) eller koordinater — ELLER, med «sok» og uten id/sted, ' +
+        'avstanden fra HVERT treff til nærmeste «mot» («hvilken gravhaug ligger nærmest en sti?»). ' +
+        '«beskriv»: alle opplysninger om ett objekt (id). Treffene vises som klikkbare pekere under svaret ' +
+        'ditt, så du trenger ikke tilby merking. Vil brukeren vite lengde/høydemeter MELLOM to objekter, ' +
+        'send koordinatene deres til foreslaa_tur.',
+      parameters: {
+        type: 'object',
+        properties: {
+          handling: { type: 'string', enum: ['tell', 'sok', 'naermeste', 'beskriv'] },
+          type: { type: 'string', enum: ['kulturminne', 'malestasjon', 'sti', 'vei'], description: 'Hvilke objekter det gjelder (utelat = kulturminner og målestasjoner)' },
+          sok: { type: 'string', description: 'Fritekst for sok/naermeste, f.eks. «gravhaug»' },
+          id: { type: 'string', description: 'Objekt-id fra et tidligere svar (beskriv/naermeste)' },
+          sted: { type: 'string', description: 'Stedsnavn i kartet å måle fra (naermeste), f.eks. «Stordammen»' },
+          lat: { type: 'number' },
+          lon: { type: 'number' },
+          mot: { type: 'string', enum: ['kulturminne', 'malestasjon', 'sti', 'vei'], description: 'Hva det måles avstand TIL (naermeste)' },
+          maks: { type: 'number', description: 'Maks antall treff (standard 5)' },
+        },
+        required: ['handling'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'foreslaa_rundtur',
       description:
         'Foreslå og tegn inn en RUNDTUR (start = mål) på et av brukerens lagrede kart: fra et ' +
@@ -483,6 +522,132 @@ export function buildTourQuery({ fraLat, fraLon, tilLat, tilLon, navn, vis3d }) 
   if (vis3d) q.v3d = '1'
   if (navn) q.tn = String(navn).slice(0, 60)
   return q
+}
+
+// Indeksen bygges én gang per kart og lever i fem minutter: et spørsmål gir
+// gjerne to–tre kall på rad («finn gravhaugen» → «nærmeste sti»), og hvert kall
+// ville ellers parset kart-SVG-en og spurt tre tjenester på nytt.
+const INNHOLD_TTL_MS = 5 * 60 * 1000
+const innholdCache = new Map()
+
+async function hentListe(nokkel, ttl, hent) {
+  const cached = await cacheGet(nokkel).catch(() => null)
+  if (Array.isArray(cached)) return { rader: cached, status: 'ok' }
+  try {
+    const rader = await hent()
+    if (rader.length) cacheSet(nokkel, rader, ttl)
+    return { rader, status: rader.length ? 'ok' : 'tom' }
+  } catch {
+    return { rader: [], status: 'feilet' }
+  }
+}
+
+async function kartInnholdFor(id, kart) {
+  const husket = innholdCache.get(id)
+  if (husket && Date.now() - husket.tid < INNHOLD_TTL_MS) return husket
+  const svgEl = new DOMParser().parseFromString(kart.svg, 'image/svg+xml').documentElement
+  const meta = metaFraSvgEl(svgEl)
+  if (!meta) return null
+  // Samme bbox og cache-nøkler som kartlagene, så det lagene alt har hentet
+  // (eller en offline-pakke la inn) brukes uten nett.
+  // Brukerminne-laget nøkler på kartets lagrede bbox (useHeritageLayers bruker
+  // `meta.bbox` først), de to andre på hjørne-bboxen.
+  const bbox = wgs84BboxFromMeta(meta)
+  const kmBbox = kart.bbox ?? bbox
+  const [bm, fm, st] = await Promise.all([
+    hentListe(kulturminneBboxKey(kmBbox), TTL.kulturminne, async () => {
+      const res = await fetchKulturminnerMedStatus(kmBbox)
+      if (res.status !== 'ok' && !res.items.length) throw new Error(res.status)
+      return res.items
+    }),
+    hentListe(fredetKulturminneBboxKey(bbox), TTL.kulturminne, () => fetchFredaKulturminner(bbox)),
+    hentListe(hydroBboxKey(bbox), TTL.hydro, () =>
+      fetchStationsForBbox(bbox, { apiKey: import.meta.env?.VITE_NVE_HYDAPI_KEY ?? '' })),
+  ])
+  const indeks = byggIndeks({
+    brukerminner: bm.rader, fredede: fm.rader, stasjoner: st.rader,
+    stier: stinettFeaturesFromSvgEl(svgEl),
+  }, (lat, lon) => wgs84ToSvg(lat, lon, meta), (x, y) => svgToWgs84(x, y, meta))
+  const res = {
+    tid: Date.now(), indeks, meta,
+    kilder: { kulturminnesok: bm.status, askeladden: fm.status, nve: st.status },
+  }
+  innholdCache.set(id, res)
+  return res
+}
+
+export function _nullstillInnholdCache() { innholdCache.clear() }
+
+function medAvstand({ o, avstandM, retning }) {
+  return { ...kort(o), avstandM: Math.round(avstandM), ...(retning ? { retning } : {}) }
+}
+
+async function kjorKartinnhold(args, kontekst) {
+  const løst = await losKart(args, kontekst)
+  if (!løst) return { feil: 'Ingen kart er åpent — be brukeren åpne kartet først.' }
+  const { id, kart } = løst
+  const innhold = await kartInnholdFor(id, kart)
+  if (!innhold) return { feil: `Kartet «${kart.navn ?? id}» mangler geodata — bygg kartet på nytt.` }
+  const { indeks, meta, kilder } = innhold
+  const maks = Math.min(Math.max(Number(args?.maks) || 5, 1), 15)
+  const type = args?.type || undefined
+  const mot = args?.mot || undefined
+  const felles = { kart: kart.navn ?? id, kilder }
+  switch (args?.handling) {
+    case 'tell':
+      return { ...felles, antall: tell(indeks, { type }) }
+    case 'sok': {
+      const treff = sokInnhold(indeks, { type, tekst: args?.sok ?? '', maks })
+      return { ...felles, antallTreff: treff.length, treff: treff.map(kort) }
+    }
+    case 'beskriv': {
+      const o = indeks.find((x) => x.id === args?.id)
+      return o ? { ...felles, objekt: beskrivInnhold(o) } : { feil: `Fant ikke objektet «${args?.id}».` }
+    }
+    case 'naermeste': {
+      let fra = args?.id ? indeks.find((x) => x.id === args.id) : null
+      if (!fra && args?.sted) {
+        const naboer = await mosaikkNaboer(id, kart)
+        const t = await finnStedIKartet(kart, naboer, args.sted)
+        if (!t) return { feil: `Fant ikke «${args.sted}» blant kartets navn.` }
+        fra = { navn: t.navn ?? args.sted, lat: t.lat, lon: t.lon }
+      }
+      if (!fra && Number.isFinite(Number(args?.lat)) && Number.isFinite(Number(args?.lon))) {
+        fra = { navn: 'punktet', lat: Number(args.lat), lon: Number(args.lon) }
+      }
+      if (fra && fra.x == null) Object.assign(fra, wgs84ToSvg(fra.lat, fra.lon, meta))
+      if (fra) {
+        const liste = naermeste(indeks, fra, { type: mot, maks, unntak: fra.id })
+        return {
+          ...felles, fra: fra.id ? kort(fra) : { navn: fra.navn },
+          treff: liste.map(medAvstand),
+        }
+      }
+      if (args?.sok) {
+        const kandidater = sokInnhold(indeks, { type, tekst: args.sok, maks: 500 })
+        if (!kandidater.length) return { ...felles, treff: [], merknad: `Ingen treff på «${args.sok}».` }
+        const par = naermesteFor(indeks, kandidater, { type: mot, maks })
+        return {
+          ...felles,
+          kandidater: kandidater.length,
+          treff: par.map((p) => ({ ...kort(p.fra), avstandM: Math.round(p.avstandM), naermeste: kort(p.til), ...(p.retning ? { retning: p.retning } : {}) })),
+        }
+      }
+      return { feil: 'naermeste trenger id, sted, lat/lon eller sok.' }
+    }
+    default:
+      return { feil: `Ukjent handling «${args?.handling}». Bruk tell, sok, naermeste eller beskriv.` }
+  }
+}
+
+/** Id-er med koordinater i et kartinnhold-svar — de blir pekere i chatboblen. */
+export function pekereFraSvar(res) {
+  if (!res || res.feil) return []
+  const ut = []
+  const legg = (o) => { if (o?.id && Number.isFinite(o.lat)) ut.push({ id: o.id, navn: o.navn, type: o.type, lat: o.lat, lon: o.lon }) }
+  if (res.objekt) legg(res.objekt)
+  for (const t of res.treff ?? []) { legg(t); legg(t.naermeste) }
+  return ut
 }
 
 /** Kompakt liste-projeksjon for modellen — små tokens, nok til å velge. */
@@ -1252,6 +1417,8 @@ export async function runTool(name, args, { onNavigate, kontekst } = {}) {
           merknad: `Kartet vises nå i temaet «${valgt?.label ?? nokkel}». Bekreft kort til brukeren.`,
         }
       }
+      case 'kartinnhold':
+        return await kjorKartinnhold(args, kontekst)
       case 'analyser_stinett': {
         const løst = await losKart(args, kontekst)
         if (!løst) {
@@ -1496,6 +1663,8 @@ export function stinettSvarTekst(a) {
  *   snapMerknad?:string, underlag?:{andel:number, oppfylt:boolean, tekst:string}}}
  *   | {feil: string} | {ingenRute: true}}
  */
+export const OMVEI_FAKTOR = 1.6
+
 export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = false, pref = null }) {
   const features = stinettFeaturesFromSvgEl(svgEl, ROUTABLE_CODES)
   if (!features.length) return { ingenRute: true }
@@ -1558,6 +1727,17 @@ export function forhaandsberegnTur({ svgEl, meta, dem = null, punkter, isLoop = 
     const sum = oppsummerUnderlag(meterPerKode(rg, r.alleNodeIds ?? r.nodeIds), pref)
     if (sum.totalM > 0) {
       rute.underlag = { andel: +sum.andel.toFixed(2), oppfylt: sum.oppfylt, tekst: sum.tekst }
+    }
+  }
+  // Ruteren følger stinettet. Er ruta mye lengre enn luftlinja, er stien man
+  // tenker på trolig brutt et sted, og tallet gjelder en omvei — det skal sies.
+  if (!isLoop && punkter.length === 2) {
+    const a = wgs84ToSvg(punkter[0].lat, punkter[0].lon, meta)
+    const b = wgs84ToSvg(punkter[1].lat, punkter[1].lon, meta)
+    const luftM = Math.hypot(b.x - a.x, b.y - a.y)
+    if (luftM > 150 && r.lengthM > OMVEI_FAKTOR * luftM) {
+      rute.omveiMerknad = `Luftlinja er bare ${String(+(luftM / 1000).toFixed(1)).replace('.', ',')} km, ` +
+        'så ruta tar en omvei langs stinettet — en sti som går rett mellom punktene henger trolig ikke sammen i kartdataene.'
     }
   }
   if (fjerne.length) {
@@ -1626,6 +1806,7 @@ export function turSvarTekst({ type = 'tur', vis3d = false, rute = null } = {}) 
     ? `${biter.slice(0, -1).join(', ')} og ${biter[biter.length - 1]}`
     : biter.join(' og ')
   return `${hale}. Den tegnes inn i kartet nå.` +
+    (rute.omveiMerknad ? ` ${rute.omveiMerknad}` : '') +
     (rute.snapMerknad ? ` ${rute.snapMerknad}` : '') + ` ${treD}`
 }
 
@@ -1834,6 +2015,7 @@ export function toolStatusLabel(name, args) {
     case 'lag_kart': return 'Starter kartbygging …'
     case 'sok_i_kartet': return `Søker i kartet etter «${args?.sok ?? '…'}» …`
     case 'analyser_stinett': return 'Analyserer stinettet …'
+    case 'kartinnhold': return 'Ser i kartinnholdet …'
     case 'merk_i_kartet': return args?.fjern
       ? 'Fjerner markeringen …'
       : `Merker ${args?.navn ? `«${args.navn}»` : 'stedet'} i kartet …`

@@ -37,11 +37,14 @@ const props = defineProps({
   // aldri på boksen: polstringen og lukke-krysset skal bli stående (samme regel
   // som SkuffHeader — en zoomet rad dytter X-en ut av skjermen).
   uiTextScale: { type: Number, default: 1 },
+  // Snarvei-raden (med «Lende») er skjult mens Stifinneren er aktiv, så
+  // turpanelet bærer sin egen vei inn i chatten. Bare med invitasjon.
+  chatAktiv: { type: Boolean, default: false },
 })
 defineEmits([
   'clearHighlight', 'stopMeasure',
   'selectRoute', 'removeVia', 'beginAddVia', 'cancelStifinner',
-  'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d',
+  'followRoute', 'stopFollowing', 'shareRoundTrip', 'startGps', 'open3d', 'chat',
 ])
 
 // Boksene har prosent-tak på bredden, og teksten i dem vokser med skalaen —
@@ -318,6 +321,16 @@ function formatElevationDiff(m) {
             </svg>
             Vis turen i 3D
           </button>
+          <button v-if="chatAktiv" @click="$emit('chat')"
+                  class="mt-1 w-full flex items-center justify-center gap-1.5 rounded
+                         bg-ink/15 text-white font-medium text-[11px] py-1.5 px-3
+                         active:scale-[0.98]">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+            </svg>
+            Spør Lende om turen
+          </button>
         </template>
       </template>
     </div>
@@ -418,6 +431,15 @@ function formatElevationDiff(m) {
               <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>
             </svg>
             Vis i 3D
+          </button>
+          <button v-if="chatAktiv" @click="$emit('chat')"
+                  class="flex items-center gap-1 bg-ink/15 rounded px-1.5 py-0.5
+                         text-[10px] font-medium active:scale-95">
+            <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+            </svg>
+            Spør Lende
           </button>
         </div>
       </div>

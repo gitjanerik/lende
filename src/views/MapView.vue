@@ -1614,7 +1614,9 @@ onUnmounted(() => publiserMerkeKlar(false))
 watch(merkeKommando, (cmd) => {
   if (!cmd) return
   if (cmd.fjern) { clearHighlight(); return }
-  const match = cmd.navn ? findByName(mapSearch.index.value, String(cmd.navn)) : null
+  // `punkt`: koordinatene ER svaret (en peker fra chatten). Et navneoppslag
+  // ville truffet en navnebror — stasjonen «Stordammen» er ikke vannet.
+  const match = cmd.navn && !cmd.punkt ? findByName(mapSearch.index.value, String(cmd.navn)) : null
   if (match) { selectSearchResult(match); return }
   if (!meta.value || !Number.isFinite(cmd.lat) || !Number.isFinite(cmd.lon)) return
   const { x, y } = wgs84ToSvg(cmd.lat, cmd.lon, meta.value)
@@ -3415,7 +3417,9 @@ onUnmounted(() => {
       @stop-following="onStopFollowing"
       @share-round-trip="onShareRoundTrip"
       @start-gps="startPositioning"
-      @open3d="openTour3d" />
+      @open3d="openTour3d"
+      :chat-aktiv="lendeChatEnabled"
+      @chat="openChat" />
 
     <!-- Status/feil-overlays: lasting, last-feil, posisjons-status,
          detalj-feil og lav GPS-nøyaktighet. Trekt ut til MapStatusOverlays
