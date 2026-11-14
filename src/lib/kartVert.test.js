@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseHTML } from 'linkedom'
-import { byggVertSvg, STI_ISO_KODER } from './kartVert.js'
+import { byggVertSvg, STI_ISO_KODER, ARK_KLIPP_ID } from './kartVert.js'
 
 const NS = 'http://www.w3.org/2000/svg'
 
@@ -19,6 +19,20 @@ function maal() {
 }
 
 describe('byggVertSvg', () => {
+  // Flatene klippes ikke av byggeren, og roten har overflow: visible for
+  // spøkelsene — uten klippet dekket arkets skog relieffet i naboflisa.
+  it('klipper kart-lagene til arket, men ikke brukerlaget', () => {
+    const { svg } = byggVertSvg(kilde('<defs></defs><style></style><g data-layer="skog"></g><g data-layer="vann"></g>'), { doc: maal() })
+    const rekt = svg.querySelector(`#${ARK_KLIPP_ID} rect`)
+    expect([...['x', 'y', 'width', 'height']].map(k => rekt.getAttribute(k))).toEqual(['0', '0', '2000', '2000'])
+    expect(svg.querySelectorAll('defs').length).toBe(1)
+    for (const lag of svg.querySelectorAll('[data-layer]')) {
+      expect(lag.getAttribute('clip-path')).toBe(`url(#${ARK_KLIPP_ID})`)
+      expect(lag.parentNode).toBe(svg)
+    }
+    expect(svg.querySelector('#user-layer').hasAttribute('clip-path')).toBe(false)
+  })
+
   it('setter rot-attributtene kartet leses gjennom', () => {
     const { svg } = byggVertSvg(kilde(), { doc: maal() })
     expect(svg.getAttribute('viewBox')).toBe('0 0 2000 2000')
