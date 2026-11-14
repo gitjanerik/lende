@@ -1,0 +1,66 @@
+name: Bygg OSM-fliser
+
+# Fase 2 av docs/PLAN_OSM_UAVHENGIG.md: Geofabriks Norge-uttrekk bakt til
+# fliser i Overpass' `out geom`-form (scripts/bygg-osm-fliser.mjs), og så
+# sammenlignet med Overpass selv (scripts/sammenlign-osm-fliser.mjs).
+#
+# På en PR bakes BARE et utsnitt rundt Asker og Drøbak — nok til at
+# sammenligningen har fliser å lese, og raskt nok til ikke å holde PR-en.
+# Manuelt uten utsnitt bakes hele landet og MÅLES: antall fliser, størrelse,
+# største flis. Ingenting lastes opp ennå; lagringen (R2) kommer når tallene
+# er kjent.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/bygg-osm-fliser.mjs'
+      - 'scripts/osmOpl.mjs'
+      - 'scripts/sammenlign-osm-fliser.mjs'
+      - 'src/lib/osmFlis.js'
+      - '.github/workflows/bygg-osm-fliser.yml'
+  workflow_dispatch:
+    inputs:
+      bbox:
+        description: 'vest,sør,øst,nord for et utsnitt. Tomt = hele landet.'
+        required: false
+        default: ''
+
+concurrency:
+  group: osm-fliser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Installer osmium
+        run: sudo apt-get update -q && sudo apt-get install -y -q osmium-tool && osmium --version | head -1
+      - name: Last ned Norge fra Geofabrik
+        run: |
+          curl -fsSL -A 'lende-osm-fliser (github.com/gitjanerik/lende)' \
+            -o norway.osm.pbf https://download.geofabrik.de/europe/norway-latest.osm.pbf
+          ls -lh norway.osm.pbf
+      - name: Bak
+        env:
+          BBOX: ${{ github.event_name == 'pull_request' && '10.2,59.55,10.8,60.0' || inputs.bbox }}
+        run: |
+          node --max-old-space-size=12000 scripts/bygg-osm-fliser.mjs \
+            --pbf norway.osm.pbf --ut osm-fliser ${BBOX:+--bbox "$BBOX"}
+      - name: Sammenlign med Overpass
+        if: github.event_name == 'pull_request' || inputs.bbox != ''
+        run: |
+          node scripts/sammenlign-osm-fliser.mjs --fliser osm-fliser \
+            --sted 59.8416,10.4107,2 --sted 59.6633,10.6303,2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: osm-fliser-manifest
+          path: osm-fliser/manifest.json
+          if-no-files-found: ignore
