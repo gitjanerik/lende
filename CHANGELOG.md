@@ -1,3 +1,9 @@
+## 2026-11-14 — v8.0.3: «Rammeverk og kilder» uten «Cloudflare-Worker»
+
+Avsnittet i «Om appen» sier nå at værvarsel, kulturminner og vannmålestasjoner hentes gjennom Lendes egen lille server fordi kildene ikke kan spørres rett fra nettleseren, og at den samme serveren leverer OpenStreetMap-dataene klargjort én gang i måneden — samme grep som personvern-teksten i v8.0.2. CLAUDE.md er samtidig rettet om git-historikken: å skrive om master for å kvitte seg med gamle flis-utgaver ble målt til å spare om lag 3 MB av 138, så den ryddejobben er lagt bort.
+
+---
+
 ## 2026-11-14 — v8.0.2: Personvern-teksten uten «Worker»
 
 Avsnittet i «Om appen» om hva som sendes for å lage kartet snakket om «vår egen Worker», «Cloudflare-Worker», Overpass og Nominatim — ord som sier lite til den som ikke har bygget appen. Det sier nå det samme i vanlige ord: kartdata, værvarsel, kulturminner og vannmålestasjoner hentes gjennom Lendes egen server, som husker svarene en kort stund, men ikke hvem som spurte; svarer den ikke, hentes kartdataene rett fra OpenStreetMap, og et stedssøk går til OpenStreetMap. Den tekniske beskrivelsen under «Rammeverk og kilder» står som før.
