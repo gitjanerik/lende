@@ -35,7 +35,7 @@ import { slaaSammenVann, vannKildeFlagg, filterOsmWaterElements } from './vannMe
 export { filterOsmWaterElements }
 import { fillDemVoidsFromTerrarium } from './terrariumDem.js'
 import { utm32ToWgs84, utm32BboxFromWgs84 } from './utm.js'
-import { saveMap, generateMapId } from './mapStorage.js'
+import { saveMap, loadMap, generateMapId } from './mapStorage.js'
 import { snapUtmBboxToGrid, fetchDEMWithCache } from './demTileCache.js'
 import { logPerf } from './perfLog.js'
 import { cacheGet, cacheSet, TTL, kulturminneBboxKey } from './protectedAreaCache.js'
@@ -250,6 +250,10 @@ export async function buildMapFromCenter({
   onProgress = () => {},
   signal,
   terrainFirst = false,
+  // Kant-utvidelsen (v7.9.38): uten terreng-først, men med N50-arket. Kommer
+  // ikke OSM innen fristen, lagres N50-arket som flisa og løftet returneres som
+  // `osmArk` — se useMapExtend.
+  n50Ark = false,
   isAuto = false,
   utmBbox: explicitUtmBbox = null,
   // Ferdig sondering fra kalleren (pickeren sonderer allerede for å vise
@@ -1024,6 +1028,40 @@ export async function buildMapFromCenter({
     } catch (e) {
       if (signal?.aborted) throw e
       console.warn(`[terreng-først] feilet (${e?.message ?? e}) — bygger full som vanlig`)
+    }
+  }
+
+  // Kant-utvidelsen: ingen preview, men samme N50-ark som terreng-først. Flisa
+  // er ferdig når N50-arket er lagret; OSM-arket skriver over den i bakgrunnen.
+  if (n50Ark) {
+    const kritiskUtenOsmP = Promise.all([n50P, nveLakesP, probeDemPromise, n50StiP])
+    if (!(await osmInnenFrist(overpassP, kritiskUtenOsmP))) {
+      let ark = null
+      try {
+        ark = await assembleAndBuildFull({ utenOsm: true })
+      } catch (e) {
+        if (signal?.aborted) { byggOkt.avslutt(); throw e }
+        console.warn(`[N50-ark] feilet (${e?.message ?? e}) — venter på OSM-arket`)
+      }
+      if (ark) {
+        throwIfAborted()
+        const arkEntry = buildEntry(ark, true)
+        await saveMap(arkEntry)
+        const osmArk = (async () => {
+          try {
+            const full = await assembleAndBuildFull()
+            // Er flisa kappet bort mens OSM hentet, skal den ikke gjenoppstå.
+            if (!(await loadMap(id).catch(() => null))) return null
+            const fullEntry = buildEntry(full, false)
+            await saveMap(fullEntry)
+            return fullEntry
+          } finally {
+            byggOkt.avslutt()
+          }
+        })()
+        osmArk.catch(() => { /* N50-arket blir stående */ })
+        return { id, entry: arkEntry, osmArk }
+      }
     }
   }
 

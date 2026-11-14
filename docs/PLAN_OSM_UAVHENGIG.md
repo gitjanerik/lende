@@ -3,7 +3,8 @@
 **Status: FASE 1 LEVERT.** Avtalt med eieren 1. november 2026. 1b (N50-arket)
 levert i v7.9.35, 1a (veger i baken) i v7.9.36. Rekkefølgen ble snudd fordi 1b
 ikke trenger en bake og gir mest med en gang. Kyst-svaret uten Overpass kom i
-v7.9.37 (havmasken, se 1b). Gjenstår av fase 1: kant-utvidelsen.
+v7.9.37 (havmasken, se 1b), og kant-utvidelsen fikk N50-arket i v7.9.38.
+Neste: fase 2.
 
 ## Hvorfor
 
@@ -50,8 +51,9 @@ skiller dem; Buskerud hadde `enkelBilveg` = 62 271 mot sti = 17 568).
 **1b. Overpass ut av den kritiske stien** (`src/lib/createMapFlow.js`).
 **LEVERT i v7.9.35** — se CLAUDE.md, «N50-arket». Kyst-svaret fikk sin
 N50-vei i v7.9.37: havmasken (`lib/havmaske.js`, N50 Havflate som ~1 km-bitkart)
-svarer på saltvann, og Overpass-proben er bare reserve. Ikke gjort:
-kant-utvidelsen venter fortsatt på OSM. Røyk: `npm run royk:n50ark`.
+svarer på saltvann, og Overpass-proben er bare reserve. Kant-utvidelsen
+(pilene, «Fyll hullene», «Gjør arket firkantet») fikk N50-arket i v7.9.38
+(`n50Ark` i `buildMapFromCenter`). Røyk: `npm run royk:n50ark`.
 I dag: `Promise.all([overpassP, n50P, nveLakesP, demPromise])` (~linje 760)
 venter på OSM før fullbygget.
 - Bygg et N50-ark når DEM + vann + N50 er inne og OSM ikke har kommet innen

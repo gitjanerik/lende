@@ -11,6 +11,8 @@
 //      det «viser bare terreng».
 //   5. et kystkart (Drøbak) blir KYST med Overpass blokkert — saltvanns-svaret
 //      kommer fra havmasken (lib/havmaske.js), ikke fra kystlinje-proben.
+//   6. kant-utvidelsen (n50Ark uten terreng-først) leverer N50-arket som flisa,
+//      lagret som partial, og OSM-arket feiler i bakgrunnen.
 //
 // Krever nett (Kartverket WCS, NVE) — kjøres i CI, ikke fra sandkassa.
 
@@ -92,6 +94,24 @@ try {
   sjekk('kystkartet blir KYST uten Overpass', kyst.utenOsm === true && kyst.coastal === true,
     `utenOsm=${kyst.utenOsm} coastal=${kyst.coastal} ${JSON.stringify(ks)}`)
   sjekk('saltvanns-svaret kom fra havmasken', ks?.saltvannKilde === 'havmaske', ks?.saltvannKilde)
+
+  const kant = await page.evaluate(async (senter) => {
+    const flow = await import('/lende/src/lib/createMapFlow.js')
+    const lager = await import('/lende/src/lib/mapStorage.js')
+    const { id, entry, osmArk } = await flow.buildMapFromCenter({
+      center: senter, halfKm: 1, equidistanceM: 5, navn: senter.name, isAuto: true, n50Ark: true,
+    })
+    const lagret = await lager.loadMap(id)
+    const osmFeil = osmArk ? await osmArk.then(() => null, e => String(e?.message ?? e)) : null
+    await lager.deleteMap(id)
+    return {
+      utenOsm: entry?.utenOsm, partial: lagret?.partial, harOsmArk: !!osmArk, osmFeil,
+    }
+  }, { ...SENTER, lat: SENTER.lat + 0.02, name: 'N50-ark-kant-røyk' })
+  sjekk('kant-utvidelsen lagrer N50-arket som flisa',
+    kant.utenOsm === true && kant.partial === true, JSON.stringify(kant))
+  sjekk('kant-utvidelsens OSM-ark går i bakgrunnen, og det feiler', kant.harOsmArk && !!kant.osmFeil,
+    kant.osmFeil)
 
   await page.goto(`${BASE}/kart/${svar.id}`)
   const banner = page.getByText('mangler detaljene fra OpenStreetMap')
