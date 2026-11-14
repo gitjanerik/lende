@@ -512,14 +512,26 @@ De sier hvor, de sier hva det koster (`+N fliser` i pilla), og de bygger
 ingenting uten et trykk. «Gjør arket firkantet» og «Fyll hullene» er fortsatt
 BANNERE med kostnaden skrevet på, aldri automatikk — se `findRectangleGaps`.
 
-**ET FULLT ARK HAR INGEN PILER (v7.8.15), og flis-taket er NI.** Taket
-(`maxTiles` i MapView) gikk fra 25 til 9 — et 3 × 3-ark er den største mosaikken
-en dagstur trenger, og med 25 kunne man bygge seg til et 5 × 5 der de ytterste
-flisene lå så langt unna at neste promotering kappet dem igjen, altså arbeid
-brukeren ventet på og så mistet. Fordi ni er et tak man FAKTISK når, må pilene
-forholde seg til det: på et fullt ark kan de verken si hvor eller hva det
-koster — `plassIArket` avviser trykket, og alt brukeren får er en toast.
+**ET FULLT ARK HAR INGEN PILER (v7.8.15), og taket er et AREAL fra v8.0.6:
+32 × 32 km** (`flisTakForAreal` i `tileCache.js` → `maxTiles`, nå en computed i
+MapView). Ni fliser var taket fra v7.8.15, satt da hver flis tok et halvt minutt;
+med bakte OSM-fliser er det MINNET som koster, og det følger arealet. Et fast
+antall ga dessuten 18 × 18 km med 6 km-fliser og 48 × 48 km med 16 km-fliser.
+Taket omregnes til fliser fordi porten, pilene og node-taket teller fliser:
+16 med 8 km-fliser, med gulv 4 (2 × 2) og tak 64. Pilene forholder seg til
+det: på et fullt ark kan de verken si hvor eller hva det koster —
+`plassIArket` avviser trykket, og alt brukeren får er en toast.
 `extendZonesVisible` er derfor false når arket er fullt.
+
+**Porten teller CELLER, ikke modell-oppføringer** (`arkCelleAntall`, v8.0.6).
+To lagrede kart i samme rutenett-celle — et «Nytt turkart» bygd to ganger på
+samme sted — er én flis på arket. Eieren fikk «bare plass til 2 av 3» på et ark
+med seks synlige fliser og ni plasser.
+
+**pruneAutoTiles KALLES IKKE LENGER (v8.0.6).** Den telte auto-fliser i HELE
+lagringen og slettet de fjerneste over taket, altså kanten av et ANNET ark man
+hadde bygd et annet sted. Porten holder arket under taket, og flisene er bygd
+på bestilling — det finnes ingen cache å kappe.
 
 **Pilene og porten spør SAMME funksjon** (`arketErFullt` → `plassIArket` med
 `nye: 1`, `ledig === 0`). Skriver du `antall >= maxTiles` i den ene, er «fullt»
@@ -533,9 +545,17 @@ arket kan tettes så lenge det finnes plass, og de bannerne bærer kostnaden sin
 selv og går gjennom samme port.
 
 **Merk at `useGhostTiles`' node-tak er `max(MAX_GHOST_NODER = 12, maxTiles)`**,
-altså tolv i praksis nå. Modellen skal rekke lenger enn arket noen gang kan bli
+og radien den modellerer er `max(3, maxTiles)` flis-bredder — chatten
+(`velgMosaikkFliser`) regner likt. Modellen skal rekke minst like langt som arket
 — den skal aldri være det som begrenser. Ikke «forenkle» maks-en bort fordi den
-ene siden vinner i dag.
+ene siden vinner i dag. **Taket kappes ETTER gitter-sjekken**: et kart i nærheten
+med annen størrelse tok før en plass og dyttet en av arkets egne fliser ut.
+
+**SØKET DEKKER HELE ARKET, også fliser uten node (v8.0.6).**
+`useGhostTiles.alleArkNavn` leser navnene per flis og cacher dem (små, mens
+flisa er megabyte); en flis uten node parses én gang, leses og kastes. Svaret
+kommer i deler — billig først, så én flis om gangen — og cachen tømmes ved
+`renderGhostTiles`, fordi koordinatene er i AKTIV flis' meter-rom.
 
 **«Maks kartfliser» finnes ikke som kontroll, og står ikke lenger i Format-fana
 heller (v7.8.15).** Den var en slider med trinn 4/9/16/25/36 til v7.0.0, så et

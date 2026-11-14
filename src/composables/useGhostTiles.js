@@ -28,6 +28,7 @@ import { tileOffset, tilesAreGridCompatible } from '../lib/tileCache.js'
 import { velgFestede, utvidRekt, manglendeNoder, fjernesteNode } from '../lib/ghostFeste.js'
 import { viewRectSvg, expandRect, needsRecull } from '../lib/viewportCull.js'
 import { logPerf } from '../lib/perfLog.js'
+import { lesNavnIFlis } from '../lib/kartNavn.js'
 
 // Datamengden én flis koster. Meta-oppføringene fra listMaps() bærer `sizeBytes`
 // ferdig regnet; en full entry (leggTilSpokelse laster hele posten) gjør det
@@ -47,7 +48,10 @@ export function useGhostTiles({
   const ghostRects = ref([])           // modellen — se invarianten øverst
   let ghostRenderToken = 0             // invaliderer pågående render ved navigasjon
   const GHOST_OPACITY = 1.0            // opake spøkelser: ingen dobbel-mørkning/bånd i overlapp-soner
-  const GHOST_RENDER_RADIUS_TILES = 3  // hvor mange flis-bredder unna vi modellerer
+  // Hvor mange flis-bredder unna vi modellerer. Følger arkets tak (v8.0.6): med
+  // areal-taket kan et ark være en stripe på seksten fliser, og en fast radius
+  // på tre ville latt halve stripa falle ut av modellen.
+  const radiusFliser = () => Math.max(3, maxTiles?.value ?? 3)
   // Tak på PARSEDE noder i minnet — GULVET, og budsjettet for den FØRSTE
   // parse-runden i renderGhostTiles. Selve taket er `flisTak()`: det STØRSTE av
   // dette gulvet og arkets flis-tak, fordi et ark som bare kan tegne halvparten
@@ -56,11 +60,11 @@ export function useGhostTiles({
   // parser før første maling; resten fylles av feste-passet, i den rekkefølgen
   // utsnittet faktisk trenger dem.
   //
-  // Fra v7.8.15 er arkets tak NI (`maxTiles` i MapView), altså under dette
-  // gulvet — så `flisTak()` er i praksis tolv, og modellen rekker lenger enn
-  // arket noen gang kan bli. Det er den riktige veien: modellen skal aldri være
-  // det som begrenser. Ikke «forenkle» maks-en bort fordi den ene siden vinner
-  // i dag.
+  // Fra v8.0.6 er arkets tak et AREAL (32 × 32 km, `maxTiles` i MapView), og
+  // med 8 km-fliser er det seksten — over gulvet. Modellen og nodene følger
+  // det, så et ark aldri har flere fliser enn det kan tegne. Ikke «forenkle»
+  // maks-en bort: med 16 km-fliser er taket fire, og da er det gulvet som
+  // vinner.
   const MAX_GHOST_NODER = 12
   // Modell og noder deler tak. Fram til v6.5.74 var node-taket fast 12 mens
   // modellen fulgte maxTiles, og DA var invarianten øverst halvsann: modellen
@@ -134,8 +138,8 @@ export function useGhostTiles({
     off.dx = Math.round(off.dx)
     off.dy = Math.round(off.dy)
     // Radius-gate i meter: ikke tegn fliser fra et helt annet område.
-    if (Math.abs(off.dx) > GHOST_RENDER_RADIUS_TILES * activeMeta.widthM ||
-        Math.abs(off.dy) > GHOST_RENDER_RADIUS_TILES * activeMeta.heightM) return null
+    if (Math.abs(off.dx) > radiusFliser() * activeMeta.widthM ||
+        Math.abs(off.dy) > radiusFliser() * activeMeta.heightM) return null
 
     // Dyp-klon hele flisa (selvstendig: egne defs + <use>/mønster-referanser).
     const gsvg = root.cloneNode(true)
@@ -253,8 +257,8 @@ export function useGhostTiles({
     const off = tileOffset({ minE: m.minE, maxN: m.maxN }, { minE: ub.minE, maxN: ub.maxN })
     if (!off) return null
     const dx = Math.round(off.dx), dy = Math.round(off.dy)
-    if (Math.abs(dx) > GHOST_RENDER_RADIUS_TILES * m.widthM ||
-        Math.abs(dy) > GHOST_RENDER_RADIUS_TILES * m.heightM) return null
+    if (Math.abs(dx) > radiusFliser() * m.widthM ||
+        Math.abs(dy) > radiusFliser() * m.heightM) return null
     return { x: dx, y: dy, w: Wg, h: Hg }
   }
 
@@ -420,6 +424,7 @@ export function useGhostTiles({
     const token = ++ghostRenderToken
     ghostRects.value = []
     ghostNoder.clear()
+    navnCache.clear()
     festede = new Set()
     festeState = null
     relieffKo = []
@@ -438,7 +443,7 @@ export function useGhostTiles({
       ? { lat: (m.bbox.south + m.bbox.north) / 2, lon: (m.bbox.west + m.bbox.east) / 2 }
       : null
     const radiusDeg = activeCenter
-      ? (GHOST_RENDER_RADIUS_TILES + 1) * (m.widthM / 111320)
+      ? (radiusFliser() + 1) * (m.widthM / 111320)
       : Infinity
     // INGEN VERSJONS-PORT (v8.0.4). Auto-fliser bygd med en annen app-versjon
     // ble slettet her fram til nå — en regel fra automatikkens tid, da de var
@@ -447,13 +452,11 @@ export function useGhostTiles({
     // flisa man sto i («Kartet er slettet»). Et ark bygd med eldre kode er
     // fortsatt et gyldig ark.
     const modellTak = flisTak()
-    const cands = tiles
+    const naer = tiles
       .filter(t => t.id !== mapId.value && t.center && (!activeCenter ||
         Math.abs(t.center.lat - activeCenter.lat) < radiusDeg))
       .map(t => ({ t, d: activeCenter ? Math.hypot(t.center.lat - activeCenter.lat, t.center.lon - activeCenter.lon) : 0 }))
       .sort((a, b) => a.d - b.d)
-      .slice(0, modellTak)
-    if (!cands.length) return
 
     // ── Steg 1: MODELLEN, uten å parse noe ────────────────────────────────────
     // Fram til v5.19.0 var modell-taket det samme som DOM-taket (12), og det var
@@ -461,13 +464,21 @@ export function useGhostTiles({
     // extendZonesBounds, så kanthåndtakene satt for langt inn, mosaicMinScale lot
     // deg ikke zoome ut til hele arket, og clampPan stoppet deg for tidlig. Nå
     // speiler modellen det som faktisk er bygd.
+    //
+    // TAKET KAPPER ETTER GITTER-SJEKKEN (v8.0.6), ikke før. Et annet kart i
+    // nærheten med ulik størrelse eller gitter hører ikke til arket, men tok en
+    // plass i taket før det ble sortert bort — og dyttet en av arkets egne
+    // fliser ut av modellen.
     const rects = []
     const uparsede = []
-    for (const { t } of cands) {
+    for (const { t } of naer) {
+      if (rects.length + uparsede.length >= modellTak) break
       const rect = rectFraLagretMeta(t, m)
       if (rect) rects.push({ id: t.id, isAuto: !!t.isAuto, bytes: flisBytes(t), ...rect })
-      else uparsede.push(t)   // eldre post uten utmBbox → må parses for å plasseres
+      else if (!t.utmBbox) uparsede.push(t)   // eldre post uten utmBbox → må parses for å plasseres
     }
+    const cands = naer.filter(c => rects.some(r => r.id === c.t.id) || uparsede.includes(c.t))
+    if (!cands.length) return
 
     const ns = 'http://www.w3.org/2000/svg'
     const container = finnEllerLagGhostContainer(svg)
@@ -696,6 +707,45 @@ export function useGhostTiles({
     return medAlleSpokelserFestet(fn)
   }
 
+  // ── Navnene i HELE arket, også fliser uten node (v8.0.6) ─────────────────────
+  // Søket leste bare de parsede nodene, og med areal-taket kan arket ha flere
+  // fliser enn node-taket — et navn i en flis man ikke hadde vært i nærheten av,
+  // fantes ikke i trefflista. Navnene er små der flisa er megabyte, så de
+  // caches PER FLIS og overlever at noden slippes. En flis uten node parses én
+  // gang, leses og kastes; den beholdes ikke som node, for minnet er nettopp det
+  // node-taket passer på. Cachen tømmes av renderGhostTiles: koordinatene er i
+  // AKTIV flis' meter-rom, og det flytter seg ved en promotering.
+  //
+  // `vedDel` kalles først med alt som var billig (cache + noder), så igjen etter
+  // hver flis som måtte hentes — søket svarer straks og blir komplett etterpå.
+  const navnCache = new Map()
+  async function alleArkNavn(vedDel) {
+    const m = meta.value
+    if (!m) return []
+    const token = ghostRenderToken
+    const svg = svgHostRef.value?.querySelector('svg')
+    const samle = () => ghostRects.value.flatMap(r => navnCache.get(r.id) ?? [])
+    const mangler = []
+    for (const r of ghostRects.value) {
+      if (navnCache.has(r.id)) continue
+      const node = ghostNoder.get(r.id)
+      if (node) navnCache.set(r.id, lesNavnIFlis(node.el, svg).map(n => ({ ...n, el: null })))
+      else mangler.push(r.id)
+    }
+    if (typeof vedDel === 'function') vedDel(samle())
+    for (const id of mangler) {
+      let stored
+      try { stored = await loadStoredMap(id) } catch { continue }
+      if (token !== ghostRenderToken || !isAlive()) return samle()
+      if (!stored?.svg) continue
+      const ghost = buildGhostSvg(stored, m)
+      if (!ghost) continue
+      navnCache.set(id, lesNavnIFlis(ghost.el).map(n => ({ ...n, el: null })))
+      if (typeof vedDel === 'function') vedDel(samle())
+    }
+    return samle()
+  }
+
   // Legg til ÉN nybygd flis uten å rive mosaikken. Motstykket til
   // renderGhostTiles, som river #ghost-tiles og bygger alt på nytt med opptil
   // tolv sekvensielle multi-MB-parser — helt feil pris for én ny nabo.
@@ -826,7 +876,7 @@ export function useGhostTiles({
     ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, mosaikkStats,
     renderGhostTiles, updateGhostReliefOpacity, retoneGhostRelieff,
     leggTilSpokelse, scheduleGhostFeste, anvendGhostFeste,
-    medAlleSpokelserFestet, medAlleSpokelserFestetAsync,
+    medAlleSpokelserFestet, medAlleSpokelserFestetAsync, alleArkNavn,
     teardownGhostTiles,
   }
 }

@@ -130,8 +130,22 @@ function ancestorTranslate(el, root) {
  * @returns {Array<{el: Element, label: string, name: string, ele: number|null, x: number, y: number}>}
  */
 export function lesSpokelsesNavn(svgEl) {
+  return lesNavnUnder(svgEl?.querySelector?.('#ghost-tiles'), svgEl)
+}
+
+/**
+ * Samme lesing for ÉN flis, også en som ikke er i DOM-en (v8.0.6). `flisEl` er
+ * flisas nestede `<svg x y>` fra buildGhostSvg; uten rot går offset-gåingen til
+ * toppen av den løsrevne noden, og flisas egen x/y blir med — altså samme
+ * meter-rom som om den var festet.
+ */
+export function lesNavnIFlis(flisEl, rootSvg = null) {
+  if (!flisEl?.querySelectorAll) return []
+  return lesNavnUnder(flisEl, rootSvg)
+}
+
+function lesNavnUnder(host, svgEl) {
   const out = []
-  const host = svgEl?.querySelector?.('#ghost-tiles')
   if (!host?.querySelectorAll) return out
   for (const t of host.querySelectorAll('text[data-label]')) {
     const label = t.getAttribute('data-label')

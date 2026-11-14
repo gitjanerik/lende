@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible, findGridGaps, plassIArket } from './tileCache.js'
+import { tileDistance, selectTilesToEvict, tileOffset, rectOverlapFraction, tilesAreGridCompatible, findGridGaps, plassIArket, flisTakForAreal, arkCelleAntall, MIN_ARK_FLISER, MAKS_ARK_FLISER } from './tileCache.js'
 
 const at = (id, lat, lon) => ({ id, center: { lat, lon } })
 
@@ -302,5 +302,31 @@ describe('plassIArket — porten som hindrer bygg-og-slett', () => {
     expect(plassIArket().ok).toBe(true)              // 0 nye fliser er alltid ok
     expect(plassIArket({ arkFliser: NaN, nye: 99, max: 16 }).ok).toBe(false)
     expect(plassIArket({ arkFliser: -5, nye: 1, max: 0 }).tak).toBe(16)
+  })
+})
+
+describe('flisTakForAreal (v8.0.6)', () => {
+  it('gir 32 × 32 km uansett flisstørrelse', () => {
+    expect(flisTakForAreal(8000, 8000)).toBe(16)
+    expect(flisTakForAreal(4000, 4000)).toBe(64)
+    expect(flisTakForAreal(16000, 16000)).toBe(4)
+  })
+  it('har et gulv på 2 × 2 og et tak for små fliser', () => {
+    expect(flisTakForAreal(20000, 20000)).toBe(MIN_ARK_FLISER)
+    expect(flisTakForAreal(1000, 1000)).toBe(MAKS_ARK_FLISER)
+    expect(flisTakForAreal(undefined, 8000)).toBe(MIN_ARK_FLISER)
+  })
+})
+
+describe('arkCelleAntall (v8.0.6)', () => {
+  const r = (cx, cy, id) => ({ id, x: cx * 8000, y: cy * 8000, w: 8000, h: 8000 })
+  it('teller aktiv flis med', () => {
+    expect(arkCelleAntall([])).toBe(1)
+    expect(arkCelleAntall([r(1, 0), r(0, 1)])).toBe(3)
+  })
+  it('teller to kart i samme celle som én flis — «2 av 3» på et ark med seks', () => {
+    const seks = [r(1, 0), r(0, 1), r(1, 1), r(0, 2), r(1, 2)]
+    expect(arkCelleAntall([...seks, r(0, 0, 'dobbel')])).toBe(6)
+    expect(arkCelleAntall([...seks, r(1, 1, 'dobbel')])).toBe(6)
   })
 })

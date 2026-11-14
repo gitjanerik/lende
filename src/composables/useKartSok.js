@@ -66,7 +66,7 @@ import { logPerf } from '../lib/perfLog.js'
  */
 export function useKartSok({
   svgHostRef, wrapperRef, meta, scale, isGesturing, zoomNearThreshold,
-  panTo, forcedVisibleNameEls, medAlleFliser, visibleCenterSvg, hooks,
+  panTo, forcedVisibleNameEls, medAlleFliser, arkNavn, visibleCenterSvg, hooks,
 }) {
 
   // Utsnittets midtpunkt da søket ble åpnet — det trefflista måler avstand fra.
@@ -95,9 +95,25 @@ export function useKartSok({
   // Indekser naboflisene. Synkron DOM-lesing (ingen getBBox, bare attributter),
   // så den koster ikke noe nær et layout-pass — men den MÅ kjøre inne i
   // gjenfestings-vinduet, ellers ser den bare de festede flisene.
+  // HELE ARKET FRA v8.0.6: `arkNavn` (useGhostTiles.alleArkNavn) leser også
+  // fliser som ikke har en node, og svarer i deler — det som var billig først,
+  // så én flis om gangen. Lista oppdaterer seg mens brukeren skriver. Generasjon-
+  // stelleren kaster svar fra en åpning som alt er erstattet.
+  let naboGen = 0
   function rebuildNaboIndeks() {
     const svg = svgHostRef.value?.querySelector('svg')
     if (!svg) return 0
+    if (typeof arkNavn === 'function') {
+      const gen = ++naboGen
+      const t0 = performance.now()
+      let antall = 0
+      Promise.resolve(arkNavn((navn) => {
+        if (gen === naboGen) antall = mapSearch.rebuildNaboFraNavn(navn)
+      })).then(() => {
+        if (gen === naboGen) logPerf(`[søk] naboindeks (hele arket): ${Math.round(performance.now() - t0)} ms, ${antall} navn`)
+      }).catch(() => {})
+      return antall
+    }
     const t0 = performance.now()
     const kjor = () => mapSearch.rebuildNabo(svg)
     const antall = typeof medAlleFliser === 'function' ? medAlleFliser(kjor) : kjor()

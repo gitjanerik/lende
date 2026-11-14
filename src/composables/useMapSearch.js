@@ -675,8 +675,13 @@ export function buildSearchIndex(svgEl) {
  * @param {Element} svgEl aktiv flis' `<svg>`
  */
 export function buildNaboSearchIndex(svgEl) {
+  return buildNaboSearchIndexFraNavn(lesSpokelsesNavn(svgEl))
+}
+
+/** Samme indeks av ferdig leste navn — se useGhostTiles.alleArkNavn. */
+export function buildNaboSearchIndexFraNavn(navn) {
   const out = []
-  for (const n of lesSpokelsesNavn(svgEl)) {
+  for (const n of navn ?? []) {
     const kind = n.label
     if (SKIP_LABELS.has(kind)) continue
     if (NUMERIC_RE.test(n.name)) continue
@@ -899,6 +904,10 @@ export function useMapSearch({ senter } = {}) {
     naboIndex.value = buildNaboSearchIndex(svgEl)
     return naboIndex.value.length
   }
+  function rebuildNaboFraNavn(navn) {
+    naboIndex.value = buildNaboSearchIndexFraNavn(navn)
+    return naboIndex.value.length
+  }
 
   function clear() {
     query.value = ''
@@ -909,5 +918,5 @@ export function useMapSearch({ senter } = {}) {
   const arkIndex = computed(() => slaaSammenArkIndeks(index.value, naboIndex.value))
   const results = computed(() => filterIndex(arkIndex.value, query.value, 60, senter?.value ?? null))
 
-  return { query, results, index, naboIndex, arkIndex, rebuild, rebuildNabo, clear }
+  return { query, results, index, naboIndex, arkIndex, rebuild, rebuildNabo, rebuildNaboFraNavn, clear }
 }

@@ -304,9 +304,50 @@ export function findRectangleGaps(activeRect, ghostRects, { tolFrac = 0.25 } = {
   return ut
 }
 
+// ── ARKET HAR ET AREAL-TAK, IKKE ET FLIS-TAK (v8.0.6) ─────────────────────────
+// Ni fliser var et tak satt da hver flis tok et halvt minutt å bygge. Med
+// bakte OSM-fliser er byggingen rask, og det som faktisk koster er MINNET —
+// og det følger arealet, ikke antallet: en 2 km-flis er en brøkdel av en 8 km.
+// Et fast antall ga dessuten et 18 × 18 km-ark med 6 km-fliser og et
+// 48 × 48 km-ark med 16 km-fliser. Taket er nå 32 × 32 km uansett flisstørrelse,
+// omregnet til fliser fordi resten av maskineriet (porten, pilene, node-taket)
+// teller fliser. Gulvet er et 2 × 2-ark, så en stor flis alltid kan utvides; et
+// fast øvre tak holder antallet IndexedDB-lesinger og noder i sjakk for små.
+export const MAKS_ARK_KM2 = 32 * 32
+export const MIN_ARK_FLISER = 4
+export const MAKS_ARK_FLISER = 64
+
+/** Hvor mange fliser av denne størrelsen arket rommer. */
+export function flisTakForAreal(widthM, heightM) {
+  const a = Number(widthM) * Number(heightM)
+  if (!(a > 0)) return MIN_ARK_FLISER
+  const n = Math.floor((MAKS_ARK_KM2 * 1e6) / a + 1e-9)
+  return Math.min(MAKS_ARK_FLISER, Math.max(MIN_ARK_FLISER, n))
+}
+
+/**
+ * Hvor mange RUTENETT-CELLER arket dekker, aktiv flis medregnet.
+ *
+ * Telles celler og ikke fliser, fordi to lagrede kart kan ligge i samme celle —
+ * typisk et «Nytt turkart» bygd to ganger på samme sted. Det ene dekker det
+ * andre, og telte vi begge, sa porten «bare plass til 2 av 3» på et ark med seks
+ * synlige fliser og ni plasser (v8.0.6).
+ *
+ * @param {Array<{x:number,y:number,w:number,h:number}>} rects modell-rektangler
+ *   i aktiv flis' meter-rom (aktiv flis ligger i 0,0)
+ */
+export function arkCelleAntall(rects) {
+  const celler = new Set(['0,0'])
+  for (const r of rects ?? []) {
+    if (!(r?.w > 0) || !(r?.h > 0)) continue
+    celler.add(`${Math.round(r.x / r.w)},${Math.round(r.y / r.h)}`)
+  }
+  return celler.size
+}
+
 /**
  * Har arket plass til `nye` fliser innenfor flis-taket (`maxTiles` i MapView,
- * ni fra v7.8.15)?
+ * regnet av flisTakForAreal fra v8.0.6)?
  *
  * Grunnen til at dette er en PORT og ikke bare et tak på utkastingen: fram til
  * v6.5.75 bygde utvidelsen så mange fliser den ble bedt om, og lot
