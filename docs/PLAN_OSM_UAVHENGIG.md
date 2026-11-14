@@ -1,8 +1,9 @@
 # Plan — kart uten å vente på Overpass
 
-**Status: FASE 1 PÅGÅR.** Avtalt med eieren 1. november 2026. 1b (N50-arket)
-levert i v7.9.35; 1a (veger i baken) er neste. Rekkefølgen ble snudd fordi 1b
-ikke trenger en bake og gir mest med en gang.
+**Status: FASE 1 LEVERT.** Avtalt med eieren 1. november 2026. 1b (N50-arket)
+levert i v7.9.35, 1a (veger i baken) i v7.9.36. Rekkefølgen ble snudd fordi 1b
+ikke trenger en bake og gir mest med en gang. Gjenstår av fase 1: kyst-svaret
+uten Overpass og kant-utvidelsen (se 1b).
 
 ## Hvorfor
 
@@ -31,7 +32,12 @@ IP for alle), ferdige vektorfliser à la Protomaps (generalisert — stityper og
 
 Mål: brukbart kart på 3–8 s uansett hva Overpass gjør. OSM blir påfyll.
 
-**1a. Veger (og ev. bygg/jernbane) inn i N50-baken.** `scripts/bygg-n50-sti.mjs`
+**1a. Veger (og ev. bygg/jernbane) inn i N50-baken.**
+**LEVERT i v7.9.36** — `--lag veg` → `public/data/n50-veg/`, egen katalog.
+Målt: 883 577 linjer, 199 fliser, 18,8 MB (15,2 MB gzip), største 934 KB —
+langt under anslaget. Jernbanen ble med; bygg ble ikke (N50-bygg er punkter og
+gir lite i et N50-ark som uansett erstattes). Vegene brukes bare i N50-arket.
+Opprinnelig plan: `scripts/bygg-n50-sti.mjs`
 leser alt fra `Samferdsel … senterlinje` (`Veglenke`) og kaster alt annet enn
 `typeveg` sti/traktorveg/barmarksløype. Vegene ligger i samme lag. Utvid
 `klassifiser` med bilveg-klassene → ISOM 501–505 (sjekk hvilke attributter som
@@ -63,6 +69,9 @@ kart bygget uten OSM (stub Overpass til feil). Røyk-sjekk. `npm run navnediff`
 hvis MapView røres. `npm run boot:workers` siden `src/lib` røres.
 
 ## Fase 2 — egen OSM-bake (etterpå, 4–6 PR-er)
+
+**Versjon:** PR-en som fullfører fase 2 bumpes til **v8.0.0** (bestilt av eieren
+14. nov. 2026). PR-ene underveis er patch-bumper som vanlig.
 
 Mål: fullt OSM-innhold på sekunder, ingen tredjepart i stien. Data inntil en
 uke gammel.

@@ -1,4 +1,4 @@
-name: Bygg N50-stinettet
+name: Bygg N50-stinettet / -vegnettet
 
 # Baker N50 sti/traktorveg til statiske fliser i public/data/n50-sti/ og
 # committer dem tilbake til branchen.
@@ -15,6 +15,17 @@ name: Bygg N50-stinettet
 on:
   workflow_dispatch:
     inputs:
+      lag:
+        description: 'sti → public/data/n50-sti/, veg → public/data/n50-veg/ (bilveg + jernbane, egen katalog).'
+        required: false
+        default: 'sti'
+        type: choice
+        options: ['sti', 'veg']
+      mal:
+        description: 'Bare mål størrelsen — skriv og commit ingenting. Kjør denne FØRST for et nytt lag.'
+        required: false
+        default: false
+        type: boolean
       fylke:
         description: 'Fylkesnummer for en rask prøve (f.eks. 33 = Buskerud). Tomt = hele landet.'
         required: false
@@ -47,30 +58,35 @@ jobs:
       - name: Bak flisene
         run: |
           set -o pipefail
-          ARGS="--toleranse ${{ inputs.toleranse || '3' }}"
+          ARGS="--lag ${{ inputs.lag || 'sti' }} --toleranse ${{ inputs.toleranse || '3' }}"
+          if [ "${{ inputs.mal }}" = "true" ]; then ARGS="$ARGS --mal"; fi
           if [ -n "${{ inputs.fylke }}" ]; then ARGS="$ARGS --fylke ${{ inputs.fylke }}"; fi
           node scripts/bygg-n50-sti.mjs $ARGS
 
       - name: Vis resultatet
+        if: ${{ !inputs.mal }}
         run: |
-          du -sh public/data/n50-sti
-          ls public/data/n50-sti | head -5
-          echo "… $(ls public/data/n50-sti | wc -l) filer totalt"
+          KAT=public/data/n50-${{ inputs.lag || 'sti' }}
+          du -sh $KAT
+          ls $KAT | head -5
+          echo "… $(ls $KAT | wc -l) filer totalt"
 
       - name: Commit hvis endret
+        if: ${{ !inputs.mal }}
         run: |
           set -e
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add public/data/n50-sti
+          KAT=public/data/n50-${{ inputs.lag || 'sti' }}
+          git add $KAT
           # Bare commit ved REELL endring. N50-stier er stabile, så de fleste
           # bakingene er no-ops — og en tom commit ville tvunget alle brukere
           # til å laste ned flisene på nytt uten grunn.
           if git diff --staged --quiet; then
-            echo "Ingen endring i N50-stiflisene"
+            echo "Ingen endring i $KAT"
           else
             git -c commit.gpgsign=false commit \
               --author="Deploy <deploy@lende>" \
-              -m "N50-stinettet (auto-generert fra Kartverket N50)"
+              -m "N50-${{ inputs.lag || 'sti' }} (auto-generert fra Kartverket N50)"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi

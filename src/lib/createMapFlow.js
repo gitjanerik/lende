@@ -22,7 +22,7 @@ import { fetchN50Water } from './n50Fetcher.js'
 import { fetchNveLakePolygons } from './nveLakeFetcher.js'
 import { fetchKulturminner } from './kulturminneFetcher.js'
 import { fetchTurruteRoutes, turruteElementsFrom, fetchSkiloyper, skiloypeElementsFrom } from './turrutebasenFetcher.js'
-import { fetchN50StiLinjer, n50StiElementerFra } from './n50StiFetcher.js'
+import { fetchN50StiLinjer, n50StiElementerFra, fetchN50VegLinjer, n50VegTilElementer } from './n50StiFetcher.js'
 import { fjernGrovOsm } from './linjeDedup.js'
 import { fetchN50Areal, fetchN50Vann } from './n50ArealFetcher.js'
 import { slaaSammenAreal, arealKildeFlagg } from './arealMerge.js'
@@ -494,6 +494,13 @@ export async function buildMapFromCenter({
     n50StiStatus = { state: 'feil', message: String(e?.message ?? e) }
     return []
   }))
+  // N50-vegnettet (bilveg + jernbane) — bare for N50-arket, der OSM mangler.
+  // Fyres ved t = 0 likevel: flisene er lokale og cachet, og når vi vet at OSM
+  // er sent ute, er det for sent å begynne å hente dem.
+  const n50VegP = timeAsync('n50veg', fetchN50VegLinjer(bbox, { signal }).catch(e => {
+    console.warn('N50-veg ikke tilgjengelig:', e?.message ?? e)
+    return []
+  }))
   // N50-arealdekke (myr) fra statiske fliser. Samme form som stinettet:
   // fyres parallelt, feiler aldri hardt. Er flisene ikke bakt, får kartet bare
   // OSM-myra som før — se n50ArealFetcher om hvorfor den fila tåler det.
@@ -835,6 +842,12 @@ export async function buildMapFromCenter({
     if (turruteElements.length > 0) elements.push(...turruteElements)
     if (n50StiElements.length > 0) elements.push(...n50StiElements)
     if (skiElements.length > 0) elements.push(...skiElements)
+    // Vegene bare i N50-arket: OSM har alle vegene, og en N50-veg som ligger
+    // noen meter ved siden av sin OSM-tvilling er en dobbel strek.
+    const n50VegElements = utenOsm
+      ? n50VegTilElementer(await withHardTimeout(n50VegP, SEKUNDAER_BUDSJETT_MS, [], 'N50-veg (N50-ark)'))
+      : []
+    if (n50VegElements.length > 0) elements.push(...n50VegElements)
 
     const sourceParts = utenOsm ? ['N50 (OSM venter)'] : ['OSM']
     if (n50Water.length > 0) sourceParts.push(`N50/NVE-innsjø (${n50Water.length} vann${n50HasSea ? ', m/sjø' : ''})`)
@@ -844,6 +857,7 @@ export async function buildMapFromCenter({
     if (turruteElements.length > 0) sourceParts.push(`Turrutebasen (${turruteElements.length} rutestrekk)`)
     if (n50StiElements.length > 0) sourceParts.push(`N50-sti (${n50StiElements.length} strekk)`)
     if (skiElements.length > 0) sourceParts.push(`Turrutebasen (${skiElements.length} skiløype-strekk)`)
+    if (n50VegElements.length > 0) sourceParts.push(`N50-veg (${n50VegElements.length} strekk)`)
     if (n50Areal.length > 0) {
       // Kilde-strengen sier hva vi FIKK, ikke hva baken kan levere: den er det
       // eneste stedet en bruker ser at et ark mangler skog fordi flisene ikke

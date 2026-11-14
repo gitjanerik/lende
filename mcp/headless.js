@@ -11,7 +11,7 @@ import { fetchN50Water } from '../src/lib/n50Fetcher.js'
 import { slaaSammenVann } from '../src/lib/vannMerge.js'
 import { slaaSammenAreal } from '../src/lib/arealMerge.js'
 import { fetchTurruteRoutes, turruteElementsFrom, fetchSkiloyper, skiloypeElementsFrom } from '../src/lib/turrutebasenFetcher.js'
-import { fetchN50StiLinjer, n50StiElementerFra } from '../src/lib/n50StiFetcher.js'
+import { fetchN50StiLinjer, n50StiElementerFra, fetchN50VegLinjer, n50VegTilElementer } from '../src/lib/n50StiFetcher.js'
 import { fjernGrovOsm } from '../src/lib/linjeDedup.js'
 import { fetchN50Areal, fetchN50Vann } from '../src/lib/n50ArealFetcher.js'
 import { utm32BboxFromWgs84 } from '../src/lib/utm.js'
@@ -105,6 +105,13 @@ export function n50VannKilde(eksplisitt) {
   return n50FlisKilde(eksplisitt, 'n50-vann')
 }
 
+/**
+ * Samme tre-trinns valg mot VEG-flisene (bilveg + jernbane, bare N50-arket).
+ */
+export function n50VegKilde(eksplisitt) {
+  return n50FlisKilde(eksplisitt, 'n50-veg')
+}
+
 // Delt mekanikk for begge katalogene. Den lå i to nesten like kopier for sti og
 // areal; en tredje kopi for vann ville vært den dupliseringen CLAUDE.md sin
 // gjeld-seksjon ber om å stoppe FØR den skrives.
@@ -173,7 +180,7 @@ export function demResolutionForArea(utmBbox, maxCells = DEM_MAX_CELLS) {
  */
 export async function buildMapHeadless({
   lat, lon, halfKm, equidistanceM, detaljNivaa: eksplisittNivaa, tetthetAv = false,
-  n50StiBase, n50ArealBase, n50VannBase,
+  n50StiBase, n50ArealBase, n50VannBase, n50VegBase,
   // OSM-kravet. 'krev' (standard) kaster når Overpass feiler, som før — fasit og
   // probene måler OSM-pipelinen og skal ikke få et N50-ark i stedet. 'fallback'
   // bygger N50-arket når Overpass feiler (MCP-verktøyene), og 'av' bygger det
@@ -219,7 +226,7 @@ export async function buildMapHeadless({
 
   let n50ArealStatus = null
   let n50VannStatus = null
-  const [overpass, n50Water, dem, turruteRoutes, skiloyper, n50StiLinjer, n50Areal, n50Rivers] = await Promise.all([
+  const [overpass, n50Water, dem, turruteRoutes, skiloyper, n50StiLinjer, n50Areal, n50Rivers, n50VegLinjer] = await Promise.all([
     osm === 'av' ? Promise.resolve(null) : fetchOverpass(bbox).catch((e) => {
       if (osm !== 'fallback') throw e
       console.error(`[buildMapHeadless] Overpass feilet (${e?.message ?? e}) — bygger N50-arket`)
@@ -283,6 +290,14 @@ export async function buildMapHeadless({
       return fetchN50Vann(bbox, { ...kilde, onStatus: s => { n50VannStatus = s } })
         .catch(() => [])
     })(),
+    // N50-vegene brukes bare når OSM mangler (N50-arket), så de hentes bare
+    // da. Samme kilde-regel som stiene, med veg-katalogen som base.
+    (async () => {
+      if (osm === 'krev') return []
+      const kilde = n50VegKilde(n50VegBase)
+      if (!kilde) return []
+      return fetchN50VegLinjer(bbox, kilde).catch(() => [])
+    })(),
   ])
 
   // Vann-stacken slås sammen med SAMME kode som appen (lib/vannMerge.js).
@@ -306,6 +321,8 @@ export async function buildMapHeadless({
   elements.push(...turruteEls)
   elements.push(...n50StiElementerFra(n50StiLinjer, [...osmStier, ...turruteEls], n50StiStatus))
   elements.push(...skiloypeElementsFrom(skiloyper, osmElementer))
+  // Vegene bare i N50-arket, som i appen (createMapFlow).
+  if (utenOsm) elements.push(...n50VegTilElementer(n50VegLinjer))
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,

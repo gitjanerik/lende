@@ -19,7 +19,23 @@
 // publiserer ukentlig, men et stinett flytter seg ikke, og OSM (som hentes
 // live ved hver kart-bygging) er det som fanger opp nye stier raskt.
 //
-// Kjør:  node scripts/bygg-n50-sti.mjs [--fylke 33] [--toleranse 3]
+// ── Vegene (fase 1 av docs/PLAN_OSM_UAVHENGIG.md) ───────────────────────────
+// `--lag veg` baker bilveger og jernbane fra SAMME lag til en EGEN katalog,
+// public/data/n50-veg/. Egen katalog av samme grunn som n50-vann: manifestet
+// er klientens cache-nøkkel, og en bake som skrev veger inn i n50-sti/ ville
+// sendt hver bruker ut i full nedlasting av et stinett som ikke hadde endret
+// seg. Vegene brukes bare i N50-arket (kartet før OSM er inne) — OSM er
+// autoritativ for veger, så de blandes ikke inn i det ferdige arket.
+//
+// Attributtene er målt i CI (kjøring 43561057253, Buskerud):
+//   vegkategori: P=42628, K=11042, F=7057, R=1067, E=642
+//   medium: T=88990, L=859 (bru), U=170 (tunnel), B=7
+//   vegfase: V=62435   · Bane: anleggstype J=450/M=17, banestatus I=390/N=77
+//
+// `--mal` måler uten å skrive: kjør den FØRST, størrelsen avgjør om baken kan
+// ligge i git.
+//
+// Kjør:  node scripts/bygg-n50-sti.mjs [--lag sti|veg] [--fylke 33] [--toleranse 3] [--mal]
 
 import { execFileSync } from 'node:child_process'
 import {
@@ -28,6 +44,7 @@ import {
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
+import { gzipSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 import { forenkleLinje, kodeFlis, delPaaFliser, lengdeM, VERSJON } from '../src/lib/n50StiPakke.js'
 // Nedlastings-maskineriet er delt med myr-baken (v5.24.0). Alt der er
@@ -43,9 +60,15 @@ const args = process.argv.slice(2)
 const argVal = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null }
 const FYLKE = argVal('--fylke')
 const TOLERANSE = Number(argVal('--toleranse') ?? 3)
+const LAG = argVal('--lag') ?? 'sti'
+const MAL = args.includes('--mal')
+if (!['sti', 'veg'].includes(LAG)) {
+  console.error(`Ukjent --lag ${LAG} (sti eller veg)`)
+  process.exit(1)
+}
 
 const ROT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const UT_KATALOG = join(ROT, 'public', 'data', 'n50-sti')
+const UT_KATALOG = join(ROT, 'public', 'data', LAG === 'veg' ? 'n50-veg' : 'n50-sti')
 
 
 const log = (...a) => console.log(...a)
@@ -66,6 +89,35 @@ export function klassifiser(props) {
   return { type, merket }
 }
 
+// Bilveg per vegkategori. S (skogsbilveg) og ukjente kategorier regnes som
+// privat veg — det er den svakeste veg-klassen vi tegner.
+const VEGKATEGORI = { E: 'veg-e', R: 'veg-r', F: 'veg-f', K: 'veg-k', P: 'veg-p' }
+const BILVEG = new Set(['enkelbilveg', 'kanalisertveg', 'rampe', 'rundkjøring', 'rundkjoring'])
+
+export function klassifiserVeg(props) {
+  const objtype = String(props?.objtype ?? '').trim()
+  const medium = String(props?.medium ?? '').trim().toUpperCase()
+  const flagg = {}
+  if (medium === 'U') flagg.tunnel = true
+  if (medium === 'L') flagg.bru = true
+  if (objtype === 'Bane') {
+    // Bare jernbane i drift: M er ikke jernbane, og en nedlagt bane er ikke
+    // noe man navigerer etter.
+    const anlegg = String(props?.anleggstype ?? '').trim().toUpperCase()
+    const status = String(props?.banestatus ?? '').trim().toUpperCase()
+    if (anlegg !== 'J' || status !== 'I') return null
+    return { type: 'bane', ...flagg }
+  }
+  const t = String(props?.typeveg ?? '').trim().toLowerCase()
+  if (!BILVEG.has(t)) return null
+  const fase = String(props?.vegfase ?? 'V').trim().toUpperCase()
+  if (fase && fase !== 'V') return null
+  const kat = String(props?.vegkategori ?? '').trim().toUpperCase()
+  return { type: VEGKATEGORI[kat] ?? 'veg-p', ...flagg }
+}
+
+const KLASSIFISER = LAG === 'veg' ? klassifiserVeg : klassifiser
+
 async function lesStier(kilde, dir) {
   const lag = lagNavn(kilde, /samferdsel.*senterlinje/i)
   const linjer = []
@@ -80,7 +132,7 @@ async function lesStier(kilde, dir) {
       if (!rad.trim()) continue
       let f
       try { f = JSON.parse(rad) } catch { continue }
-      const k = klassifiser(f.properties)
+      const k = KLASSIFISER(f.properties)
       if (!k || !f.geometry) continue
       const deler = f.geometry.type === 'MultiLineString' ? f.geometry.coordinates
         : f.geometry.type === 'LineString' ? [f.geometry.coordinates] : []
@@ -105,7 +157,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       ? omrader.filter(o => o.code === FYLKE)
       : omrader.filter(o => o.type === 'fylke')
     if (!fylker.length) throw new Error(`Fant ingen områder (--fylke ${FYLKE})`)
-    log(`Bygger N50-sti for ${fylker.length} fylke(r), ${TOLERANSE} m forenkling\n`)
+    log(`Bygger N50-${LAG} for ${fylker.length} fylke(r), ${TOLERANSE} m forenkling${MAL ? ' (bare måling)' : ''}\n`)
 
     // Akkumuler per flis over ALLE fylker før vi skriver: en flis som krysser
     // en fylkesgrense må få innhold fra begge sider i SAMME fil, ellers ville
@@ -136,7 +188,7 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
           }
         }
         linjerTotal += n
-        log(`    ${n.toLocaleString('no')} stilinjer`)
+        log(`    ${n.toLocaleString('no')} ${LAG}linjer`)
       } catch (e) {
         feilet++
         console.error(`    FEIL: ${e.message.split('\n')[0]}`)
@@ -151,15 +203,25 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
     }
     if (!fliser.size) throw new Error('ingen fliser å skrive')
 
-    rmSync(UT_KATALOG, { recursive: true, force: true })
-    mkdirSync(UT_KATALOG, { recursive: true })
-    let bytes = 0, storst = 0
+    if (!MAL) {
+      rmSync(UT_KATALOG, { recursive: true, force: true })
+      mkdirSync(UT_KATALOG, { recursive: true })
+    }
+    let bytes = 0, gzBytes = 0, storst = 0
     const nokler = [...fliser.keys()].sort()
     for (const nokkel of nokler) {
-      const pakket = kodeFlis(fliser.get(nokkel))
-      writeFileSync(join(UT_KATALOG, `${nokkel}.bin`), pakket)
+      // Vegene bærer tunnel/bru og bakes som v3; stiene er v2, byte-identisk.
+      const pakket = kodeFlis(fliser.get(nokkel), { medFlagg: LAG === 'veg' })
+      if (!MAL) writeFileSync(join(UT_KATALOG, `${nokkel}.bin`), pakket)
       bytes += pakket.length
+      gzBytes += gzipSync(pakket).length
       if (pakket.length > storst) storst = pakket.length
+    }
+    if (MAL) {
+      log(`\n${linjerTotal.toLocaleString('no')} ${LAG}linjer · ${Math.round(kmTotal).toLocaleString('no')} km`)
+      log(`${nokler.length} fliser · ${(bytes / 1e6).toFixed(1)} MB (${(gzBytes / 1e6).toFixed(1)} MB gzip) · største ${(storst / 1024).toFixed(0)} KB`)
+      log('--mal: ingenting skrevet')
+      process.exit(0)
     }
     // Manifestet lar klienten vite hvilke fliser som FINNES, så den slipper å
     // be om fliser over hav og utland og få 404 i konsollen for hvert kart.
@@ -167,8 +229,8 @@ if (import.meta.url === (process.argv[1] ? `file://${process.argv[1]}` : '')) {
       versjon: VERSJON, toleranseM: TOLERANSE, fliser: nokler,
     }))
 
-    log(`\n${linjerTotal.toLocaleString('no')} stilinjer · ${Math.round(kmTotal).toLocaleString('no')} km`)
-    log(`${nokler.length} fliser · ${(bytes / 1e6).toFixed(1)} MB · største ${(storst / 1024).toFixed(0)} KB`)
+    log(`\n${linjerTotal.toLocaleString('no')} ${LAG}linjer · ${Math.round(kmTotal).toLocaleString('no')} km`)
+    log(`${nokler.length} fliser · ${(bytes / 1e6).toFixed(1)} MB (${(gzBytes / 1e6).toFixed(1)} MB gzip) · største ${(storst / 1024).toFixed(0)} KB`)
     log(`→ ${UT_KATALOG}`)
   } catch (e) {
     console.error(`\nFEILET: ${e.message}`)

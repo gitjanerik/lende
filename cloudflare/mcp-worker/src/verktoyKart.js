@@ -192,6 +192,7 @@ export function registerKartVerktoy(server, ctx) {
         n50StiBase: env.N50_STI_BASE,
         n50ArealBase: env.N50_AREAL_BASE,
         n50VannBase: env.N50_VANN_BASE,
+        n50VegBase: env.N50_VEG_BASE,
         osm: 'fallback',
       })
 

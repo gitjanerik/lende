@@ -27,6 +27,12 @@ export const MAGIC = 0x4e353053          // 'N50S'
 // og 507 (umerket). Å pakke det i en bit vi allerede skriver koster ingenting.
 export const VERSJON = 2
 export const MERKET_BIT = 0x80
+// v3 (veg-katalogen, n50-veg/): én flagg-byte per linje etter type-byten —
+// tunnel og bru. Stiene har ingen av delene og bakes fortsatt som v2, så en
+// sti-bake er byte-identisk med før. lesFlis leser begge.
+export const VERSJON_FLAGG = 3
+export const TUNNEL_BIT = 0x01
+export const BRU_BIT = 0x02
 
 // Kvantiseringsgitter i grader. 1e-5 → heltall på ~7,1e6 for lat 71.
 export const KVANT = 1e5
@@ -39,7 +45,12 @@ export const FLIS_LON = 1.0
 
 // Objekttyper vi bærer. Rekkefølgen ER kodingen (u8) og må ikke endres uten
 // versjonsbump — en gammel flis lest med ny tabell ville byttet om stitypene.
-export const TYPER = Object.freeze(['sti', 'traktorveg', 'barmarksloype', 'annet'])
+// Vegene og jernbanen kom bakerst i fase 1 av PLAN_OSM_UAVHENGIG — de bor i
+// sin egen katalog, men deler tabellen fordi formatet er det samme.
+export const TYPER = Object.freeze([
+  'sti', 'traktorveg', 'barmarksloype', 'annet',
+  'veg-e', 'veg-r', 'veg-f', 'veg-k', 'veg-p', 'bane',
+])
 
 export function typeIndeks(navn) {
   const i = TYPER.indexOf(navn)
@@ -111,13 +122,14 @@ class Leser {
  * @param {Array<{type?:string, geometry:Array<{lat:number,lon:number}>}>} linjer
  * @returns {Uint8Array}
  */
-export function kodeFlis(linjer) {
+export function kodeFlis(linjer, { medFlagg = false } = {}) {
   const s = new Skriver()
-  s.varint(MAGIC); s.u8(VERSJON)
+  s.varint(MAGIC); s.u8(medFlagg ? VERSJON_FLAGG : VERSJON)
   const gyldige = (linjer ?? []).filter(l => Array.isArray(l.geometry) && l.geometry.length >= 2)
   s.varint(gyldige.length)
   for (const l of gyldige) {
     s.u8(typeIndeks(l.type) | (l.merket ? MERKET_BIT : 0))
+    if (medFlagg) s.u8((l.tunnel ? TUNNEL_BIT : 0) | (l.bru ? BRU_BIT : 0))
     s.varint(l.geometry.length)
     let fLat = 0, fLon = 0
     for (let i = 0; i < l.geometry.length; i++) {
@@ -139,13 +151,14 @@ export function lesFlis(bytes) {
   const l = new Leser(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))
   if (l.varint() !== MAGIC) throw new Error('Ikke en N50-sti-flis')
   const v = l.u8()
-  if (v !== VERSJON) throw new Error(`Ukjent flis-versjon ${v} (venter ${VERSJON})`)
+  if (v !== VERSJON && v !== VERSJON_FLAGG) throw new Error(`Ukjent flis-versjon ${v} (venter ${VERSJON} eller ${VERSJON_FLAGG})`)
   const antall = l.varint()
   const ut = []
   for (let i = 0; i < antall; i++) {
     const b = l.u8()
     const type = TYPER[b & ~MERKET_BIT] ?? 'annet'
     const merket = (b & MERKET_BIT) !== 0
+    const flagg = v === VERSJON_FLAGG ? l.u8() : 0
     const n = l.varint()
     const geometry = []
     let fLat = 0, fLon = 0
@@ -153,7 +166,10 @@ export function lesFlis(bytes) {
       fLat += l.svarint(); fLon += l.svarint()
       geometry.push({ lat: fLat / KVANT, lon: fLon / KVANT })
     }
-    ut.push({ type, merket, geometry })
+    const linje = { type, merket, geometry }
+    if (flagg & TUNNEL_BIT) linje.tunnel = true
+    if (flagg & BRU_BIT) linje.bru = true
+    ut.push(linje)
   }
   return ut
 }
@@ -235,7 +251,13 @@ export function delPaaFliser(linje) {
   }
   const res = []
   for (const [nokkel, deler] of ut) {
-    for (const d of deler) if (d.length >= 2) res.push({ nokkel, type: linje.type, merket: linje.merket, geometry: d })
+    for (const d of deler) {
+      if (d.length < 2) continue
+      const del = { nokkel, type: linje.type, merket: linje.merket, geometry: d }
+      if (linje.tunnel) del.tunnel = true
+      if (linje.bru) del.bru = true
+      res.push(del)
+    }
   }
   return res
 }
