@@ -143,10 +143,18 @@ at DEM + vann + N50-sti er inne, så OSM-arket. Fire ting er lette å «rydde» 
    tilbyr kartet «Fullfør» som et avbrutt bygg. `detailsFailed`/`mapIsPartial`
    er `'n50'` (ikke `true`) når N50-arket står, så banneret sier hva kartet
    faktisk viser. Merk at `a && !b && c`-uttrykk i malen MÅ ha strengen sist.
-3. **Kyst-svaret henger på Overpass** (kystlinje-proben ER en Overpass-spørring),
-   og dermed også det kyst-oppgraderte DEM-et. N50-arket tar bare det de rekker
-   innen restbudsjettet og bygges som INNLAND ellers — en falsk DEM-sjø flommer
-   land (Hattfjelldal), en manglende sjø fylles inn av OSM-arket.
+3. **Saltvanns-halvdelen av kyst-gaten kommer fra HAVMASKEN (v7.9.37,
+   `lib/havmaske.js`)**, ikke fra Overpass. Masken er N50 Arealdekke «Havflate»
+   rasterisert til ~1 km-celler («all touched»), én bit per celle, i
+   `public/data/n50-hav/` — bakt med `bygg-n50-areal.yml` og `typer = hav`
+   (`scripts/bygg-havmaske.mjs`). Kystlinje-proben mot Overpass fyres BARE når
+   masken svarer null (ikke bakt, offline, utenfor rutenettet), og
+   `kystStatus.saltvannKilde` sier hvem som svarte. DEM-havflaten er fortsatt
+   et krav — masken alene kan ikke gjøre et innlandskart til kyst, så en falsk
+   DEM-sjø (Hattfjelldal) er fortsatt utelukket. Rutenettet dekker bare
+   fastlandet (57,5–71,5° N, 4–32° Ø); Svalbard faller til Overpass. Ingen
+   egen workflow, med vilje: `workflow_dispatch` krever at fila finnes på
+   master, og baken bruker samme nedlasting som arealdekket.
 4. **Vegene (v7.9.36) brukes BARE i N50-arket.** De bakes med `--lag veg` til
    `public/data/n50-veg/` — egen katalog av samme grunn som `n50-vann`: et
    manifest er klientens cache-nøkkel. Fliser i v3-formatet (flagg-byte for

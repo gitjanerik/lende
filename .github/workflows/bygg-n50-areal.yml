@@ -56,7 +56,7 @@ on:
         required: false
         default: ''
       typer:
-        description: 'Areal: myr, skog, isbre (tomt = alle tre). Vann: innsjo, elv — egen katalog, kan IKKE blandes med areal i samme kjøring.'
+        description: 'Areal: myr, skog, isbre (tomt = alle tre). Vann: innsjo, elv — egen katalog, kan IKKE blandes med areal i samme kjøring. «hav» alene baker havmasken (n50-hav/).'
         required: false
         default: ''
       minareal:
@@ -116,7 +116,16 @@ jobs:
           if [ -n "${{ inputs.typer }}" ]; then ARGS="$ARGS --typer ${{ inputs.typer }}"; fi
           if [ -n "${{ inputs.fylke }}" ]; then ARGS="$ARGS --fylke ${{ inputs.fylke }}"; fi
           if [ "${{ inputs.bare_mal }}" = "true" ]; then ARGS="$ARGS --mal"; fi
-          node scripts/bygg-n50-areal.mjs $ARGS
+          # Havmasken (src/lib/havmaske.js) er en egen bake med egen katalog,
+          # men samme nedlasting — derfor her og ikke i en egen workflow.
+          if [ "${{ inputs.typer }}" = "hav" ]; then
+            HAV_ARGS=""
+            if [ -n "${{ inputs.fylke }}" ]; then HAV_ARGS="$HAV_ARGS --fylke ${{ inputs.fylke }}"; fi
+            if [ "${{ inputs.bare_mal }}" = "true" ]; then HAV_ARGS="$HAV_ARGS --mal"; fi
+            node scripts/bygg-havmaske.mjs $HAV_ARGS
+          else
+            node scripts/bygg-n50-areal.mjs $ARGS
+          fi
 
       - name: Vis resultatet
         if: inputs.bare_mal != true
@@ -125,6 +134,7 @@ jobs:
           # vann-bake. Scriptet har alt kastet på en blandet liste, så det
           # finnes ikke et tredje svar her.
           case "${{ inputs.typer }}" in
+            hav)            KAT=n50-hav ;;
             *innsjo*|*elv*) KAT=n50-vann ;;
             *)              KAT=n50-areal ;;
           esac

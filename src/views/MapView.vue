@@ -295,7 +295,7 @@ const kystStatusText = computed(() => {
   const min = Number.isFinite(s.minM) ? `${s.minM.toFixed(2)} m lavest` : 'ingen celler'
   const salt = s.saltvann == null
     ? 'saltvann ikke spurt (DEM sa nei)'
-    : (s.saltvann ? 'saltvann JA' : 'saltvann NEI')
+    : `${s.saltvann ? 'saltvann JA' : 'saltvann NEI'}${s.saltvannKilde ? ` (${s.saltvannKilde})` : ''}`
   const konklusjon = s.kyst ? 'KYST' : 'INNLAND — ingen DEM-sjø, ingen Sjøkart'
   const advarsel = syntetisk
     ? ` · SYNTETISK probe-DEM (${s.demKilde}) — WCS feilet, svaret over er oppdiktet`

@@ -9,6 +9,8 @@
 //   3. OSM-arket ligger i registeret som NESTE finalize, og det feiler.
 //   4. etter omlasting sier banneret at kartet mangler OSM-detaljene, ikke at
 //      det «viser bare terreng».
+//   5. et kystkart (Drøbak) blir KYST med Overpass blokkert — saltvanns-svaret
+//      kommer fra havmasken (lib/havmaske.js), ikke fra kystlinje-proben.
 //
 // Krever nett (Kartverket WCS, NVE) — kjøres i CI, ikke fra sandkassa.
 
@@ -19,6 +21,8 @@ const PORT = 5189
 const BASE = `http://localhost:${PORT}/lende`
 // Vardåsen i Asker: innlands, N50-stifliser, kjent fra fasiten.
 const SENTER = { lat: 59.8416, lon: 10.4107, name: 'N50-ark-røyk' }
+// Drøbak: Oslofjorden midt i arket, så både DEM-havflate og saltvann skal si ja.
+const KYST = { lat: 59.6633, lon: 10.6303, name: 'N50-ark-kyst-røyk' }
 
 const sov = (ms) => new Promise((ok) => setTimeout(ok, ms))
 const resultat = []
@@ -73,6 +77,21 @@ try {
   sjekk('arket har N50-veger', svar.n50veg && svar.vegLag, svar.source)
   sjekk('OSM-arket er neste finalize, og det feiler', svar.harNeste && !!svar.nesteFeil, svar.nesteFeil)
   sjekk('Overpass ble faktisk blokkert', blokkert > 0, `${blokkert} forespørsler`)
+
+  const kyst = await page.evaluate(async (senter) => {
+    const flow = await import('/lende/src/lib/createMapFlow.js')
+    const { finalize } = await flow.buildMapFromCenter({
+      center: senter, halfKm: 1, equidistanceM: 5, navn: senter.name, terrainFirst: true,
+    })
+    const ark = await finalize
+    const svg = new DOMParser().parseFromString(ark.svg, 'image/svg+xml').documentElement
+    const meta = JSON.parse(svg.getAttribute('data-meta') ?? '{}')
+    return { utenOsm: ark.utenOsm, coastal: meta.coastal, kystStatus: meta.kystStatus ?? null }
+  }, KYST)
+  const ks = kyst.kystStatus
+  sjekk('kystkartet blir KYST uten Overpass', kyst.utenOsm === true && kyst.coastal === true,
+    `utenOsm=${kyst.utenOsm} coastal=${kyst.coastal} ${JSON.stringify(ks)}`)
+  sjekk('saltvanns-svaret kom fra havmasken', ks?.saltvannKilde === 'havmaske', ks?.saltvannKilde)
 
   await page.goto(`${BASE}/kart/${svar.id}`)
   const banner = page.getByText('mangler detaljene fra OpenStreetMap')

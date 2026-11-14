@@ -40,6 +40,7 @@ import { snapUtmBboxToGrid, fetchDEMWithCache } from './demTileCache.js'
 import { logPerf } from './perfLog.js'
 import { cacheGet, cacheSet, TTL, kulturminneBboxKey } from './protectedAreaCache.js'
 import { probeDensityCached } from './densityProbe.js'
+import { havmaskeSvar } from './havmaske.js'
 import { tetthetsBeslutning } from './mapDensityRules.js'
 import { osmInnenFrist } from './n50Ark.js'
 
@@ -562,7 +563,16 @@ export async function buildMapFromCenter({
   // etter en full WCS-rundtur, og Sjøkart (som gates på samme promise) med
   // den. DEM-havflaten er fortsatt et KRAV, den er bare ikke lenger en
   // STARTPORT: hasNearSeaLevelPixels leses som et kortslutnings-nei etterpå.
+  //
+  // v7.9.37: havmasken (lib/havmaske.js, bakt fra N50 Havflate) svarer først.
+  // Den er lokal og cachet, og den bruker ingen av de to Overpass-plassene per
+  // IP — proben fyres bare når masken ikke vet (ikke bakt, offline, utenfor
+  // rutenettet). Uten den ble N50-arket bygget som innland på hvert kystkart.
+  let saltvannKilde = null
   const saltvannPromise = (async () => {
+    const maske = await havmaskeSvar(bbox).catch(() => null)
+    if (maske !== null) { saltvannKilde = 'havmaske'; return maske }
+    saltvannKilde = 'overpass'
     const fullP = overpassP.then(osm => osmHasSaltwater(osm?.elements))
     const probeP = probeCoastline(bbox, { signal }).catch(() => fullP)
     return Promise.race([probeP, fullP]).catch(() => false)
@@ -586,6 +596,7 @@ export async function buildMapFromCenter({
     if (!demSignal.lave) return false
     const salt = await saltvannPromise
     kystStatus.saltvann = salt
+    kystStatus.saltvannKilde = saltvannKilde
     kystStatus.kyst = salt
     return salt
   })
