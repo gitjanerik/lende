@@ -790,9 +790,10 @@ describe('velgMosaikkFliser', () => {
   })
 
   it('rekker like langt som kartflaten, og ikke lenger', () => {
-    const kandidater = [AKTIV, flis(1), flis(2), flis(3), flis(4)]
+    // 8 km-fliser: areal-taket (32 × 32 km) gir 16 fliser, og radien følger det.
+    const kandidater = [AKTIV, flis(1), flis(3), flis(16), flis(17)]
     expect(navnene(velgMosaikkFliser(AKTIV, kandidater)))
-      .toEqual(['flis_0_1', 'flis_0_2', 'flis_0_3'])
+      .toEqual(['flis_0_1', 'flis_0_3', 'flis_0_16'])
     expect(MOSAIKK_RADIUS_FLISER).toBe(3)
   })
 

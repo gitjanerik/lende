@@ -141,7 +141,7 @@ import { sampleProfile } from '../lib/elevationProfile.js'
 import { fetchDEM } from '../lib/demFetcher.js'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
 import { setBuildBusy } from '../lib/swUpdate.js'
-import { pruneAutoTiles, countAutoTiles } from '../lib/tileCache.js'
+import { countAutoTiles, flisTakForAreal } from '../lib/tileCache.js'
 import { renameMap, onKartSlettet } from '../lib/mapStorage.js'
 import { useAppMenu } from '../composables/useAppMenu.js'
 import { svgToWgs84, wgs84ToSvg, nordavvikForMeta, sannNordRotasjonForMeta, punktSkalaForMeta } from '../lib/utm.js'
@@ -1230,34 +1230,21 @@ async function rebuildAtChosenSize(km = mapSizeKm.value) {
   }
 }
 
-// MAKS KARTFLISER ER ET FAST TALL: 9 fra v7.8.15, altså et 3×3-ark.
+// ARKETS TAK ER ET AREAL FRA v8.0.6: 32 × 32 km, omregnet til fliser av
+// aktiv flis' størrelse (flisTakForAreal i tileCache.js — der står hvorfor).
+// Fram til nå var det et fast antall: en slider til v7.0.0, så 25, så 9 fra
+// v7.8.15 da byggingen tok et halvt minutt per flis.
 //
-// Det var en slider med trinn 4/9/16/25/36, og den sto TO steder — i Format-
-// fanen og i «Zoom og kartutsnitt» bak lang-trykket. To kontroller for samme
-// tall er en kontroll for mye, og spørsmålet den stilte er ikke et brukeren
-// har: den handler om hvor mye plass mosaikken får bruke i IndexedDB.
-// pruneAutoTiles kapper de fjerneste flisene til grensa som før.
+// Taket er ARKETS, og ikke lenger cachens: pruneAutoTiles telte auto-fliser i
+// HELE lagringen og slettet de fjerneste over grensa — altså kanten av et annet
+// ark man hadde bygd et annet sted. Porten (plassIArket) hindrer at et ark
+// vokser forbi taket, og flisene er bygd på bestilling, så det finnes ingen
+// cache å kappe. Kappingen er tatt ut av useMapExtend.
 //
-// v7.0.0 gjorde det til et fast 25 og lot tallet stå som OPPLYSNING i
-// Format-fana. v7.8.15 tok bort også den linja: et tall man verken kan endre
-// eller gjøre noe med er en linje man leser forbi, og teksten under den
-// («blir det flere, kappes de som ligger lengst fra der du er») beskrev en
-// oppførsel man nå aldri møter — se neste avsnitt. Tallet står fortsatt i
-// Utvikler-fana som `autoTileCount / maxTiles`, der det er diagnostikk.
-//
-// NI OG IKKE 25, og de to endringene henger sammen: et 3 × 3-ark er den
-// største mosaikken en dagstur trenger, og det er nå også taket
-// lende-pilene SKJULES ved (`extendZonesVisible` i useMapExtend). Med 25
-// kunne man bygge seg til et 5 × 5 der de ytterste flisene lå så langt unna
-// at de ble kappet igjen ved neste promotering — altså arbeid brukeren ventet
-// på og så mistet. Med ni er «fullt» en tilstand man ser, ikke en man snubler
-// i. Merk at `useGhostTiles`' node-tak er max(MAX_GHOST_NODER = 12, maxTiles),
-// så modellen rekker fortsatt lenger enn arket: den skal aldri være det som
-// begrenser.
-//
-// Ref og ikke en bar konstant: `useMapExtend` og `useGhostTiles` leser
-// `maxTiles.value`, og en getter der ville vært en tredje måte å si det samme.
-const maxTiles = ref(9)
+// Merk at `useGhostTiles`' node-tak er max(MAX_GHOST_NODER = 12, maxTiles), så
+// modellen rekker minst like langt som arket: den skal aldri være det som
+// begrenser. Tallet står i Utvikler-fana som `autoTileCount / maxTiles`.
+const maxTiles = computed(() => flisTakForAreal(meta.value?.widthM, meta.value?.heightM))
 
 // Flerspråklige navn (norsk - samisk - finsk) i Nord-Norge. Default AV = vis
 // kun det norske leddet for et renere kart; PÅ = vis hele det flerspråklige
@@ -1410,6 +1397,7 @@ const {
   // direkte referanse ville truffet TDZ (samme grunn som `sti` over). Søket
   // bruker den til å lese navn i nabofliser som er demontert fra DOM-en.
   medAlleFliser: (fn) => medAlleSpokelserFestet(fn),
+  arkNavn: (vedDel) => alleArkNavn(vedDel),
   // Samme grunn — useMapExtend opprettes lenger ned. Søket måler avstanden fra
   // utsnittet med den, så trefflista kan si «1,2 km» i stedet for hvilken flis
   // treffet tilfeldigvis ligger i (v6.5.81).
@@ -1696,7 +1684,7 @@ const {
   ghostRects, GHOST_TRIGGER_SUPPRESS_FRAC, mosaikkStats,
   renderGhostTiles, updateGhostReliefOpacity, retoneGhostRelieff,
   leggTilSpokelse, scheduleGhostFeste, anvendGhostFeste,
-  medAlleSpokelserFestet, medAlleSpokelserFestetAsync, teardownGhostTiles,
+  medAlleSpokelserFestet, medAlleSpokelserFestetAsync, alleArkNavn, teardownGhostTiles,
 } = useGhostTiles({
   svgHostRef, wrapperRef, meta, mapId, isAlive: () => componentAlive, isGesturing,
   scale, rotation, translateX, translateY,
