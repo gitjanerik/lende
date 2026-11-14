@@ -60,6 +60,7 @@ on:
       - 'scripts/royk-mapview.mjs'
       - 'scripts/navnediff.mjs'
       - 'scripts/ruter-royk.mjs'
+      - 'scripts/royk-n50-ark.mjs'
       # Kart-cachen (v6.5.24): byggeskriptet er det kartet LAGES av, og
       # nøkkel-skriptet avgjør når det bygges på nytt. Sto ingen av dem her, og
       # en PR som rørte dem kunne lande uten at røyktesten så kartet den lagde
@@ -352,6 +353,13 @@ jobs:
       # funksjons-redirect beholder query-en.
       - name: Røyktest — ruting
         run: npm run royk:ruter
+
+      # N50-arket (docs/PLAN_OSM_UAVHENGIG.md): et nytt kart skal bli et turkart
+      # også når Overpass ikke svarer. Overpass blokkeres i nettleseren, og
+      # kartet bygges med appens egen buildMapFromCenter mot ekte Kartverket/NVE
+      # — den eneste sjekken i jobben som trenger nett, ~20 s.
+      - name: Røyktest — N50-arket uten Overpass
+        run: npm run royk:n50ark
 
       # Navnediff er en LESE-gate: den skal fortelle mennesket hva som forsvant.
       # Villede slettinger kvitteres ut med `--ok navn1,navn2` i PR-en som gjør

@@ -192,6 +192,7 @@ export function registerKartVerktoy(server, ctx) {
         n50StiBase: env.N50_STI_BASE,
         n50ArealBase: env.N50_AREAL_BASE,
         n50VannBase: env.N50_VANN_BASE,
+        osm: 'fallback',
       })
 
       const ref = nyKartRef(navn)
@@ -205,6 +206,9 @@ export function registerKartVerktoy(server, ctx) {
         halfKm: Number(effHalfKm.toFixed(2)),
         geokodet: geokodet ? { navn: geokodet.name, lat, lon } : null,
         svgKb: Math.round(built.svg.length / 1024),
+        // Overpass nede → kartet er bygget av Kartverket-data (N50) alene.
+        // Sies eksplisitt, ellers ser et ark uten veger og bygg ut som et svar.
+        utenOsm: !!built.utenOsm,
         kartStorrelseM: { bredde: Math.round(meta.widthM), hoyde: Math.round(meta.heightM) },
         terreng: {
           kilde: meta.demSource,

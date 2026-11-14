@@ -52,6 +52,7 @@ npm run mcp        # MCP-server (stdio) — kart/rute-verktøy for Claude
 npm run fasit      # Fasit: seks ekte kart mot invarianter (krever nett, ~1 min)
 npm run royk       # Røyktest: monterer MapView i Chromium og trykker på domenene
 npm run royk:ruter # Alle ruter, alle redirects og boot-gjenopptaket i Chromium
+npm run royk:n50ark # N50-arket med Overpass blokkert, mot ekte Kartverket (nett)
 npm run navnediff  # Hva forsvant ut av MapView i denne endringen — og hvem overtok
 npm run frie -- <fil>  # Refererer en fersk composable noe den ikke har fått inn?
 npm run vedlikehold    # Sårbarheter, utdaterte pakker og versjonsdrift mellom
@@ -128,8 +129,27 @@ bygg brukeren navigerte vekk fra — går mot IndexedDB som før. Én plass ford
 kart som aldri hentes ikke skal holde megabyte i live lenger enn til neste bygg.
 
 **OVERPASS SKAL UT AV DEN KRITISKE STIEN — se `docs/PLAN_OSM_UAVHENGIG.md`
-(vedtatt nov. 2026, ikke påbegynt).** De offentlige speilene er målt nede eller
-strupet (2 plasser per IP på overpass-api.de); v7.9.32 er et plaster.
+(vedtatt nov. 2026, fase 1b levert i v7.9.35).** De offentlige speilene er målt
+nede eller strupet (2 plasser per IP på overpass-api.de); v7.9.32 er et plaster.
+
+**N50-ARKET (v7.9.35, `lib/n50Ark.js`).** Terreng-først har nå TRE trinn: DEM-
+previewen, så N50-arket når OSM ikke har svart innen `OSM_VENT_MS` (4 s) etter
+at DEM + vann + N50-sti er inne, så OSM-arket. Tre ting er lette å «rydde» bort:
+1. **Finalize kommer i to ledd.** Den første resolver med N50-arket og legger
+   OSM-arket i `mapFinalizers` som NESTE; `consumeTerrainFinalize` konsumerer på
+   nytt etter re-renderen når entryen har `utenOsm`. En kaller som bare venter
+   på `finalize` får N50-arket, ikke det ferdige kartet.
+2. **N50-arket lagres som `partial` med `utenOsm`.** Lukkes appen før OSM kommer,
+   tilbyr kartet «Fullfør» som et avbrutt bygg. `detailsFailed`/`mapIsPartial`
+   er `'n50'` (ikke `true`) når N50-arket står, så banneret sier hva kartet
+   faktisk viser. Merk at `a && !b && c`-uttrykk i malen MÅ ha strengen sist.
+3. **Kyst-svaret henger på Overpass** (kystlinje-proben ER en Overpass-spørring),
+   og dermed også det kyst-oppgraderte DEM-et. N50-arket tar bare det de rekker
+   innen restbudsjettet og bygges som INNLAND ellers — en falsk DEM-sjø flommer
+   land (Hattfjelldal), en manglende sjø fylles inn av OSM-arket.
+Kant-utvidelsen (`terrainFirst: false`) venter fortsatt på OSM. Headless har
+`osm: 'krev' | 'fallback' | 'av'`; MCP-verktøyene bruker `fallback`, fasit og
+probene `krev` — de måler OSM-pipelinen og skal ikke få et N50-ark i stedet.
 
 **Kritisk sti er OSM + DEM + VANN, og bare det.** Sekundærkildene (Sjøkart,
 kulturminner, Turrutebasen, N50-sti, N50-areal) får et RESTBUDSJETT på 5 s målt
