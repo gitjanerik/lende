@@ -415,7 +415,7 @@ server.registerTool(
     const widthKm = effHalfKm * 2
     const minEq = minEquidistanceForWidthKm(widthKm)
     const effEq = Math.max(equidistanceM ?? DEFAULT_EQUIDISTANCE_M, minEq)
-    const built = await buildMapHeadless({ lat, lon, halfKm: effHalfKm, equidistanceM: effEq })
+    const built = await buildMapHeadless({ lat, lon, halfKm: effHalfKm, equidistanceM: effEq, osm: 'fallback' })
     const slug = navn.replace(/[^a-z0-9æøå]+/gi, '-').toLowerCase()
     const svgPath = resolve(filsti ?? resolve(tmpdir(), 'lende-mcp', `${slug}.svg`))
     mkdirSync(dirname(svgPath), { recursive: true })
@@ -438,6 +438,9 @@ server.registerTool(
         ? { navn: geokodet.name, lat, lon, arealKm2: extent?.arealKm2 ?? null, bbox: geokodet.bbox ?? null }
         : null,
       svgKb: Math.round(built.svg.length / 1024),
+      // Overpass nede → kartet er bygget av Kartverket-data (N50) alene.
+      // Sies eksplisitt, ellers ser et ark uten veger og bygg ut som et svar.
+      utenOsm: !!built.utenOsm,
       kartStorrelseM: { bredde: Math.round(meta.widthM), hoyde: Math.round(meta.heightM) },
       terreng: {
         kilde: meta.demSource,

@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "7.9.34",
+  "version": "7.9.35",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "bygg:figurfasit": "node scripts/bygg-figurfasit.mjs",
     "bygg:himmelkart": "node scripts/bygg-himmelkart.mjs",
     "royk:ruter": "node scripts/ruter-royk.mjs",
+    "royk:n50ark": "node scripts/royk-n50-ark.mjs",
     "boot:workers": "node scripts/worker-boot.mjs",
     "probe:lenker": "node scripts/probe-himmellenker.mjs",
     "probe:nordlys": "node scripts/probe-nordlys.mjs",

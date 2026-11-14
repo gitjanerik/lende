@@ -174,6 +174,11 @@ export function demResolutionForArea(utmBbox, maxCells = DEM_MAX_CELLS) {
 export async function buildMapHeadless({
   lat, lon, halfKm, equidistanceM, detaljNivaa: eksplisittNivaa, tetthetAv = false,
   n50StiBase, n50ArealBase, n50VannBase,
+  // OSM-kravet. 'krev' (standard) kaster når Overpass feiler, som før — fasit og
+  // probene måler OSM-pipelinen og skal ikke få et N50-ark i stedet. 'fallback'
+  // bygger N50-arket når Overpass feiler (MCP-verktøyene), og 'av' bygger det
+  // uten å spørre. Resultatet sier fra med `utenOsm`. Se lib/n50Ark.js.
+  osm = 'krev',
 }) {
   let effHalfKm = halfKm
   let bbox = bboxFromCenter(lat, lon, effHalfKm)
@@ -215,7 +220,11 @@ export async function buildMapHeadless({
   let n50ArealStatus = null
   let n50VannStatus = null
   const [overpass, n50Water, dem, turruteRoutes, skiloyper, n50StiLinjer, n50Areal, n50Rivers] = await Promise.all([
-    fetchOverpass(bbox),
+    osm === 'av' ? Promise.resolve(null) : fetchOverpass(bbox).catch((e) => {
+      if (osm !== 'fallback') throw e
+      console.error(`[buildMapHeadless] Overpass feilet (${e?.message ?? e}) — bygger N50-arket`)
+      return null
+    }),
     fetchN50Water(bbox).catch(() => []),
     // DEM + samme hull-reparasjon som appen gjør (createMapFlow →
     // maybeFillFromTerrarium). NHM-mosaikken leverer 0 m der den mangler
@@ -288,13 +297,15 @@ export async function buildMapHeadless({
   // Arealdekke slås sammen med SAMME kode som appen (lib/arealMerge.js) — delt
   // fra første linje, nettopp fordi vann-stacken viste hva to varianter koster.
   // Grove OSM-stier viker for detaljerte ruter med SAMME regel som appen.
-  const { elementer: osmStier } = fjernGrovOsm(overpass.elements, [...turruteRoutes, ...n50StiLinjer])
+  const utenOsm = !overpass
+  const osmElementer = overpass?.elements ?? []
+  const { elementer: osmStier } = fjernGrovOsm(osmElementer, [...turruteRoutes, ...n50StiLinjer])
   const osmElements = slaaSammenAreal({ osm: osmStier, n50Areal })
   const elements = slaaSammenVann({ osm: osmElements, n50Water, n50Rivers })
   const turruteEls = turruteElementsFrom(turruteRoutes, osmStier)
   elements.push(...turruteEls)
   elements.push(...n50StiElementerFra(n50StiLinjer, [...osmStier, ...turruteEls], n50StiStatus))
-  elements.push(...skiloypeElementsFrom(skiloyper, overpass.elements))
+  elements.push(...skiloypeElementsFrom(skiloyper, osmElementer))
 
   const { svg, counts, meta } = buildSvg(elements, bbox, {
     dem,
@@ -309,7 +320,7 @@ export async function buildMapHeadless({
     tetthet,
     n50StiStatus,
   })
-  return { svg, counts, meta, dem, bbox, halfKm: effHalfKm, tetthet }
+  return { svg, counts, meta, dem, bbox, halfKm: effHalfKm, tetthet, utenOsm }
 }
 
 /**

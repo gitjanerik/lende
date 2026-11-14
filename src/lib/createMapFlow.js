@@ -41,6 +41,7 @@ import { logPerf } from './perfLog.js'
 import { cacheGet, cacheSet, TTL, kulturminneBboxKey } from './protectedAreaCache.js'
 import { probeDensityCached } from './densityProbe.js'
 import { tetthetsBeslutning } from './mapDensityRules.js'
+import { osmInnenFrist } from './n50Ark.js'
 
 // Terreng-først «finalize»-register: når et kart bygges terreng-først lagres
 // konturer+relieff straks, og den fulle byggingen (Overpass + OSM) fortsetter
@@ -703,7 +704,7 @@ export async function buildMapFromCenter({
   // kyst-oppgradering, ingen Terrarium-fyll), kan konturene gjenbrukes.
   let previewDem = null
 
-  const buildEntry = ({ svg, counts, dem, source, pakketDem, hoyestePunkt }, partial) => ({
+  const buildEntry = ({ svg, counts, dem, source, pakketDem, hoyestePunkt, utenOsm }, partial) => ({
     id,
     navn,
     bbox,
@@ -742,6 +743,9 @@ export async function buildMapFromCenter({
     highestPoint: hoyestePunkt ?? null,
     opprettet: Date.now(),
     partial: !!partial,
+    // N50-arket (bygget uten OSM). Er det fortsatt satt etter en omlasting,
+    // kom OSM aldri — statusbanneret sier da hva kartet FAKTISK viser.
+    utenOsm: !!utenOsm,
     // Auto-genererte fliser markeres så tileCache kan kappe dem (de fjerneste
     // først) uten å røre brukerens egne kart fra picker/hjem-FAB.
     isAuto: !!isAuto,
@@ -753,11 +757,27 @@ export async function buildMapFromCenter({
   })
 
   // Full bygging: vent på alle kilder, slå sammen, bygg full SVG (worker).
-  const assembleAndBuildFull = async () => {
+  //
+  // `utenOsm` bygger N50-arket (se n50Ark.js): samme sammenslåing, men uten å
+  // vente på Overpass. To ting vi ellers ville ventet på henger også på
+  // Overpass — kyst-svaret (kystlinje-proben er en Overpass-spørring) og
+  // dermed det kyst-oppgraderte DEM-et — så de får bare det de rekker innen
+  // fristen. Ukjent kyst bygges som innland: en falsk DEM-sjø flommer land, en
+  // manglende sjø fylles inn av OSM-arket.
+  const assembleAndBuildFull = async ({ utenOsm = false } = {}) => {
     // Kritisk sti: OSM + DEM + vann. Disse AVGJØR om kartet er lesbart — et ark
     // uten stinett eller uten innsjøer er ikke et turkart, så her venter vi så
     // lenge kildenes egne tidsgrenser sier.
-    const [osmData, n50Water, nveLakes, dem] = await Promise.all([overpassP, n50P, nveLakesP, demPromise])
+    let osmData, n50Water, nveLakes, dem, coastal
+    if (utenOsm) {
+      osmData = { elements: [] }
+      ;[n50Water, nveLakes] = await Promise.all([n50P, nveLakesP])
+      dem = await withHardTimeout(demPromise, SEKUNDAER_BUDSJETT_MS, null, 'DEM (N50-ark)') ??
+        await probeDemPromise
+      coastal = await withHardTimeout(coastalPromise, SEKUNDAER_BUDSJETT_MS, false, 'Kyst (N50-ark)')
+    } else {
+      ;[osmData, n50Water, nveLakes, dem] = await Promise.all([overpassP, n50P, nveLakesP, demPromise])
+    }
     // Sekundærkildene får et RESTBUDSJETT målt fra at kritisk sti er inne
     // (v7.7.14). De fyres alle ved t = 0, altså parallelt med Overpass — som er
     // flaskehalsen (81–97 % av tida) — så når vi står her har de allerede hatt
@@ -816,7 +836,7 @@ export async function buildMapFromCenter({
     if (n50StiElements.length > 0) elements.push(...n50StiElements)
     if (skiElements.length > 0) elements.push(...skiElements)
 
-    const sourceParts = ['OSM']
+    const sourceParts = utenOsm ? ['N50 (OSM venter)'] : ['OSM']
     if (n50Water.length > 0) sourceParts.push(`N50/NVE-innsjø (${n50Water.length} vann${n50HasSea ? ', m/sjø' : ''})`)
     if (nveLakes.length > 0) sourceParts.push(`NVE (${nveLakes.length} innsjø)`)
     if (n50Rivers.length > 0) sourceParts.push(`N50-elv (${n50Rivers.length} elveflater)`)
@@ -839,7 +859,7 @@ export async function buildMapFromCenter({
     sourceParts.push('DEM-sjø (NHM_DTM_25832)')
     const source = sourceParts.join(' + ')
 
-    const coastal = await coastalPromise
+    if (!utenOsm) coastal = await coastalPromise
     throwIfAborted()
     onProgress(`Bygger SVG fra ${elements.length} elementer …`)
     // buildSvg i Web Worker så det tunge passet ikke fryser UI-en. signal
@@ -880,6 +900,8 @@ export async function buildMapFromCenter({
       gjenbrukDem: previewDem != null && dem === previewDem,
       pakkDem: isRealDem(dem),
     }))
+    // Fullbygget etter et N50-ark får gjenbruke konturene når DEM-et er det samme.
+    if (utenOsm) previewDem = dem
 
     const ti = timings ?? {}
     const inner = ['contours', 'cliffs', 'buildingMass']
@@ -893,7 +915,7 @@ export async function buildMapFromCenter({
       `sjøkart ${marks['sjøkart'] ?? '-'} | turrute ${marks.turrute ?? '-'} | n50sti ${marks.n50sti ?? '-'} | n50areal ${marks.n50areal ?? '-'} | buildSvg ${marks.buildSvg ?? '-'}${inner ? ` (${inner})` : ''}` +
       `${terrainFirst ? ' [terreng-først]' : ''} [ms]`
     )
-    return { svg, counts, dem, source, pakketDem, hoyestePunkt }
+    return { svg, counts, dem, source, pakketDem, hoyestePunkt, utenOsm }
   }
 
   // Terreng-først: vent KUN på DEM, bygg konturer + DEM-sjø straks og lagre, og
@@ -931,7 +953,7 @@ export async function buildMapFromCenter({
         await saveMap(entry)
         registrerEntry(id, entry)
         onProgress('Terreng klart — fyller inn stier og detaljer …')
-        const finalize = (async () => {
+        const byggOgLagreFull = async () => {
           const full = await assembleAndBuildFull()
           const fullEntry = buildEntry(full, false)
           await saveMap(fullEntry)
@@ -940,10 +962,37 @@ export async function buildMapFromCenter({
           // IndexedDB om igjen.
           registrerEntry(id, fullEntry)
           return fullEntry
+        }
+        // Økta (og DEM-et den holder) lever til fullbygget er ferdig.
+        let fullP = null
+        const finalize = (async () => {
+          const kritiskUtenOsmP = Promise.all([n50P, nveLakesP, probeDemPromise, n50StiP])
+          if (await osmInnenFrist(overpassP, kritiskUtenOsmP)) return byggOgLagreFull()
+          // OSM er sent ute: bygg N50-arket og lagre det som kartet, og legg
+          // OSM-arket i registeret som NESTE finalize — MapView henter det
+          // etter å ha rendret dette. Lagres som partial: lukkes appen før
+          // OSM kommer, tilbyr kartet «Fullfør» som et avbrutt bygg.
+          let n50Ark
+          try {
+            n50Ark = await assembleAndBuildFull({ utenOsm: true })
+          } catch (e) {
+            if (signal?.aborted) throw e
+            console.warn(`[N50-ark] feilet (${e?.message ?? e}) — venter på OSM-arket`)
+            return byggOgLagreFull()
+          }
+          throwIfAborted()
+          const arkEntry = buildEntry(n50Ark, true)
+          await saveMap(arkEntry)
+          fullP = byggOgLagreFull()
+          fullP.catch(() => { /* MapView-konsumenten håndterer feil */ })
+          mapFinalizers.set(id, fullP)
+          registrerEntry(id, arkEntry)
+          return arkEntry
         })()
         finalize.catch(() => { /* MapView-konsumenten håndterer feil */ })
-        // Økta (og DEM-et den holder) lever til fullbygget er ferdig.
-        finalize.then(() => byggOkt.avslutt(), () => byggOkt.avslutt())
+        finalize
+          .then(() => fullP, () => null)
+          .then(() => byggOkt.avslutt(), () => byggOkt.avslutt())
         mapFinalizers.set(id, finalize)
         return { id, entry, finalize }
       }

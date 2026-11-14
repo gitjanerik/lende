@@ -15,8 +15,9 @@ const props = defineProps({
   loadError: { type: String, default: null },
   positionError: { type: String, default: null },
   showOutsideMap: { type: Boolean, default: false },
-  detailsFailed: { type: Boolean, default: false },
-  mapIsPartial: { type: Boolean, default: false },
+  // 'n50' = N50-arket står (bygget uten OSM); true = bare terrenget.
+  detailsFailed: { type: [Boolean, String], default: false },
+  mapIsPartial: { type: [Boolean, String], default: false },
   mosaicGapCount: { type: Number, default: 0 },
   // Hvor mange fliser som mangler for at arket skal bli rektangulært. Egen
   // teller fra mosaicGapCount, fordi de betyr forskjellige ting: et hull er noe
@@ -295,7 +296,10 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
       <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
-        Fikk ikke lastet stier og detaljer. Kartet viser bare terreng nå.
+        <template v-if="detailsFailed === 'n50'">
+          Fikk ikke lastet detaljer fra OpenStreetMap. Kartet viser stier og vann fra Kartverket.
+        </template>
+        <template v-else>Fikk ikke lastet stier og detaljer. Kartet viser bare terreng nå.</template>
       </div>
       <button @click="$emit('dismissDetails')" aria-label="Lukk"
               :style="{ zoom: uiTextScale }"
@@ -323,7 +327,9 @@ onBeforeUnmount(() => clearTimeout(fredetTimer))
               text-ink text-[12px] shadow-lg p-3">
     <div class="flex items-start gap-2">
       <div class="flex-1 min-w-0 leading-snug" :style="{ zoom: uiTextScale }">
-        Dette kartet ble ikke ferdig bygd og viser bare terreng.
+        {{ mapIsPartial === 'n50'
+          ? 'Dette kartet ble ikke ferdig bygd og mangler detaljene fra OpenStreetMap.'
+          : 'Dette kartet ble ikke ferdig bygd og viser bare terreng.' }}
         <span v-if="isOffline" class="block mt-0.5 text-ink-2">Koble til nett for å fullføre det.</span>
       </div>
       <button @click="partialDismissed = true" aria-label="Lukk"

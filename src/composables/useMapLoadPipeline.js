@@ -204,7 +204,8 @@ export function useMapLoadPipeline(deps) {
         // Bygging avbrutt (reload/lukking) før OSM-detaljene ble fylt inn lagrer
         // entry-en med partial:true. MapView tilbyr «Fullfør» (B) — med mindre
         // en finalize allerede fyller inn nå (consumeTerrainFinalize under).
-        mapIsPartial.value = !!stored.partial
+        // 'n50': N50-arket ble lagret, men OSM kom aldri (createMapFlow).
+        mapIsPartial.value = stored.partial ? (stored.utenOsm ? 'n50' : true) : false
         // Hent DEM hvis lagret (brukes av relieff og høydeprofil)
         if (stored.dem) {
           try { storedDem.value = unpackDem(stored.dem) } catch { storedDem.value = null }
@@ -409,20 +410,32 @@ export function useMapLoadPipeline(deps) {
   // Vent på terreng-først-finalize (full bygging i bakgrunnen) og re-render når
   // klar. Beholder gjeldende zoom/pan (silent re-load). Tåler at brukeren har
   // navigert videre (isAlive()-sjekk).
-  function consumeTerrainFinalize() {
+  //
+  // Finalize kan komme i TO trinn: er OSM sent ute, resolver den første med
+  // N50-arket og legger OSM-arket i registeret som neste (createMapFlow). Vi
+  // konsumerer derfor på nytt etter hver re-render til registeret er tomt.
+  // `detailsFailed` sier hva kartet viser når det stopper: 'n50' når N50-arket
+  // står, `true` når bare terrenget gjør det.
+  function consumeTerrainFinalize(visesN50Ark = false) {
     const fin = consumeMapFinalize(mapId.value)
     if (!fin) return
     fillingInDetails.value = true
     detailsFailed.value = false
-    fin.then(() => {
+    let neste = false
+    fin.then(async (entry) => {
       if (!isAlive()) return
-      return loadMap({ silent: true })
+      await loadMap({ silent: true })
+      if (!isAlive()) return
+      if (entry?.utenOsm) {
+        neste = true
+        consumeTerrainFinalize(true)
+      }
     }).catch(() => {
       // Bakgrunns-byggingen feilet (oftest Overpass nede). Vis en lesbar banner
       // med en «Prøv på nytt»-knapp i stedet for en teknisk toast.
-      if (isAlive()) detailsFailed.value = true
+      if (isAlive()) detailsFailed.value = visesN50Ark ? 'n50' : true
     }).finally(() => {
-      if (isAlive()) fillingInDetails.value = false
+      if (isAlive() && !neste) fillingInDetails.value = false
     })
   }
 
