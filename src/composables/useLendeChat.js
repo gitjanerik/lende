@@ -4,8 +4,11 @@ import { useRutePreferanse } from './useRutePreferanse.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
   harOppdiktedeTurtall, paastaarTegnetTur, paastaarNyttKart, turSvarTekst, er3dOnske, temaOnskeFra,
-  merkeSvarTekst, paastaarMerking, erMerkeOnske,
+  merkeSvarTekst, paastaarMerking, erMerkeOnske, pekereFraSvar,
 } from '../lib/lendeAiTools.js'
+import { velgPekere } from '../lib/kartInnhold.js'
+import { sendMerkeKommando, useMapHighlight } from './useMapHighlight.js'
+import { sendLagKommando, useMapLayerControl } from './useMapLayerControl.js'
 import { prefTekst } from '../lib/rutePreferanse.js'
 
 // Global chat-tilstand (Fase 2 av KI-planen). Modul-skopet med vilje: modalen
@@ -47,6 +50,7 @@ function systemPrompt() {
     'Du har verktøy og kan utføre ting i appen: søke i et lagret karts egne stedsnavn/tjern/topper (sok_i_kartet), søke etter steder på nett (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), analysere stinettet i et lagret kart (analyser_stinett — total km sti, lengste sammenhengende tur, tur-kandidater med stigning), foreslå en fottur A→B tegnet inn i et lagret kart (foreslaa_tur), og foreslå en RUNDTUR tegnet inn i et lagret kart (foreslaa_rundtur — start/mål + vendepunkt), og MERKE et sted i kartet med den rosa, blinkende ringen (merk_i_kartet), og lese/endre hvilket underlag ruter skal foretrekke — sti eller skogsveg (sett_rutepreferanse).',
     'Merking: har du nevnt et sted som ligger i kartet, tilby å merke det («vil du at jeg skal merke det i kartet?») — og kall merk_i_kartet så snart brukeren sier ja eller ber om det («merk det», «marker Stordammen», «vis meg hvor det er»). Oppgi bare navnet; appen finner koordinatene i kartets egne navn. Rams ALDRI opp lat/lon i svaret — brukeren ba om en markering, ikke om desimalgrader. «Fjern markeringen» → merk_i_kartet med fjern: true. MEN: har brukeren bedt om en TUR, skal du aldri tilby merking i stedet — da utfører du turen.',
     'Største/minste/høyeste: gjett ALDRI ut fra rekkefølgen i en navneliste — den er alfabetisk. Spør brukeren om det største vannet eller den høyeste toppen, kall sok_i_kartet med nøkkelordet («vann», «topp») og les rad 1, som ER den største/høyeste (arealM2/moh følger med). Skal stedet merkes, send ønsket ORDRETT videre som navn til merk_i_kartet («største innsjø», «minste tjern», «høyeste topp») — appen rangerer selv og merker vinneren.',
+    'Kartinnhold (kulturminner, NVE-målestasjoner, nærmeste sti/vei): kall kartinnhold. Telling → handling «tell»; finne noe → «sok»; «hva ligger nærmest» → «naermeste» (med «sok» + «mot» for «hvilken gravhaug ligger nærmest en sti»); detaljer → «beskriv». Bruk tallene ORDRETT og nevn aldri id-er eller koordinater — treffene vises som klikkbare pekere under svaret. Står en kilde i «kilder» som «feilet», si at den ikke svarte i stedet for å påstå at det ikke finnes noe. Spør brukeren om lengde/høydemeter MELLOM to objekter («stien fra bunnen til toppen av Pukerudlinna»), finn begge med kartinnhold og send lat/lon videre til foreslaa_tur.',
     'Stinett-spørsmål («hvor mange km sti er det her?», «hva er den lengste turen?», «hvilken tur er brattest/slakest?»): kall analyser_stinett — UTEN argumenter når brukeren står i kartet (kartet hentes automatisk fra konteksten). Formuler svaret PÅ NORSK: har svaret totalStiTekst, bruk den («Det er mer enn 370 km turstier i kartet») og nevn kartets størrelse (kartKm/arealKm2) så tallet får kontekst — kartet er ofte mye større enn utsnittet brukeren ser. Vil brukeren gå en av turene den fant: send turens koordinater rett videre — start/slutt/via til foreslaa_tur, origo/via til foreslaa_rundtur. Gir analysen treff: 0, si ærlig at kartet bare har korte sti-fragmenter.',
     'Nytt kart: oppgi stedsnavnet i «sted» til lag_kart/foreslaa_nytt_kart (gjerne med kommune, «Sirikjerke, Øvre Eiker») — appen geokoder selv. Gjenbruk ALDRI lat/lon fra et annet sted i samtalen.',
     'Ber brukeren om BÅDE nytt kart OG en tur i det: gjør det i ÉTT lag_kart-kall med turFraNavn og turTilNavn satt. Turen tegnes da inn automatisk så snart kartet er ferdig bygget (15–60 sekunder). Kall ALDRI foreslaa_tur for et kart som ikke finnes ennå, og oppgi ingen tall for turen — den er ikke beregnet.',
@@ -215,6 +219,7 @@ async function send(text) {
   // Satt når merk_i_kartet faktisk satte (eller fjernet) markeringen.
   let merkeSendt = null
   let kartSendt = false
+  const kartTreff = []
   if (context.value?.kartId && erStinettSporsmaal(spm)) {
     busyLabel.value = toolStatusLabel('analyser_stinett', {})
     try {
@@ -302,6 +307,7 @@ async function send(text) {
           sisteTur = { name: kall.name, args: { ...kall.args } }
         }
         if (resultat?.ok && KART_VERKTOEY.has(kall.name)) kartSendt = true
+        if (kall.name === 'kartinnhold') kartTreff.push(...pekereFraSvar(resultat))
         if (resultat?.ok && kall.name === 'merk_i_kartet') {
           merkeSendt = {
             navn: resultat.merket?.navn ?? null,
@@ -420,6 +426,7 @@ async function send(text) {
       svar.content = 'Jeg fikk ikke merket stedet. Si «merk <stedsnavn>» — da setter jeg '
         + 'den rosa ringen i kartet, så lenge navnet finnes i kartet du står i.'
     }
+    if (kartTreff.length && !turSendt) svar.pekere = velgPekere(kartTreff, svar.content)
   } catch (err) {
     if (err?.name === 'AbortError') {
       if (!svar.content) messages.value.pop()
@@ -432,6 +439,21 @@ async function send(text) {
     busyLabel.value = ''
     abortCtrl = null
   }
+}
+
+// Laget som viser objektet, så symbolet faktisk står under ringen.
+const LAG_FOR_ID = [['km:', 'kulturminne'], ['fm:', 'fredet-kulturminne'], ['nve:', 'vannstasjon']]
+
+/** Et trykk på en peker under et svar: lukk chatten, slå på laget og merk stedet. */
+function pekPaa(p) {
+  const { merkeKlar } = useMapHighlight()
+  if (!merkeKlar.value || !p) return false
+  const lag = LAG_FOR_ID.find(([pre]) => p.id.startsWith(pre))?.[1]
+  const synlige = useMapLayerControl().synligeLag.value
+  if (lag && synlige && !synlige.includes(lag)) sendLagKommando({ keys: [...synlige, lag] })
+  closeChat()
+  sendMerkeKommando({ navn: p.navn, lat: p.lat, lon: p.lon, punkt: true })
+  return true
 }
 
 function stopp() {
@@ -448,6 +470,7 @@ export function useLendeChat() {
     openChat,
     closeChat,
     setChatContext,
+    pekPaa,
     nySamtale,
     send,
     stopp,

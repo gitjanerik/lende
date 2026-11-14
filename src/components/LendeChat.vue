@@ -10,7 +10,24 @@ import { chatSegmenter } from '../lib/chatMarkdown.js'
 // Fase 2 er ren spørsmål/svar med kontekst fra visningen; verktøykjøring
 // (bygg kart, planlegg rute) kommer i Fase 3 i samme flate.
 
-const { chatOpen, messages, busy, busyLabel, error, closeChat, nySamtale, send, stopp } = useLendeChat()
+const { chatOpen, messages, busy, busyLabel, error, closeChat, nySamtale, send, stopp, pekPaa } = useLendeChat()
+
+const PEKER_IKON = { kulturminne: '◆', malestasjon: '≈', sti: '┄', vei: '═' }
+
+// Piltastene flytter mellom pekerne i samme svar (én tab-stopp for hele lista).
+function pekerTast(e) {
+  const knapper = [...e.currentTarget.querySelectorAll('button')]
+  const i = knapper.indexOf(document.activeElement)
+  if (i < 0) return
+  const steg = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+  if (e.key === 'Home' || e.key === 'End') {
+    e.preventDefault()
+    knapper[e.key === 'Home' ? 0 : knapper.length - 1].focus()
+  } else if (steg) {
+    e.preventDefault()
+    knapper[(i + steg + knapper.length) % knapper.length].focus()
+  }
+}
 
 const input = ref('')
 const listRef = ref(null)
@@ -67,7 +84,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     </template>
 
     <div class="flex flex-col h-full min-h-[50dvh]">
-      <div ref="listRef" class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref="listRef" class="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+           role="log" aria-live="polite" :aria-busy="busy" aria-label="Samtale med Lende">
         <div v-if="!messages.length" class="text-ink-3 text-[14px] leading-relaxed">
           <p class="font-medium text-ink-2 mb-1.5">Hei! 👋</p>
           <p>
@@ -78,7 +96,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         </div>
 
         <div v-for="(m, i) in messages" :key="i"
-             class="flex" :class="m.role === 'user' ? 'justify-end' : 'justify-start'">
+             class="flex flex-col" :class="m.role === 'user' ? 'items-end' : 'items-start'">
           <div class="max-w-[85%] rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed whitespace-pre-wrap"
                :class="m.role === 'user'
                  ? 'bg-ink/10 text-ink rounded-br-md'
@@ -92,6 +110,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                                  class="chat-cursor" aria-hidden="true" /></template>
             <span v-if="m.modell" class="block mt-1 text-[11px] text-ink-4 whitespace-normal">{{ m.modell }}</span>
           </div>
+          <!-- Pekere: treff fra kartinnhold-verktøyet. Ett trykk lukker chatten,
+               slår på laget og merker objektet med den rosa ringen. -->
+          <ul v-if="m.pekere?.length" class="mt-1.5 flex flex-wrap gap-1.5 max-w-[85%]"
+              :aria-label="`Vis i kartet (${m.pekere.length})`" @keydown="pekerTast">
+            <li v-for="(p, j) in m.pekere" :key="p.id">
+              <button type="button" :tabindex="j === 0 ? 0 : -1" @click="pekPaa(p)"
+                      class="min-h-[44px] inline-flex items-center gap-1.5 px-3 rounded-full
+                             border border-ink/15 bg-ink/5 text-ink text-[13px] text-left
+                             active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2
+                             focus-visible:outline-ink">
+                <span aria-hidden="true" class="text-ink-3">{{ PEKER_IKON[p.type] ?? '•' }}</span>
+                <span class="line-clamp-2">{{ p.navn }}</span>
+                <span class="sr-only">— vis i kartet</span>
+              </button>
+            </li>
+          </ul>
         </div>
 
         <p v-if="error" class="text-[13px] text-red-600/90 px-1">{{ error }}</p>

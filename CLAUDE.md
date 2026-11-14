@@ -1109,6 +1109,21 @@ Røyk-sjekken måler begge deler ved 100 % og 200 %, og seeder sitt eget kart fo
 å gjøre det: demokartene er `BUILTIN`, og der kan navnet ikke endres — så
 verken rename-pilla eller arket finnes på `/kart/vardasen`.
 
+## Viktig arkitektur-merknad — chatten leser kartinnholdet, den regner ikke (v8.0.8)
+
+`kartinnhold` i `lendeAiTools.js` bygger en indeks av kulturminner, NVE-stasjoner
+og stier (`lib/kartInnhold.js`, ren) og svarer med ferdige tall. Tre ting er
+lette å «rydde» bort:
+1. **Cache-nøklene er LAGENES.** Brukerminner nøkles på kartets lagrede `bbox`
+   (som `useHeritageLayers`), fredede og stasjoner på hjørne-bboxen. En annen
+   nøkkel gir en indeks som henter alt på nytt og ikke virker offline.
+2. **Pekerne er koordinater, ikke navn** (`sendMerkeKommando({ punkt: true })`).
+   Uten flagget slår MapView opp navnet i søkeindeksen, og stasjonen
+   «Stordammen» ville merket VANNET Stordammen.
+3. **Riksantikvarens OGC API for Askeladden (`LokaliteterEnkeltminnerOgSikringssoner`)
+   er MÅLT ubrukelig for kartet** (nov. 2026): `geometry: null` og bbox ignoreres.
+   Fredede kulturminner kommer derfor fortsatt fra Geonorge WFS.
+
 ## Viktig arkitektur-merknad — deling av kart har TO veier, og det er med vilje
 
 1. **Lenke (`useKartDeling.js`)** — deler OPPSKRIFTEN: bbox, ekvidistanse,

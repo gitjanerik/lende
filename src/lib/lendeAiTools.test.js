@@ -824,3 +824,22 @@ describe('velgMosaikkFliser', () => {
       .toEqual(['flis_0_1'])
   })
 })
+
+describe('kartinnhold-pekere og omvei', () => {
+  it('pekereFraSvar plukker treff, objekt og nærmeste', async () => {
+    const { pekereFraSvar } = await import('./lendeAiTools.js')
+    const p = pekereFraSvar({
+      objekt: { id: 'fm:1', navn: 'A', type: 'kulturminne', lat: 1, lon: 2 },
+      treff: [{ id: 'km:2', navn: 'B', type: 'kulturminne', lat: 3, lon: 4, naermeste: { id: 'sti:0', navn: 'Sti', type: 'sti', lat: 5, lon: 6 } }],
+    })
+    expect(p.map((x) => x.id)).toEqual(['fm:1', 'km:2', 'sti:0'])
+    expect(pekereFraSvar({ feil: 'x' })).toEqual([])
+  })
+
+  it('turSvarTekst sier fra om omveien', async () => {
+    const { turSvarTekst } = await import('./lendeAiTools.js')
+    const t = turSvarTekst({ rute: { lengdeKm: 2.4, stigningM: 180, gangtidMin: 50, omveiMerknad: 'Luftlinja er bare 0,8 km.' } })
+    expect(t).toContain('2,4 km')
+    expect(t).toContain('Luftlinja er bare 0,8 km.')
+  })
+})
