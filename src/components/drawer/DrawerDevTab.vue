@@ -3,7 +3,8 @@
 // Vardåsen-referansekart, Zoom-LOD-tuning (runtime-parametre), debug-tellere
 // (fliser, viewport-culling, Sjøkart-WFS), diagnose-modus, lilla-stier-A/B og
 // perf-logg-åpner.
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { getAiModell, settAiModell, hentAiModeller, hasAiToken } from '../../lib/lendeAi.js'
 import { LOD_DEFAULTS } from '../../composables/useLodTuning.js'
 import { APP_VERSION } from '../../version.js'
 
@@ -67,6 +68,29 @@ function toggleMykRot() {
 // den som alt har bygget sitt eget kart er en bryter ingen finner.
 // Nøkkelen er uendret (`lende-3d-himmel-tvang`), så et valg gjort før flyttinga
 // står. Se DrawerPrefsTab.vue.
+// KI-modell for chatten (v8.0.7): sammenlikn modeller uten deploy. Lista er
+// Workerens hviteliste fra /health; valget gjelder neste melding, og hvert
+// svar merkes med modellen som skrev det.
+const harAi = hasAiToken()
+const aiModell = ref(getAiModell())
+const aiModeller = ref([])
+const aiStandard = ref(null)
+const aiFeil = ref('')
+onMounted(async () => {
+  if (!harAi) return
+  try {
+    const { standard, modeller } = await hentAiModeller()
+    aiStandard.value = standard
+    aiModeller.value = modeller.filter((m) => m !== standard)
+  } catch (err) {
+    aiFeil.value = err?.message ?? 'Fikk ikke lest modell-lista'
+  }
+})
+function velgAiModell(e) {
+  aiModell.value = e.target.value
+  settAiModell(aiModell.value)
+}
+
 const metaAppVersionText = computed(() => props.meta?.appVersion ?? null)
 
 // Tetthets-linja: «915 /km² · svært tett → sparsom · bredde 8 → 6 km».
@@ -327,6 +351,18 @@ const diagnose = defineModel('diagnose', { type: Boolean, default: false })
         Stedsnavn står vannrett hele veien mens du roterer. Slår seg av selv om
         passene sprenger frame-budsjettet — se perf-loggen.
       </template>
+    </div>
+    <div v-if="harAi" class="mb-3 px-1">
+      <label for="dev-ai-modell" class="block text-ink-4 text-[11px] mb-1">KI-modell i chatten</label>
+      <select id="dev-ai-modell" :value="aiModell" @change="velgAiModell"
+              class="w-full px-2 py-1.5 rounded-md border border-ink/10 bg-ink/5 text-ink-2 text-[12px]">
+        <option value="">Standard{{ aiStandard ? ` (${aiStandard})` : '' }}</option>
+        <option v-for="m in aiModeller" :key="m" :value="m">{{ m }}</option>
+        <option v-if="aiModell && !aiModeller.includes(aiModell)" :value="aiModell">{{ aiModell }}</option>
+      </select>
+      <div class="text-[10px] text-ink-3 leading-relaxed mt-1">
+        {{ aiFeil || 'Gjelder neste melding. Svarene merkes med modellen som skrev dem.' }}
+      </div>
     </div>
     <!-- Byggetider (perf): viser localStorage-loggen så den kan kopieres
          og deles — mobil-konsollen er upraktisk. -->

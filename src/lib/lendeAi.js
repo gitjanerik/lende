@@ -17,6 +17,43 @@ export const AI_URL =
   import.meta.env?.VITE_LENDE_AI_URL ??
   'https://lende-ai.jepedersen73.workers.dev/api/ai'
 
+// Modellvalg for testing (Utvikler-fana). Tom = Workerens MODEL.
+export const AI_MODELL_KEY = 'lende-ai-modell'
+
+export function getAiModell() {
+  try { return localStorage.getItem(AI_MODELL_KEY) || '' } catch { return '' }
+}
+
+export function settAiModell(id) {
+  try {
+    if (id) localStorage.setItem(AI_MODELL_KEY, id)
+    else localStorage.removeItem(AI_MODELL_KEY)
+  } catch { /* privat modus */ }
+}
+
+// Workeren eier hvitelista, så klienten spør i stedet for å kjenne den.
+export async function hentAiModeller({ signal } = {}) {
+  const res = await fetch(AI_URL.replace(/\/api\/ai$/, '/health'), { signal })
+  if (!res.ok) throw new Error(`Helsesjekken svarte ${res.status}`)
+  const data = await res.json()
+  return { standard: data?.model ?? null, modeller: Array.isArray(data?.modeller) ? data.modeller : [] }
+}
+
+/**
+ * Stoppet svaret fordi max_tokens var brukt opp? En resonnerings-modell bruker
+ * av samme budsjett til tenkingen, så et kappet svar kan være helt TOMT.
+ * Responses-API (gpt-oss) sier `status: 'incomplete'`, OpenAI-formen
+ * `finish_reason: 'length'`.
+ */
+export function erKappet(obj) {
+  if (!obj || typeof obj !== 'object') return false
+  if (obj.status === 'incomplete') return true
+  if (obj.incomplete_details?.reason === 'max_output_tokens') return true
+  return obj.choices?.[0]?.finish_reason === 'length'
+}
+
+export const MAX_SVAR_TOKENS = 4096
+
 export function getAiToken() {
   try {
     return localStorage.getItem(AI_TOKEN_KEY) || null
@@ -253,6 +290,36 @@ export function parseTextToolCalls(tekst, kjenteNavn = []) {
  * parseTextToolCalls.
  */
 export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, signal }) {
+  const modell = getAiModell()
+  let data = await postChat({ messages, tools, maxTokens, signal, modell })
+  let tekst = extractText(data)
+  let strukturerte = extractToolCalls(data)
+  // Tomt og kappet: tenkingen spiste budsjettet. Ett nytt forsøk med taket
+  // Workeren tillater — et forsøk til koster mindre enn et svar som ikke kom.
+  let kappet = erKappet(data)
+  if (kappet && !tekst.trim() && !strukturerte.length && maxTokens < MAX_SVAR_TOKENS) {
+    data = await postChat({ messages, tools, maxTokens: MAX_SVAR_TOKENS, signal, modell })
+    tekst = extractText(data)
+    strukturerte = extractToolCalls(data)
+    kappet = erKappet(data)
+  }
+  // Tekst-tolkingen kjører ALLTID, ikke bare når tool-kanalen er tom: modellen
+  // kan gjøre ett ekte kall og skrive det NESTE som tekst i samme svar (sett
+  // v4.4.1: «… Vent litt. Jeg åpner listen over dine kart og ruter.
+  // [mine_kart_og_ruter()]»). Ellers blir klammeteksten stående i chatten og
+  // det andre kallet aldri utført.
+  // Navnelista: eksplisitt `toolNames` når kalleren oppgir den (gjelder ALLE
+  // runder, også de uten tools), ellers utledet fra tools som før.
+  const kjenteNavn = Array.isArray(toolNames) && toolNames.length
+    ? toolNames
+    : (tools ?? []).map((t) => t?.function?.name).filter(Boolean)
+  const fraTekst = parseTextToolCalls(tekst, kjenteNavn)
+  const sett = new Set(strukturerte.map((t) => `${t.name}:${JSON.stringify(t.args)}`))
+  const ekstra = fraTekst.toolCalls.filter((t) => !sett.has(`${t.name}:${JSON.stringify(t.args)}`))
+  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data, kappet, modell }
+}
+
+async function postChat({ messages, tools, maxTokens, signal, modell }) {
   let res
   try {
     res = await fetch(AI_URL, {
@@ -265,6 +332,7 @@ export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, s
       body: JSON.stringify({
         messages,
         max_tokens: maxTokens,
+        ...(modell ? { model: modell } : {}),
         ...(Array.isArray(tools) && tools.length ? { tools } : {}),
       }),
     })
@@ -279,23 +347,7 @@ export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, s
     } catch { /* ikke JSON */ }
     throw new Error(feilmelding(res.status, serverText))
   }
-  const data = await res.json()
-  const tekst = extractText(data)
-  const strukturerte = extractToolCalls(data)
-  // Tekst-tolkingen kjører ALLTID, ikke bare når tool-kanalen er tom: modellen
-  // kan gjøre ett ekte kall og skrive det NESTE som tekst i samme svar (sett
-  // v4.4.1: «… Vent litt. Jeg åpner listen over dine kart og ruter.
-  // [mine_kart_og_ruter()]»). Ellers blir klammeteksten stående i chatten og
-  // det andre kallet aldri utført.
-  // Navnelista: eksplisitt `toolNames` når kalleren oppgir den (gjelder ALLE
-  // runder, også de uten tools), ellers utledet fra tools som før.
-  const kjenteNavn = Array.isArray(toolNames) && toolNames.length
-    ? toolNames
-    : (tools ?? []).map((t) => t?.function?.name).filter(Boolean)
-  const fraTekst = parseTextToolCalls(tekst, kjenteNavn)
-  const sett = new Set(strukturerte.map((t) => `${t.name}:${JSON.stringify(t.args)}`))
-  const ekstra = fraTekst.toolCalls.filter((t) => !sett.has(`${t.name}:${JSON.stringify(t.args)}`))
-  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data }
+  return res.json()
 }
 
 function feilmelding(status, serverText) {

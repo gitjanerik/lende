@@ -1,3 +1,9 @@
+## 2026-11-14 — v8.0.7: Test nye KI-modeller, tomme svar og fet tekst i chatten
+
+Utvikler-fana har en ny modellvelger for chatten, så nye Workers AI-modeller kan sammenliknes uten en deploy: GLM-5.2 (Z.ai) og Kimi K2.6 (Moonshot) står ved siden av standarden gpt-oss-120b. Workeren godtar bare id-ene i `MODELLER` i `wrangler.toml` (pluss `MODEL`), og hvert svar merkes med modellen som skrev det mens en testmodell er valgt. Et tomt svar som var kappet av `max_tokens` — en resonnerings-modell bruker av samme budsjett til tenkingen — spørres nå om igjen én gang med Workerens fulle tak på 4 096, og blir det fortsatt tomt, sier chatten at budsjettet gikk med til tenking og logger råsvaret i konsollen. Fet og kursiv tekst vises som det, ikke som `**stjerner**`; tegnene rendres som segmenter og aldri som HTML.
+
+---
+
 ## 2026-11-14 — v8.0.6: Arket får et areal-tak, riktig telling og søk i hele arket
 
 Taket for hvor stort et ark kan bli er nå 32 × 32 km i stedet for ni fliser — 16 fliser med 8 km-fliser, med gulv på 2 × 2 og tak på 64 for små fliser. Ni ble satt da hver flis tok et halvt minutt å bygge; nå er det minnet som koster, og det følger arealet. Porten teller rutenett-celler og ikke lagrede kart, så to kart i samme celle ikke lenger tar to plasser (eieren fikk «bare plass til 2 av 3» på et ark med seks fliser). Mosaikken kapper taket etter gitter-sjekken, så et annet kart i nærheten ikke dytter en av arkets egne fliser ut, og radien følger taket — chatten regner likt. Kappingen av auto-fliser etter bygging er tatt ut: den telte i hele lagringen og kunne slette kanten av et annet ark. Søket i kartet finner nå navn i hele arket, også i fliser som ikke er lastet: navnene leses per flis, caches, og lista fylles på mens fliser utenfor minnet leses én om gangen.

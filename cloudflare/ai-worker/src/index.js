@@ -41,6 +41,14 @@ function json(status, obj, cors) {
   })
 }
 
+// Modeller klienten kan be om i stedet for MODEL. Lista er en HVITELISTE i
+// wrangler.toml og ikke «hva som helst under @cf/»: en ukjent modell kan koste
+// mangedobbelt per token, og tokenet er utdelt til flere enn eieren.
+function tillatteModeller(env) {
+  const liste = (env.MODELLER ?? '').split(',').map((m) => m.trim()).filter(Boolean)
+  return env.MODEL && !liste.includes(env.MODEL) ? [env.MODEL, ...liste] : liste
+}
+
 function validToken(request, env) {
   const auth = request.headers.get('Authorization') ?? ''
   if (!auth.startsWith('Bearer ')) return false
@@ -63,7 +71,7 @@ export default {
     // Uautentisert helsesjekk — brenner ingen neurons, brukes til å verifisere
     // deploy uten å dele ut tokens.
     if (request.method === 'GET' && url.pathname === '/health') {
-      return json(200, { ok: true, model: env.MODEL ?? null }, cors)
+      return json(200, { ok: true, model: env.MODEL ?? null, modeller: tillatteModeller(env) }, cors)
     }
 
     if (request.method !== 'POST' || url.pathname !== '/api/ai') {
@@ -90,6 +98,14 @@ export default {
       return json(400, { error: 'Body må ha en ikke-tom `messages`-liste.' }, cors)
     }
 
+    let modell = env.MODEL
+    if (typeof body.model === 'string' && body.model) {
+      if (!tillatteModeller(env).includes(body.model)) {
+        return json(400, { error: `Modellen ${body.model} er ikke slått på i Workeren.` }, cors)
+      }
+      modell = body.model
+    }
+
     const params = {
       messages: body.messages,
       max_tokens: Math.min(Number(body.max_tokens) || 1024, MAX_OUTPUT_TOKENS),
@@ -108,14 +124,14 @@ export default {
 
     let result
     try {
-      result = await env.AI.run(env.MODEL, params)
+      result = await env.AI.run(modell, params)
     } catch (err) {
       if (!params.reasoning) {
         return json(502, { error: `Workers AI feilet: ${err?.message ?? 'ukjent'}` }, cors)
       }
       delete params.reasoning
       try {
-        result = await env.AI.run(env.MODEL, params)
+        result = await env.AI.run(modell, params)
       } catch (err2) {
         return json(502, { error: `Workers AI feilet: ${err2?.message ?? 'ukjent'}` }, cors)
       }

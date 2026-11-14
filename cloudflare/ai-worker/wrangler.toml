@@ -27,6 +27,13 @@ MODEL = "@cf/openai/gpt-oss-120b"
 # at denne har en knott. Tom verdi = ikke send feltet i det hele tatt.
 REASONING_EFFORT = "low"
 
+# Modeller som kan prøves fra Utvikler-fana uten deploy (v8.0.7). Klienten
+# sender `model`, og Workeren godtar bare id-ene her (pluss MODEL). Id-ene er
+# slått opp i Cloudflares changelog, ikke gjettet — en feil id gir 502 med
+# Workers AIs egen melding i chatten, som er målingen. GLM-5.2 krever betalt
+# Workers AI-plan.
+MODELLER = "@cf/zai-org/glm-5.2,@cf/moonshotai/kimi-k2.6"
+
 # Secreten LENDE_AI_TOKENS (kommaseparerte per-bruker-tokens) settes IKKE her.
 # CI-deployen (.github/workflows/deploy-ai-worker.yml) pusher den fra GitHub-
 # secreten med samme navn; alternativt Cloudflare-dashbordet (Worker →
