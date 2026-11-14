@@ -1,3 +1,9 @@
+## 2026-11-14 — v8.0.5: Kartutsnittet står der du forlot det etter ut.no
+
+Åpnet man ut.no fra et innzoomet kart og trykket tilbake, kom Lende-kartet tilbake på hel dekning. Eksterne lenker åpnes i samme fane som standard, så siden lastes ut, og gjenopptaket av utsnittet i `router.js` gjaldt bare en kald start på «/». MapView legger nå utsnittet (senter, zoom, rotasjon) i sessionStorage på `pagehide`, som samme engangs-nyttelast mosaikk-promoteringen bruker, så kartet åpner der det sto — uansett hvilken lenke man forlot appen gjennom. Kommer siden tilbake fra bfcache, ryddes nyttelasten bort igjen.
+
+---
+
 ## 2026-11-14 — v8.0.4: En oppdatering sletter ikke lenger de utvidede flisene
 
 Hver versjonsoppdatering åpnet med «Kartet er slettet», enda kartet sto i «Mine kart». Årsaken var en regel fra tida med automatiske nabofliser: en auto-flis bygd med en annen app-versjon ble regnet som utdatert cache og slettet i det spøkelsesflisene ble tegnet. I dag bygges de flisene bare når brukeren trykker på en lende-pil, og hver PR bumper versjonen — så hver oppdatering slettet alle utvidelsene av arket, og sto man i en av dem, ble kartet slettet under en. Versjons-porten er fjernet: et ark bygd med eldre kode er fortsatt et gyldig ark. Fliser som allerede er slettet, kommer ikke tilbake.

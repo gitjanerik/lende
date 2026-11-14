@@ -1875,6 +1875,42 @@ function scheduleViewSave() {
   }, 800)
 }
 watch([scale, translateX, translateY, rotation], scheduleViewSave)
+
+// ── UTSNITTET OVERLEVER EN TUR UT AV APPEN (v8.0.5) ─────────────────────────
+// Eksterne lenker åpnes i SAMME fane som standard (useEksterneLenker), så en
+// tur til ut.no laster siden ut, og tilbake-knappen laster `/kart/:id` på nytt.
+// Gjenopptaket i router.js gjelder bare en kald start på «/», så kartet kom
+// tilbake på hel dekning. `pagehide` legger utsnittet som en promoteView i
+// sessionStorage — samme engangs-nyttelast som mosaikk-promoteringen — og
+// gjelder dermed hver måte å forlate siden på, ikke bare de lenkene vi kjenner.
+// sessionStorage hører til fanen, så det ryddes av seg selv når den lukkes.
+function huskUtsnittForRetur() {
+  if (!meta.value || !mapId.value) return
+  const c = visibleCenterSvg()
+  if (!c) return
+  try {
+    sessionStorage.setItem(`mapview-init-prefs:${mapId.value}`, JSON.stringify({
+      promoteView: {
+        x: c.x, y: c.y,
+        scale: scale.value || 1,
+        rotation: rotation.value || 0,
+      },
+      isAutoMap: currentMapIsAuto.value,
+    }))
+  } catch { /* noop */ }
+}
+// Kom siden tilbake fra bfcache, ble den aldri lastet ut — nyttelasten må bort,
+// ellers åpner neste last av dette kartet på et gammelt utsnitt.
+function glemUtsnittVedBfcache(e) {
+  if (!e.persisted || !mapId.value) return
+  try { sessionStorage.removeItem(`mapview-init-prefs:${mapId.value}`) } catch { /* noop */ }
+}
+window.addEventListener('pagehide', huskUtsnittForRetur)
+window.addEventListener('pageshow', glemUtsnittVedBfcache)
+onUnmounted(() => {
+  window.removeEventListener('pagehide', huskUtsnittForRetur)
+  window.removeEventListener('pageshow', glemUtsnittVedBfcache)
+})
 watch(mapId, (id) => {
   try {
     localStorage.setItem('lende-last-mode', 'kart')
