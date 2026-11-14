@@ -4,7 +4,8 @@
 levert i v7.9.35, 1a (veger i baken) i v7.9.36. Rekkefølgen ble snudd fordi 1b
 ikke trenger en bake og gir mest med en gang. Kyst-svaret uten Overpass kom i
 v7.9.37 (havmasken, se 1b), og kant-utvidelsen fikk N50-arket i v7.9.38.
-Neste: fase 2.
+**FASE 2 LEVERT i v7.9.39 (baken) og v8.0.0 (R2, Workeren og klienten).**
+Kart bygges nå fra de bakte flisene, med Overpass som reserve.
 
 ## Hvorfor
 
@@ -82,7 +83,7 @@ uke gammel.
 **Nøkkelgrep:** flisene skrives i NØYAKTIG samme JSON-form som Overpass svarer
 (`elements` med `out geom`), så `mapBuilder` er urørt og bare transporten byttes.
 
-1. **Bake-workflow** (ukentlig): Geofabrik `norway-latest.osm.pbf`
+1. **Bake-workflow** (ukentlig, senere månedlig): Geofabrik `norway-latest.osm.pbf`
    (~1,3 GB) → `osmium tags-filter` med taggene `buildOverpassQuery` ber om →
    fliser. Linjer og flater på tvers av flisgrenser dupliseres per flis og
    dedupes på id i klienten. Multipolygoner (innsjøer med øyer) må settes
@@ -98,6 +99,31 @@ uke gammel.
    `lende-n50` (`lib/n50FlisNokkel.js`).
 4. **Verifisering:** fasit-kartene bygget fra fliser mot fra Overpass — samme
    tall innenfor toleranse.
+
+### Slik ble fase 2 (v7.9.39 + v8.0.0)
+
+- **Gitter 0,05° × 0,1° (~5,5 km).** Første måling med det dobbelte ga 9 MB
+  gzip for Oslo-flisa; nå er den 3 MB, og et vanlig flis er noen få KB.
+- **Elementer går i flisene STREKENE krysser**, ikke alle flisene boksen
+  dekker, og klienten bruker Overpass' egen regel for hva som er med i et kart.
+  Målt mot Overpass rundt Vardåsen og Drøbak: 0 mangler, 0 ekstra.
+- **Store elementer i flere fliser lagres én gang** (`delt/`), og flisene peker
+  på dem. Tyrifjorden alene er 107 KB × 19 fliser.
+- **Pakket i R2, ikke én fil per flis.** Cloudflares API tar 1 200 kall per fem
+  minutter; titusenvis av fliser ville tatt timer å laste opp. Pakkene er
+  1° × 1° med en indeks (`lib/osmPakke.js`), og proxy-Workeren leser ut én flis
+  med en range-GET. Manifestet skrives sist og peker på baken, så en halv
+  opplasting aldri blandes med en hel.
+- **Klienten** (`lib/osmKilde.js` → `lib/osmFlisFetcher.js`) prøver flisene
+  med en frist på 15 s og faller til Overpass. `meta.osmStatus` sier hvem som
+  svarte (Utvikler-fanen). Flisene caches i `lende-osm`, nøklet på baken.
+- **Månedlig bake** (den 1., 02:23 UTC — `OSM_BAKE_PLAN` i `lib/osmFlis.js`
+  og cron-en holdes like av en test). Planen sa ukentlig; eieren valgte
+  månedlig, og data er altså inntil en måned gammel. Datoen for siste bake
+  (`osmTid` i manifestet) står nederst i hovedmenyen og i «Om appen», som
+  også viser neste kjøring.
+- **Verifisering:** PR-er som rører baken bygger fasit-kartene fra både
+  Overpass og flisene og krever samme tall (`fasit-kart.js --mot`).
 
 ## Rekkefølge
 

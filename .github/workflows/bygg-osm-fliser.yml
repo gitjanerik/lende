@@ -1,14 +1,16 @@
 name: Bygg OSM-fliser
 
 # Fase 2 av docs/PLAN_OSM_UAVHENGIG.md: Geofabriks Norge-uttrekk bakt til
-# fliser i Overpass' `out geom`-form (scripts/bygg-osm-fliser.mjs), og så
-# sammenlignet med Overpass selv (scripts/sammenlign-osm-fliser.mjs).
+# fliser i Overpass' `out geom`-form (scripts/bygg-osm-fliser.mjs), sjekket mot
+# Overpass, og lastet opp i R2-bøtta `lende-osm` (scripts/last-opp-osm-fliser.mjs)
+# der proxy-Workeren serverer dem under /osm/.
 #
-# På en PR bakes BARE et utsnitt rundt Asker og Drøbak — nok til at
-# sammenligningen har fliser å lese, og raskt nok til ikke å holde PR-en.
-# Manuelt uten utsnitt bakes hele landet og MÅLES: antall fliser, størrelse,
-# største flis. Ingenting lastes opp ennå; lagringen (R2) kommer når tallene
-# er kjent.
+# Månedlig (den 1.): bak hele landet, sammenlign, last opp. Helt automatisk;
+# feiler en kjøring, står forrige bake og serveres videre.
+# PR: bak hele landet og bygg fasit-kartene fra BÅDE Overpass og flisene, men
+#     last ikke opp — en PR skal ikke bytte ut det appen leser.
+# Manuelt: som månedlig; med et utsnitt bakes og sammenlignes bare det, og
+#     ingenting lastes opp.
 
 on:
   pull_request:
@@ -16,23 +18,38 @@ on:
       - 'scripts/bygg-osm-fliser.mjs'
       - 'scripts/osmOpl.mjs'
       - 'scripts/sammenlign-osm-fliser.mjs'
+      - 'scripts/last-opp-osm-fliser.mjs'
       - 'src/lib/osmFlis.js'
+      - 'src/lib/osmFlisFetcher.js'
+      - 'src/lib/osmKilde.js'
+      - 'src/lib/osmPakke.js'
       - '.github/workflows/bygg-osm-fliser.yml'
+  schedule:
+    # Den 1. i måneden, 02:23 UTC. Geofabrik bygger Norge-uttrekket rundt
+    # 21–22 UTC. MÅ stå likt som OSM_BAKE_PLAN i src/lib/osmFlis.js (testet).
+    - cron: '23 2 1 * *'
   workflow_dispatch:
     inputs:
       bbox:
-        description: 'vest,sør,øst,nord for et utsnitt. Tomt = hele landet.'
+        description: 'vest,sør,øst,nord for et utsnitt (lastes ikke opp). Tomt = hele landet.'
         required: false
         default: ''
+      last_opp:
+        description: 'Last opp til R2 (bare uten utsnitt)'
+        required: false
+        type: boolean
+        default: true
 
 concurrency:
   group: osm-fliser-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   bak:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
+    env:
+      LAST_OPP: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.bbox == '' && inputs.last_opp) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,15 +66,54 @@ jobs:
           ls -lh norway.osm.pbf
       - name: Bak
         env:
-          BBOX: ${{ github.event_name == 'pull_request' && '10.2,59.55,10.8,60.0' || inputs.bbox }}
+          BBOX: ${{ inputs.bbox }}
         run: |
           node --max-old-space-size=12000 scripts/bygg-osm-fliser.mjs \
             --pbf norway.osm.pbf --ut osm-fliser ${BBOX:+--bbox "$BBOX"}
+          rm norway.osm.pbf
       - name: Sammenlign med Overpass
-        if: github.event_name == 'pull_request' || inputs.bbox != ''
         run: |
           node scripts/sammenlign-osm-fliser.mjs --fliser osm-fliser \
             --sted 59.8416,10.4107,2 --sted 59.6633,10.6303,2
+      - name: Fasit — Overpass mot fliser
+        if: github.event_name == 'pull_request'
+        run: |
+          (cd osm-fliser && python3 -m http.server 8765 >/dev/null 2>&1 &)
+          sleep 1
+          # Overpass-kjøringen er referansen, ikke en gate: den sammenlignes
+          # mot den lagrede fasiten, og der hører OSM-redigeringer hjemme.
+          node scripts/fasit-kart.js --osm overpass --json /tmp/overpass.json || true
+          node scripts/fasit-kart.js --osm fliser --osm-base http://localhost:8765 --mot /tmp/overpass.json
+      - name: Pakkene (tørrkjøring)
+        if: env.LAST_OPP != 'true'
+        run: node scripts/last-opp-osm-fliser.mjs --fliser osm-fliser --torr
+      - name: Opprett R2-bøtta (idempotent)
+        if: env.LAST_OPP == 'true'
+        run: npx --yes wrangler@4 r2 bucket create lende-osm || echo "Bøtta finnes trolig allerede — OK."
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Last opp til R2
+        if: env.LAST_OPP == 'true'
+        run: node scripts/last-opp-osm-fliser.mjs --fliser osm-fliser
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Røyktest — fliser gjennom proxy-Workeren
+        if: env.LAST_OPP == 'true'
+        run: |
+          BASE=https://lende-proxy.jepedersen73.workers.dev/osm
+          # Workeren cacher manifestet i fem minutter.
+          VENTET=$(node -e "console.log(require('./osm-fliser/manifest.json').osmTid)")
+          for i in $(seq 1 12); do
+            SVAR=$(curl -fsS "$BASE/manifest.json?r=$i" || true)
+            echo "$SVAR" | grep -q "$VENTET" && break
+            echo "  venter på nytt manifest ($i) …"; sleep 30
+          done
+          echo "$SVAR" | grep -q "$VENTET" || { echo "::error::Workeren serverer ikke det nye manifestet: $SVAR"; exit 1; }
+          curl -fsS "$BASE/1196_104.json.gz?t=$i" -o /tmp/flis.gz
+          gunzip -c /tmp/flis.gz | head -c 200; echo
+          gunzip -t /tmp/flis.gz && echo "OK — Vardåsen-flisa kommer helt gjennom Workeren"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

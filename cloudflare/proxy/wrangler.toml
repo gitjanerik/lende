@@ -5,3 +5,9 @@ compatibility_date = "2025-07-01"
 # Secret settes IKKE her. Bruk enten Cloudflare-dashbordet
 # (Worker → Settings → Variables → Add → «Encrypt») eller
 # `npx wrangler secret put NVE_HYDAPI_KEY`. Se README.md.
+
+# OSM-flisene (fase 2 i docs/PLAN_OSM_UAVHENGIG.md). Bøtta opprettes av
+# deploy-proxy.yml og fylles av bygg-osm-fliser.yml.
+[[r2_buckets]]
+binding = "OSM"
+bucket_name = "lende-osm"

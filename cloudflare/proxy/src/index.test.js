@@ -4,7 +4,7 @@
 // hvor hardt vi poller en gratis, åpen tjeneste. Begge er rene, så de kan testes
 // uten workerd — resten av fila trenger runtimen og dekkes av `npm run boot:workers`.
 import { describe, it, expect } from 'vitest'
-import { metKoordinat, metCacheSekunder, rewriteNextLinks } from './index.js'
+import { metKoordinat, metCacheSekunder, rewriteNextLinks, finnOsmFlis, nullstillOsmCache } from './index.js'
 
 describe('metKoordinat', () => {
   it('runder til METs maks på 4 desimaler', () => {
@@ -82,5 +82,40 @@ describe('rewriteNextLinks', () => {
 
   it('sender ikke-JSON videre urørt', () => {
     expect(rewriteNextLinks('<html>nei</html>', 'https://p.example.dev')).toBe('<html>nei</html>')
+  })
+})
+
+describe('finnOsmFlis', () => {
+  // En bøtte i minnet med R2-bindingens get(nøkkel) → { json() } | null.
+  const botte = (objekter) => ({
+    get: async (n) => n in objekter ? { json: async () => objekter[n] } : null,
+  })
+  const env = {
+    OSM: botte({
+      'manifest.json': { prefiks: 'b/20261113T212220Z' },
+      'b/20261113T212220Z/59_10.idx.json': { '1198_107.json.gz': [100, 42] },
+      'b/20261113T212220Z/delt.idx.json': { 'delt/relation_5081.json.gz': [0, 7] },
+    }),
+  }
+
+  it('slår opp flisa i pakkens indeks', async () => {
+    nullstillOsmCache()
+    expect(await finnOsmFlis(env, '1198_107.json.gz'))
+      .toEqual({ nokkel: 'b/20261113T212220Z/59_10.bin', offset: 100, lengde: 42 })
+    expect(await finnOsmFlis(env, 'delt/relation_5081.json.gz'))
+      .toEqual({ nokkel: 'b/20261113T212220Z/delt.bin', offset: 0, lengde: 7 })
+  })
+
+  it('en flis uten innhold, en ukjent pakke og en fremmed sti er null', async () => {
+    nullstillOsmCache()
+    expect(await finnOsmFlis(env, '1198_106.json.gz')).toBeNull()
+    expect(await finnOsmFlis(env, '1_1.json.gz')).toBeNull()
+    expect(await finnOsmFlis(env, '../manifest.json')).toBeNull()
+    expect(await finnOsmFlis(env, 'b/20261113T212220Z/59_10.bin')).toBeNull()
+  })
+
+  it('uten manifest finnes ingen fliser', async () => {
+    nullstillOsmCache()
+    expect(await finnOsmFlis({ OSM: botte({}) }, '1198_107.json.gz')).toBeNull()
   })
 })

@@ -15,7 +15,8 @@
 //   })
 //   router.push({ name: 'kart-vis', params: { id } })
 
-import { fetchOverpass, probeCoastline, bboxFromCenter, viewportAspect } from './mapBuilder.js'
+import { probeCoastline, bboxFromCenter, viewportAspect } from './mapBuilder.js'
+import { fetchOsm } from './osmKilde.js'
 import { APP_VERSION } from '../version.js'
 import { apneByggeOkt } from './buildSvgClient.js'
 import { fetchN50Water } from './n50Fetcher.js'
@@ -444,7 +445,14 @@ export async function buildMapFromCenter({
   // Overpass + N50 fyres parallelt med DEM (delt mellom terreng- og full-bygg)
   // så OSM-hentingen (flaskehalsen) starter samtidig med DEM. Deklarert FØR
   // kyst-deteksjonen siden den trenger OSM-saltvanns-signalet.
-  const overpassP = timeAsync('overpass', fetchOverpass(bbox, { signal, onProgress }))
+  // Fase 2 (docs/PLAN_OSM_UAVHENGIG.md): de bakte flisene først, Overpass når
+  // de ikke kan leses. Navnet `overpassP` er beholdt — det er OSM-løftet, og
+  // fristen for N50-arket gjelder det uansett hvem som svarer.
+  const overpassP = timeAsync('overpass', fetchOsm(bbox, { signal, onProgress }))
+  const osmStatusP = overpassP.then(
+    osm => ({ kilde: osm?.meta?.kilde ?? null, osmTid: osm?.meta?.osmTid ?? null, flisFeil: osm?.meta?.flisFeil ?? null }),
+    () => null,
+  )
   // Utfall av NVE-innsjø-hentingen → meta.nveInnsjoStatus (Utvikler-fanen):
   // feiler den stille på mobil (nett/CORS/utfall), er dette eneste sporet.
   let nveInnsjoStatus = null
@@ -915,6 +923,8 @@ export async function buildMapFromCenter({
       sjokartStatus: summarizeSjokartStatus(sjokart, sjokartElements.length),
       nveInnsjoStatus,               // NVE-innsjø-utfall → meta (Utvikler-fanen)
       turruteStatus,                 // Turrutebasen-utfall → meta (Utvikler-fanen)
+      // N50-arket venter ikke på OSM, og skal heller ikke vente på statusen.
+      osmStatus: utenOsm ? null : await osmStatusP,
       n50StiStatus,                  // N50-sti-utfall → meta (Utvikler-fanen)
       n50VannStatus,                 // N50-elveflate-utfall → meta (Utvikler-fanen)
       kulturminner,

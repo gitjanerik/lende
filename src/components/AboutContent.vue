@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue'
 import VersjonSjekk from './VersjonSjekk.vue'
+import { useOsmOppdatering } from '../composables/useOsmOppdatering.js'
 import UtmSoneFigur from './UtmSoneFigur.vue'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
+
+const { sistOppdatert: osmSistOppdatert, nesteKjoring: osmNesteKjoring } = useOsmOppdatering()
 
 // Innholdet i «Om Lende» — delt mellom ruten /om (AboutView, som holder
 // deep-lenker og offline-kravet i live) og AboutModal, som hovedmenyen åpner
@@ -416,12 +419,20 @@ function tilPersonvern() {
               ekte N50-skog, males bakgrunnen som åpen mark; ellers hevder
               Turkart-temaet skog i bakgrunnen.</li>
             <li><strong class="text-ink">Stier og veier</strong> hentes fra tre
-              kilder: OpenStreetMap (Overpass, live), Kartverkets
+              kilder: OpenStreetMap, Kartverkets
               <strong class="text-ink">Turrutebasen</strong> for merkede fotruter,
               og <strong class="text-ink">N50 Samferdsel</strong>, som er bakt til
               statiske fliser fordi OSM er tynt i norsk utmark. Bygg kommer fra
               OpenStreetMap; <strong class="text-ink">vann og kyst</strong> fra
               DEM-en, NVE Innsjødatabasen, N50 og Sjøkart.</li>
+            <li><strong class="text-ink">OpenStreetMap-dataene</strong> bakes
+              den 1. hver måned fra Geofabriks Norge-uttrekk til fliser på
+              omtrent 5 × 5 km, som et nytt kart henter på sekunder. De er
+              derfor inntil en måned gamle. Kan flisene ikke leses, hentes
+              dataene rett fra Overpass i stedet, som før.
+              <span class="block mt-1 text-ink-3">
+                <template v-if="osmSistOppdatert">Sist oppdatert: {{ osmSistOppdatert }}. </template>Neste kjøring: {{ osmNesteKjoring }}.
+              </span></li>
             <li>Alt symboliseres via en datadrevet ISOM-katalog og rendres som ett
               skalerbart SVG med zoom-trappet detaljnivå og togglebare kartlag.</li>
           </ul>
@@ -642,10 +653,11 @@ function tilPersonvern() {
         Kartdata hentes direkte fra kildene, og ruteberegningen i Ruteplanleggeren
         går til BRouter (brouter.de); en liten Cloudflare-Worker står foran NVE,
         Kulturminnesøk og MET fordi de krever nøkkel, CORS eller en identifiserende
-        klient.
+        klient, og serverer de ferdigbakte OpenStreetMap-flisene.
       </p>
       <div class="text-[12px] leading-relaxed text-ink-3 space-y-1 pt-1 border-t border-ink/10">
-        <p>Kartdata © <strong class="text-ink-2">OpenStreetMap</strong>-bidragsytere (ODbL).
+        <p>Kartdata © <strong class="text-ink-2">OpenStreetMap</strong>-bidragsytere (ODbL),
+          via månedlige uttrekk fra <strong class="text-ink-2">Geofabrik</strong>.
           Ruter fra Ruteplanleggeren er avledet av de samme dataene og deles på
           samme vilkår — GPX-filene bærer henvisningen.</p>
         <p>Ruteberegning: <strong class="text-ink-2">BRouter</strong> (brouter.de),
@@ -696,10 +708,12 @@ function tilPersonvern() {
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Det som må sendes for å lage kartet.</strong>
         For å bygge et kart sendes kartutsnittet — og dermed omtrent hvor du er —
-        til de åpne kildene: OpenStreetMap (Overpass), Kartverket/Geonorge, NVE
-        og Miljødirektoratet, og til BRouter når du planlegger en rute. Søker du
+        til de åpne kildene: Kartverket/Geonorge, NVE og Miljødirektoratet, og
+        til BRouter når du planlegger en rute. OpenStreetMap-dataene hentes fra
+        vår egen Worker; bare når den ikke svarer, går utsnittet til
+        OpenStreetMap (Overpass). Søker du
         etter et sted, går søketeksten til OpenStreetMap (Nominatim).
-        Værvarsel, kulturminner og vannmålestasjoner går via vår egen
+        Kartflisene, værvarsel, kulturminner og vannmålestasjoner går via vår egen
         Cloudflare-Worker, som mellomlagrer svarene en kort stund, men ikke hvem
         som spurte.
       </p>

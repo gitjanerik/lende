@@ -65,6 +65,7 @@ export function metaFromSvgMeta(m) {
     appVersion: m.appVersion ?? null,       // app-versjonen arket ble bygd med
     nveInnsjoStatus: m.nveInnsjoStatus ?? null, // NVE-innsjø-utfall ved bygging
     turruteStatus: m.turruteStatus ?? null, // Turrutebasen-utfall ved bygging
+    osmStatus: m.osmStatus ?? null,     // fliser eller Overpass (fase 2)
     n50StiStatus: m.n50StiStatus ?? null,   // N50-sti-utfall ved bygging
     n50VannStatus: m.n50VannStatus ?? null, // N50-elveflate-utfall ved bygging
     // tetthet + detaljNivaa ble strippet på samme måte fra v5.0.0 til v5.0.3:

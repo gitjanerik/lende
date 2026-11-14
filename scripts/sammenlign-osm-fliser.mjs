@@ -42,7 +42,14 @@ for (const [lat, lon, halfKm] of steder) {
   const lastes = fliser.filter(Boolean).length
   const filer = [...flisNoklerForBbox(bbox).map(k => join(DIR, `${k}.json.gz`)), ...[...delte.keys()].map(d => join(DIR, deltFilnavn(d)))]
   const kb = filer.filter(existsSync).reduce((s, f) => s + statSync(f).size, 0) / 1e3
-  const fasit = (await fetchOverpass(bbox)).elements ?? []
+  let fasit
+  try {
+    fasit = (await fetchOverpass(bbox)).elements ?? []
+  } catch (e) {
+    // Overpass nede er ikke en feil i baken, og skal ikke stoppe opplastingen.
+    console.log(`⚠ ${lat},${lon}: Overpass svarte ikke (${e?.message ?? e}) — ikke sammenlignet`)
+    continue
+  }
   const fraId = new Map(fra.map(el => [id(el), el]))
   const fasitId = new Map(fasit.map(el => [id(el), el]))
   const mangler = [...fasitId.keys()].filter(k => !fraId.has(k))

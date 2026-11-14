@@ -128,9 +128,35 @@ skrev dem dit (og finalize en gang til). Alt annet — gjenåpning, nabofliser, 
 bygg brukeren navigerte vekk fra — går mot IndexedDB som før. Én plass fordi et
 kart som aldri hentes ikke skal holde megabyte i live lenger enn til neste bygg.
 
-**OVERPASS SKAL UT AV DEN KRITISKE STIEN — se `docs/PLAN_OSM_UAVHENGIG.md`
-(vedtatt nov. 2026, fase 1 levert i v7.9.35–36).** De offentlige speilene er målt
-nede eller strupet (2 plasser per IP på overpass-api.de); v7.9.32 er et plaster.
+**OVERPASS ER UTE AV DEN KRITISKE STIEN — se `docs/PLAN_OSM_UAVHENGIG.md`
+(vedtatt nov. 2026, fase 1 i v7.9.35–38, fase 2 i v7.9.39 + v8.0.0).** De
+offentlige speilene er målt nede eller strupet (2 plasser per IP på
+overpass-api.de).
+
+**OSM KOMMER FRA BAKTE FLISER (v8.0.0), og Overpass er reserven.**
+`fetchOsm` (`lib/osmKilde.js`) er inngangen for appen og headless — ikke
+`fetchOverpass`. Fem ting er lette å «rydde» bort:
+1. **Flisene har Overpass' `out geom`-form**, så `mapBuilder` er urørt. Utvalget
+   leses av `buildOverpassQuery` (`osmSelektorer` i `lib/osmFlis.js`): en ny
+   linje i spørringen kommer med ved neste bake. Baken er
+   `scripts/bygg-osm-fliser.mjs`, månedlig (den 1.) i `bygg-osm-fliser.yml`.
+   Cron-en og `OSM_BAKE_PLAN` (som «Om appen» viser neste kjøring fra) holdes
+   like av en test.
+2. **Et element står i flisene STREKENE krysser** (`flisNoklerForElement`), og
+   klienten tar med det Overpass ville tatt med (`elementIBbox`: en strek
+   krysser kartet) — ikke det som har overlappende BOKS. Med boks-regelen kom
+   lange kraftlinjer og ferjeruter utenfor kartet med.
+3. **Store elementer i flere fliser står ÉN gang i `delt/`** og flisene peker på
+   dem (`delte`). Et manglende delt element gjør hele hentingen ugyldig — et
+   halvt svar er et kart med hull og ingen feilmelding.
+4. **R2 har PAKKER, ikke fliser** (`lib/osmPakke.js`, delt med proxy-Workeren
+   `/osm/`). Cloudflares API tar 1 200 kall per fem minutter, og én PUT per flis
+   ville tatt timer. Manifestet skrives SIST og bærer `prefiks` til baken; de to
+   siste bakene beholdes.
+5. **Fasit og probene ber om `osmKilde: 'overpass'`** (headless' standard), MCP
+   om `'auto'`. `fasit-kart.js --osm fliser --mot <overpass.json>` er
+   verifiseringen: samme kart, samme dag, to transporter.
+`meta.osmStatus` sier hvem som svarte (Utvikler-fanen, rad «OSM»).
 
 **N50-ARKET (v7.9.35, `lib/n50Ark.js`).** Terreng-først har nå TRE trinn: DEM-
 previewen, så N50-arket når OSM ikke har svart innen `OSM_VENT_MS` (4 s) etter

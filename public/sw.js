@@ -16,7 +16,7 @@
  *       Everything else → network only (Google Fonts, opentype from CDN, etc.)
  */
 
-const CACHE_VERSION = '7.9.39'
+const CACHE_VERSION = '8.0.0'
 // NAVNENE MÅ HA `lende-`-PREFIKSET, og det er ikke pynt: opprydningen under
 // gjenkjenner sine egne cacher på det, og github.io er ÉN origin delt med
 // eierens andre Pages-prosjekter — en opprydning uten prefiks ville slettet
@@ -41,6 +41,11 @@ const DATA_CACHE    = 'lende-data'
 // henger en manifest-hash på hver flis (src/lib/n50FlisNokkel.js), så en ny
 // bake er en cache-bom, ikke et gammelt svar.
 const N50_CACHE     = 'lende-n50'
+// OSM-flisene (fase 2) fylles av KLIENTEN (lib/osmFlisFetcher.js), ikke her:
+// de kommer fra proxy-Workeren, altså en annen origin, og fetch-handleren
+// under rører bare vår egen. Cachen står likevel i lista over det som
+// beholdes — ellers ville hver deploy slettet den.
+const OSM_CACHE     = 'lende-osm'
 const BASE = '/lende/'
 
 // Hvilke cacher opprydningen eier. `beholdes` er de tre gjeldende; alt annet som
@@ -106,7 +111,7 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((n) => ryddesCache(n, [SHELL_CACHE, ASSET_CACHE, DATA_CACHE, N50_CACHE]))
+          .filter((n) => ryddesCache(n, [SHELL_CACHE, ASSET_CACHE, DATA_CACHE, N50_CACHE, OSM_CACHE]))
           .map((n) => caches.delete(n))
       )
     ).then(() => self.clients.claim())

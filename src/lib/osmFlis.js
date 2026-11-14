@@ -25,6 +25,23 @@ export const DELT_TERSKEL_BYTES = 32_000
 
 export const deltFilnavn = (id) => `delt/${id.replace('/', '_')}.json.gz`
 
+// Når baken kjører (UTC) — den 1. hver måned. MÅ stå likt som cron-linja i
+// .github/workflows/bygg-osm-fliser.yml; en test holder dem sammen. Appen
+// viser neste kjøring i «Om appen», og en dato regnet av en plan som ikke
+// lenger gjelder er verre enn ingen dato.
+export const OSM_BAKE_PLAN = Object.freeze({ dag: 1, time: 2, minutt: 23 })
+
+/** Neste planlagte bake etter `naa`, som Date. */
+export function nesteOsmBake(naa = new Date(), plan = OSM_BAKE_PLAN) {
+  let ar = naa.getUTCFullYear()
+  let mnd = naa.getUTCMonth()
+  for (;;) {
+    const t = new Date(Date.UTC(ar, mnd, plan.dag, plan.time, plan.minutt))
+    if (t > naa) return t
+    if (++mnd > 11) { mnd = 0; ar++ }
+  }
+}
+
 const EPS = 1e-9
 
 export function flisNokkel(rad, kol) {

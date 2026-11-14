@@ -1030,7 +1030,7 @@ onMounted(() => {
       {{ buildError }}
     </div>
     <div class="mt-3 text-[10px] text-ink-4 text-center">
-      Henter data fra OpenStreetMap (ODbL) via Overpass API.
+      Kartdata fra OpenStreetMap (ODbL), bakt månedlig — Overpass når flisene ikke svarer.
       <span class="text-ink-4">·</span>
       <button @click="router.push({ name: 'kart-vis', params: { id: 'vardasen' } })"
               class="underline decoration-dotted underline-offset-2 hover:text-ink-2 transition">
