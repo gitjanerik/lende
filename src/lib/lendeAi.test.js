@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   extractInviteToken, parseSseBuffer, extractText, extractToolCalls, parseTextToolCalls,
 } from './lendeAi.js'
@@ -284,5 +284,43 @@ describe('parseSseBuffer', () => {
     const { deltas, done } = parseSseBuffer(buf)
     expect(deltas).toEqual(['Ekvidistansen'])
     expect(done).toBe(true)
+  })
+})
+
+describe('erKappet og nytt forsøk ved tomt, kappet svar', () => {
+  it('kjenner begge svarformene', async () => {
+    const { erKappet } = await import('./lendeAi.js')
+    expect(erKappet({ status: 'incomplete' })).toBe(true)
+    expect(erKappet({ incomplete_details: { reason: 'max_output_tokens' } })).toBe(true)
+    expect(erKappet({ choices: [{ finish_reason: 'length' }] })).toBe(true)
+    expect(erKappet({ choices: [{ finish_reason: 'stop' }] })).toBe(false)
+    expect(erKappet({ status: 'completed' })).toBe(false)
+    expect(erKappet(null)).toBe(false)
+  })
+
+  it('spør på nytt med fullt budsjett, og sender valgt modell', async () => {
+    const { chatOnce, AI_MODELL_KEY } = await import('./lendeAi.js')
+    const lager = { [AI_MODELL_KEY]: '@cf/zai-org/glm-5.2' }
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => lager[k] ?? null, setItem: () => {}, removeItem: () => {},
+    })
+    const kropper = []
+    const svar = [
+      { status: 'incomplete', output: [{ type: 'reasoning' }] },
+      { output: [{ type: 'message', content: [{ type: 'output_text', text: 'Hei' }] }] },
+    ]
+    vi.stubGlobal('fetch', async (_url, init) => {
+      kropper.push(JSON.parse(init.body))
+      return { ok: true, json: async () => svar.shift() }
+    })
+    try {
+      const res = await chatOnce({ messages: [{ role: 'user', content: 'x' }] })
+      expect(res.text).toBe('Hei')
+      expect(res.modell).toBe('@cf/zai-org/glm-5.2')
+      expect(kropper.map((k) => k.max_tokens)).toEqual([1024, 4096])
+      expect(kropper.every((k) => k.model === '@cf/zai-org/glm-5.2')).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

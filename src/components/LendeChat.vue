@@ -3,6 +3,7 @@ import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AppModal from './AppModal.vue'
 import { useLendeChat } from '../composables/useLendeChat.js'
 import { useSpeechInput } from '../composables/useSpeechInput.js'
+import { chatSegmenter } from '../lib/chatMarkdown.js'
 
 // Selve chat-modalen (Fase 2). Monteres ÉN gang i App.vue og deler global
 // tilstand via useLendeChat — historikken overlever lukking og navigasjon.
@@ -85,8 +86,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <template v-if="busy && i === messages.length - 1 && m.role === 'assistant' && !m.content">
               <span class="italic text-ink-4 animate-pulse">{{ busyLabel || 'Tenker …' }}</span>
             </template>
-            <template v-else>{{ m.content }}<span v-if="busy && i === messages.length - 1 && m.role === 'assistant'"
+            <template v-else><template v-for="(seg, j) in chatSegmenter(m.content)" :key="j"><strong v-if="seg.fet"
+              class="font-semibold">{{ seg.tekst }}</strong><em v-else-if="seg.kursiv">{{ seg.tekst }}</em><template
+              v-else>{{ seg.tekst }}</template></template><span v-if="busy && i === messages.length - 1 && m.role === 'assistant'"
                                  class="chat-cursor" aria-hidden="true" /></template>
+            <span v-if="m.modell" class="block mt-1 text-[11px] text-ink-4 whitespace-normal">{{ m.modell }}</span>
           </div>
         </div>
 
