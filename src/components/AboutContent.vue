@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { hasAiToken, hentAiModell } from '../lib/lendeAi.js'
 import VersjonSjekk from './VersjonSjekk.vue'
 import { useOsmOppdatering } from '../composables/useOsmOppdatering.js'
@@ -13,9 +13,62 @@ const { sistOppdatert: osmSistOppdatert, nesteKjoring: osmNesteKjoring } = useOs
 // oppå seg selv. Verten eier ramme, padding og tekst-skalering; her ligger bare
 // seksjonene.
 
-// To faner — én per hovedfunksjon. Innholdet beskriver hva som er laget,
-// hvilken teknikk som brukes og hvilke datakilder/rammeverk som ligger bak.
-const tab = ref('turkart')
+// ── Søk ────────────────────────────────────────────────────────────────────
+// Seksjonene er lukket fra start (v8.0.13); søket viser bare de som inneholder
+// ALLE ordene, åpner dem og markerer treffene. Filtreringen går rett på DOM-en
+// og ikke via Vue-tilstand, fordi teksten bor i malen og ikke i data —
+// `hidden` og `open` er ikke bundet noe sted, så Vue overskriver dem ikke.
+// Markeringen bruker CSS Custom Highlight API: ingen <mark> sprøytes inn i
+// teksten, og en nettleser uten API-et får filtreringen uten fargen.
+const rot = ref(null)
+const sok = ref('')
+const antallTreff = ref(null)
+const sokAktiv = computed(() => sok.value.trim().length > 0)
+const smaa = (t) => t.toLocaleLowerCase('nb')
+
+function filtrer() {
+  const ord = smaa(sok.value).split(/\s+/).filter(Boolean)
+  let n = 0
+  for (const el of rot.value?.querySelectorAll('[data-seksjon]') ?? []) {
+    if (!ord.length) { el.hidden = false; el.open = false; continue }
+    const tekst = smaa(el.textContent)
+    const ok = ord.every((o) => tekst.includes(o))
+    el.hidden = !ok
+    el.open = ok
+    if (ok) n++
+  }
+  antallTreff.value = ord.length ? n : null
+  marker(ord)
+}
+
+function marker(ord) {
+  const hl = globalThis.CSS?.highlights
+  if (!hl || typeof Highlight === 'undefined') return
+  if (!ord.length || !rot.value) { hl.delete('om-sok'); return }
+  const omraader = []
+  const gaa = document.createTreeWalker(rot.value, NodeFilter.SHOW_TEXT)
+  while (gaa.nextNode()) {
+    const node = gaa.currentNode
+    if (node.parentElement?.closest('[hidden]')) continue
+    const tekst = smaa(node.data)
+    for (const o of ord) {
+      for (let i = tekst.indexOf(o); i >= 0; i = tekst.indexOf(o, i + o.length)) {
+        const r = new Range()
+        r.setStart(node, i)
+        r.setEnd(node, i + o.length)
+        omraader.push(r)
+      }
+    }
+  }
+  hl.set('om-sok', new Highlight(...omraader))
+}
+
+function tomSok() {
+  sok.value = ''
+  filtrer()
+}
+
+onBeforeUnmount(() => globalThis.CSS?.highlights?.delete('om-sok'))
 
 // ── «Installer som app» ───────────────────────────────────────────────────
 // Tilbys rett under innledningen. Knappen vises når nettleseren har fyrt av
@@ -53,6 +106,8 @@ const personvernRef = ref(null)
 function tilPersonvern() {
   const maal = personvernRef.value
   if (!maal) return
+  if (sokAktiv.value) tomSok()
+  maal.open = true
   let flate = maal.parentElement
   while (flate && !(/(auto|scroll)/.test(getComputedStyle(flate).overflowY)
                     && flate.scrollHeight > flate.clientHeight)) {
@@ -68,9 +123,29 @@ function tilPersonvern() {
 </script>
 
 <template>
-  <div class="space-y-8">
-    <!-- Innledning: logoen + symbolikk + navnets språklige opphav. -->
-    <section class="flex flex-col items-center text-center gap-4">
+  <div ref="rot" class="space-y-3">
+    <!-- Søk: filtrerer og åpner seksjonene. Står først, så den som leter etter
+         et stikkord ikke må forbi innledningen. -->
+    <div role="search" class="relative">
+      <label for="om-sok" class="sr-only">Søk i Om Lende</label>
+      <svg viewBox="0 0 24 24" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-4 pointer-events-none"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="om-sok" v-model="sok" type="search" enterkeyhint="search" autocomplete="off"
+             placeholder="Søk etter stikkord …" aria-describedby="om-sok-status"
+             @input="filtrer" @keydown.esc="tomSok"
+             class="w-full pl-9 pr-3 py-2.5 rounded-xl bg-ink/5 border border-ink/15 text-[14px] text-ink
+                    placeholder:text-ink-4 focus:outline-none focus:border-ink/40" />
+    </div>
+    <p id="om-sok-status" aria-live="polite" class="text-[12px] text-ink-3 px-1"
+       :class="antallTreff === null ? 'sr-only' : ''">
+      <template v-if="antallTreff === 0">Ingen treff på «{{ sok.trim() }}».</template>
+      <template v-else-if="antallTreff !== null">{{ antallTreff }} {{ antallTreff === 1 ? 'seksjon' : 'seksjoner' }} med treff.</template>
+    </p>
+
+    <!-- Innledning: logoen + symbolikk + navnets språklige opphav. Står alltid
+         åpen, og viker for treffene mens man søker. -->
+    <section v-show="!sokAktiv" class="flex flex-col items-center text-center gap-4 pt-3 pb-5">
       <div class="w-24 h-24 rounded-[22px] overflow-hidden shadow-lg ring-1 ring-ink/10">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-full h-full">
           <rect width="512" height="512" fill="#1b1e24"/>
@@ -123,8 +198,13 @@ function tilPersonvern() {
     </section>
 
     <!-- Symbolikk: hva ikonet betyr. -->
-    <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-2">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Ikonet</h3>
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Ikonet</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-2">
       <p class="text-[13px] leading-relaxed text-ink-2">
         Merket er en <strong class="text-ink">høydekurve</strong> — kartets
         eldste språk. Hver gule ring binder sammen punkter i samme høyde, slik at
@@ -133,11 +213,17 @@ function tilPersonvern() {
         Det samme prinsippet bærer hele turkartet — terrengets form leses ut av
         kurvene, ikke ut av skygge eller bilde.
       </p>
-    </section>
+      </div>
+    </details>
 
     <!-- Navnets opphav. -->
-    <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-3">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Navnet</h3>
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Navnet</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3">
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Lende</strong>
         betyr terreng eller landstrekning, beslektet med norrønt <em>lendi</em> —
@@ -157,11 +243,17 @@ function tilPersonvern() {
         terrenget, og hele uttrykket maler et bilde av noe som brer seg utover
         landskapet.
       </blockquote>
-    </section>
+      </div>
+    </details>
 
     <!-- Mer enn bare kart: long-press-oppslagene. -->
-    <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-2">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Mer enn bare kart</h3>
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Mer enn bare kart</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-2">
       <p class="text-[13px] leading-relaxed text-ink-2">
         Hold fingeren på et punkt på kartet, så henter Lende fakta om stedet fra
         åpne kilder: stedsnavn og leksikon-ingress fra
@@ -190,12 +282,18 @@ function tilPersonvern() {
         krever nett — så last ned områdene du skal til mens du har mobildata,
         før du drar dit dekningen tar slutt.
       </p>
-    </section>
+      </div>
+    </details>
 
     <!-- Skjermen: rotasjon + tekststørrelse. Begge er tilgjengelighet, og
          begge er ting man ikke finner uten at noen sier det. -->
-    <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-2">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Skjermen</h3>
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Skjermen</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-2">
       <p class="text-[13px] leading-relaxed text-ink-2">
         Lende kan brukes både <strong class="text-ink">stående og liggende</strong>,
         også som installert app. Kartarket er kvadratisk som standard — 8 × 8 km,
@@ -217,7 +315,8 @@ function tilPersonvern() {
         toppen av hvert infopanel — den viser hvilken størrelse du står på og går
         ett hakk opp for hvert trykk, med runding tilbake til 100 %.
       </p>
-    </section>
+      </div>
+    </details>
 
     <!-- Nord er nord: meridiankonvergensen, hvorfor arket står litt på skrå og
          hva bryteren i Eksport-fanen gjør. Står som egen seksjon fordi den
@@ -226,8 +325,13 @@ function tilPersonvern() {
          hvorfor nullinja ligger på 9° øst og ikke på Greenwich, og hvorfor
          fortegnet snur. Uten dem leser Bergens «mot øst» og Oslos «mot vest»
          som en inkonsekvens. -->
-    <section class="space-y-2">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Nord er nord</h3>
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Nord er nord</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-2">
       <p class="text-[13px] leading-relaxed text-ink-2">
         Et Lende-kart er projisert i <strong class="text-ink">UTM 32N</strong>
         — <em>Universal Transverse Mercator</em>, sone 32 nord — og
@@ -241,9 +345,11 @@ function tilPersonvern() {
         <strong class="text-ink">arket lastes ferdig rotert, så sann nord er
         opp.</strong> To ting som ligger rett nord–sør i terrenget gjør det da
         også på skjermen, og kompasset i handa er enig med kartet. Har du dreid
-        eller zoomet deg bort, tar et trykk på <strong class="text-ink">kompassnåla
-        nede til høyre</strong> deg tilbake hit: arket zoomes ut og legges med
-        nord opp igjen — og «opp» er sann nord, ikke rutenettets.
+        kartet, legger et trykk på <strong class="text-ink">kompassnåla nede til
+        høyre</strong> det med nord opp igjen — uten å flytte deg eller endre
+        zoomen — og «opp» er sann nord, ikke rutenettets. Hold fingeren på nåla
+        for å zoome ut til hele arket samtidig; i Preferanser kan du bytte om
+        hva trykket og holdet gjør.
       </p>
 
       <!-- Spørsmålet står HER fordi det er avsnittet over som reiser det: har
@@ -380,32 +486,21 @@ function tilPersonvern() {
         sammen med målestokk og ekvidistanse, står det hvilken nord arket har og
         hvor mange grader det er snakk om.
       </p>
-    </section>
-
-    <!-- Faner: én per hovedfunksjon. -->
-    <section class="space-y-4">
-      <!-- flex-wrap sto her fra v6.5.1 fordi TRE faner ikke holdt på én linje
-           ved 150 % tekst. Fritt lende-fana er borte (v7.8.14), og to faner
-           får plass — men wrappen blir stående: «Ruteplanlegger» er fortsatt
-           det lengste ordet i appen, og en rad som brytes er bedre enn en
-           etikett som forkortes hvis en tredje fane kommer tilbake. -->
-      <div class="flex flex-wrap gap-1 p-1 rounded-xl bg-ink/5 border border-ink/10">
-        <button @click="tab = 'turkart'"
-                class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
-                :class="tab === 'turkart' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink-3 active:text-ink'">
-          Turkart
-        </button>
-        <button @click="tab = 'rute'"
-                class="flex-1 min-w-[6rem] py-2 rounded-lg text-[13px] font-medium transition"
-                :class="tab === 'rute' ? 'bg-[#ffd84a] text-zinc-900' : 'text-ink-3 active:text-ink'">
-          Ruteplanlegger
-        </button>
       </div>
+    </details>
 
-      <!-- Turkart-fanen. -->
-      <div v-if="tab === 'turkart'" class="space-y-4">
+    <!-- Turkart og Ruteplanlegger var to faner fram til v8.0.13. Som
+         sammenleggbare seksjoner finner søket begge, og en fane som skjuler
+         halve innholdet trengs ikke når alt er lukket fra start. -->
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Turkart</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-4">
         <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Hva det er</h3>
+          <h4 class="text-sm font-semibold text-ink">Hva det er</h4>
           <p class="text-[13px] leading-relaxed text-ink-2">
             Et ISOM 2017-2-inspirert sportskart som bygges på sekunder for et
             hvilket som helst punkt i Norge. Terreng, vann, vegetasjon, stier og
@@ -416,7 +511,7 @@ function tilPersonvern() {
           </p>
         </div>
         <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Teknikken</h3>
+          <h4 class="text-sm font-semibold text-ink">Teknikken</h4>
           <ul class="text-[13px] leading-relaxed text-ink-2 space-y-1.5 list-disc pl-5">
             <li><strong class="text-ink">Høydekurver</strong> beregnes fra Kartverkets
               høydemodell (WCS DTM) med d3-contour, glattet med Chaikin og forenklet
@@ -449,7 +544,7 @@ function tilPersonvern() {
           </ul>
         </div>
         <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Kartet i 3D</h3>
+          <h4 class="text-sm font-semibold text-ink">Kartet i 3D</h4>
           <p class="text-[13px] leading-relaxed text-ink-2">
             Trykk <strong class="text-ink">3D</strong> i snarvei-raden, og hele
             kartet reiser seg som terreng: du ser utsnittet fra sentrum med utsyn
@@ -467,7 +562,7 @@ function tilPersonvern() {
           </p>
         </div>
         <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Natthimmelen — og stjernekikkeren</h3>
+          <h4 class="text-sm font-semibold text-ink">Natthimmelen — og stjernekikkeren</h4>
           <p class="text-[13px] leading-relaxed text-ink-2">
             Sol/måne-knappen oppe til venstre har to stillinger: dag og natt.
             3D-visningen <strong class="text-ink">åpner i den himmelen som
@@ -589,7 +684,7 @@ function tilPersonvern() {
           </ul>
         </div>
         <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">3D-visning av tur</h3>
+          <h4 class="text-sm font-semibold text-ink">3D-visning av tur</h4>
           <p class="text-[13px] leading-relaxed text-ink-2">
             Velg en rute med stifinneren eller en rundtur, og trykk
             <strong class="text-ink">3D-knappen i kartet</strong>:
@@ -621,11 +716,17 @@ function tilPersonvern() {
           </ul>
         </div>
       </div>
+    </details>
 
-      <!-- Ruteplanlegger-fanen. -->
-      <div v-else class="space-y-4">
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Ruteplanlegger</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-4">
         <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Hva det er</h3>
+          <h4 class="text-sm font-semibold text-ink">Hva det er</h4>
           <p class="text-[13px] leading-relaxed text-ink-2">
             En planlegger for grus- og stiruter: sett start og mål, få et forslag
             langs sti- og grusnettet med <strong class="text-ink">høydeprofil</strong>,
@@ -634,7 +735,7 @@ function tilPersonvern() {
           </p>
         </div>
         <div class="space-y-2">
-          <h3 class="text-sm font-semibold text-ink">Teknikken</h3>
+          <h4 class="text-sm font-semibold text-ink">Teknikken</h4>
           <ul class="text-[13px] leading-relaxed text-ink-2 space-y-1.5 list-disc pl-5">
             <li>Sti- og veinettet bygges til en graf med <strong class="text-ink">graphology</strong>
               og korteste vei beregnes over den.</li>
@@ -649,13 +750,16 @@ function tilPersonvern() {
           </ul>
         </div>
       </div>
-    </section>
+    </details>
 
     <!-- Rammeverk, kilder og copyright. -->
-    <section class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-3">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">
-        Rammeverk &amp; kilder
-      </h3>
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Rammeverk &amp; kilder</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3">
       <p class="text-[13px] leading-relaxed text-ink-2">
         Bygget med <strong class="text-ink">Vue 3</strong>, <strong class="text-ink">Vite</strong>
         og <strong class="text-ink">Tailwind CSS</strong>. Kartgeometri behandles med
@@ -699,13 +803,19 @@ function tilPersonvern() {
           ikke godkjent for navigasjon til sjøs eller i nødsituasjoner.</p>
       </div>
       <VersjonSjekk class="text-[11px] text-ink-4 pt-1" />
-    </section>
+      </div>
+    </details>
 
     <!-- Personvern. Holdes i takt med hva appen faktisk sender: legges det til
          en ny ekstern kilde eller sporing, skal den stå her. -->
-    <section id="personvern" ref="personvernRef" tabindex="-1"
-             class="rounded-2xl bg-ink/5 border border-ink/10 p-4 space-y-3 scroll-mt-20 outline-none">
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Personvern</h3>
+    <details id="personvern" ref="personvernRef" tabindex="-1"
+             class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10 scroll-mt-20 outline-none" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Personvern</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3">
       <p class="text-[13px] leading-relaxed text-ink-2">
         Lende har ingen innlogging, ingen konto og ingen database hos oss. Vi
         bruker ikke informasjonskapsler, analyseverktøy eller annen sporing.
@@ -758,6 +868,16 @@ function tilPersonvern() {
         hele kartet — men aldri GPS-spor eller markeringer. Lenker ut av appen,
         som «Åpne i Google Maps», tar med seg koordinatene til den tjenesten.
       </p>
-    </section>
+      </div>
+    </details>
   </div>
 </template>
+
+<style>
+.om-summary::-webkit-details-marker { display: none; }
+.om-summary:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; border-radius: 1rem; }
+.om-pil { transition: transform .2s ease; }
+.om-seksjon[open] > .om-summary .om-pil { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .om-pil { transition: none; } }
+::highlight(om-sok) { background-color: #ffd84a; color: #18181b; }
+</style>

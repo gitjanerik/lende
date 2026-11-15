@@ -1,3 +1,9 @@
+## 2026-11-15 — v8.0.13: «Om Lende» får lukkede seksjoner og søk
+
+Siden var blitt lang uten noen inndeling å orientere seg etter. Alt etter innledningen er nå sammenleggbare seksjoner (`<details>`), lukket fra start: Ikonet, Navnet, Mer enn bare kart, Skjermen, Nord er nord, Turkart, Ruteplanlegger, Rammeverk & kilder og Personvern. Turkart og Ruteplanlegger var to faner; som seksjoner finner søket begge. Øverst står et søkefelt som viser bare seksjonene som inneholder alle ordene, åpner dem og markerer treffene med CSS Custom Highlight API (nettlesere uten API-et får filtreringen uten fargen), med antall treff lest opp for skjermleser. Escape tømmer søket, og Personvern-lenka i innledningen åpner seksjonen før den ruller dit. «Nord er nord» sa fortsatt at kompassnåla zoomer ut; den bare roterer mot nord siden v7.8.34, og teksten sier nå det, pluss at et hold på nåla zoomer ut og at Preferanser kan bytte om de to.
+
+---
+
 ## 2026-11-15 — v8.0.12: Chatten holder seg til kartet, og Workeren sier hvorfor Haiku feilet
 
 Første deploy av v8.0.11 viste at `anthropic/claude-haiku-5.5` ikke svarte og at reserven (gpt-oss-120b) tok over — røyktesten ble rød som den skulle, men feilmeldingen fantes bare i Worker-loggen. Workeren sender den nå i headeren `X-Lende-Feil` når reserven svarer, med begge forsøkene (med og uten `reasoning`), så røyktesten viser årsaken direkte. Samtidig har chatten fått en absolutt temagrense i systemprompten: den svarer bare om kartet, stedene, terreng, turer og hvordan Lende brukes, og avviser alt annet — også spørsmål om hvilken modell den er — med én fast setning.
