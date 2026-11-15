@@ -856,7 +856,16 @@ function tilPersonvern() {
         opplysninger om kartet du står i: navn og utsnitt, punktet du peker på
         eller har markert, en måling eller tur du har tegnet inn, og
         GPS-posisjonen din når den er slått på. Ingenting sendes før du sender
-        en melding, og samtalen lagres ikke hos Lende.
+        en melding.
+      </p>
+      <!-- Zero Data Retention er AV i AI Gatewayen (den stoppet partnermodellen
+           med feil 7007, v8.0.14). Slås den på igjen, kan teksten strammes. -->
+      <p v-if="harChat" class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Hva som tas vare på.</strong>
+        Lende lagrer ikke samtalen — lukker du chatten, er den borte.
+        {{ chatModell?.leverandor ?? 'Modellens leverandør' }} og Cloudflare
+        kan beholde meldingene en kort tid etter sine egne regler, blant annet
+        for å stoppe misbruk.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Som ved alle nettforespørsler ser mottakeren IP-adressen din.
