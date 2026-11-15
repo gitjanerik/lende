@@ -368,3 +368,16 @@ describe('useLendeChat — tur fra A til B', () => {
     expect(sisteSvar()).not.toContain('fikk ikke tegnet turen')
   })
 })
+
+describe('useLendeChat — temasperre', () => {
+  it('systemprompten avgrenser chatten til kart og Lende, med fast avvisning', async () => {
+    chat.nySamtale()
+    chatOnce.mockReset()
+    chatOnce.mockResolvedValue(svarTekst('ok'))
+    await chat.send('Hvilken modell er du?')
+    const sys = chatOnce.mock.calls.at(-1)[0].messages.find(m => m.role === 'system').content
+    expect(sys).toContain('TEMA — ABSOLUTT GRENSE')
+    expect(sys).toContain('hvilken modell du er')
+    expect(sys).toContain('Jeg svarer bare på spørsmål om kartet, stedene og turene dine i Lende.')
+  })
+})

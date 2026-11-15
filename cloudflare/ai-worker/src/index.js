@@ -30,7 +30,7 @@ function corsHeaders(origin) {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept',
     'Access-Control-Max-Age': '86400',
-    'Access-Control-Expose-Headers': 'X-Lende-Modell, X-Lende-Reserve',
+    'Access-Control-Expose-Headers': 'X-Lende-Modell, X-Lende-Reserve, X-Lende-Feil',
     Vary: 'Origin',
   }
 }
@@ -50,8 +50,12 @@ async function kjor(env, modell, params) {
   if (!innsats) return env.AI.run(modell, params)
   try {
     return await env.AI.run(modell, { ...params, reasoning: { effort: innsats } })
-  } catch {
-    return env.AI.run(modell, params)
+  } catch (err) {
+    try {
+      return await env.AI.run(modell, params)
+    } catch (err2) {
+      throw new Error(`med reasoning: ${err?.message} | uten: ${err2?.message}`)
+    }
   }
 }
 
@@ -117,13 +121,15 @@ export default {
     // røyktesten feiler på det, så en feil id ikke skjules av reserven.
     let modell = env.MODEL
     let result
+    let hovedFeil = null
     try {
       result = await kjor(env, modell, params)
     } catch (err) {
       if (!env.RESERVE_MODEL || env.RESERVE_MODEL === modell) {
         return json(502, { error: `Workers AI feilet: ${err?.message ?? 'ukjent'}` }, cors)
       }
-      console.warn(`[lende-ai] ${modell} feilet, prøver ${env.RESERVE_MODEL}: ${err?.message}`)
+      hovedFeil = String(err?.message ?? 'ukjent')
+      console.warn(`[lende-ai] ${modell} feilet, prøver ${env.RESERVE_MODEL}: ${hovedFeil}`)
       modell = env.RESERVE_MODEL
       try {
         result = await kjor(env, modell, params)
@@ -134,6 +140,8 @@ export default {
     const modellHode = {
       'X-Lende-Modell': modell,
       ...(modell !== env.MODEL ? { 'X-Lende-Reserve': '1' } : {}),
+      // Hvorfor hovedmodellen feilet — lesbar i røyktesten uten Worker-loggen.
+      ...(hovedFeil ? { 'X-Lende-Feil': hovedFeil.replace(/[^\x20-\x7e]/g, '?').slice(0, 400) } : {}),
     }
 
     // Streaming gir en ReadableStream med SSE-bytes; ellers et JSON-objekt.
