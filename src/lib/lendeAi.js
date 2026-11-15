@@ -305,14 +305,14 @@ export function parseTextToolCalls(tekst, kjenteNavn = []) {
  * parseTextToolCalls.
  */
 export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, signal }) {
-  let { data, reserve } = await postChat({ messages, tools, maxTokens, signal })
+  let { data } = await postChat({ messages, tools, maxTokens, signal })
   let tekst = extractText(data)
   let strukturerte = extractToolCalls(data)
   // Tomt og kappet: tenkingen spiste budsjettet. Ett nytt forsøk med taket
   // Workeren tillater — et forsøk til koster mindre enn et svar som ikke kom.
   let kappet = erKappet(data)
   if (kappet && !tekst.trim() && !strukturerte.length && maxTokens < MAX_SVAR_TOKENS) {
-    ;({ data, reserve } = await postChat({ messages, tools, maxTokens: MAX_SVAR_TOKENS, signal }))
+    ;({ data } = await postChat({ messages, tools, maxTokens: MAX_SVAR_TOKENS, signal }))
     tekst = extractText(data)
     strukturerte = extractToolCalls(data)
     kappet = erKappet(data)
@@ -330,11 +330,9 @@ export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, s
   const fraTekst = parseTextToolCalls(tekst, kjenteNavn)
   const sett = new Set(strukturerte.map((t) => `${t.name}:${JSON.stringify(t.args)}`))
   const ekstra = fraTekst.toolCalls.filter((t) => !sett.has(`${t.name}:${JSON.stringify(t.args)}`))
-  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data, kappet, reserve }
+  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data, kappet }
 }
 
-// `reserve`: hovedmodellen feilet og Workerens reservemodell svarte
-// (X-Lende-Reserve). Chatten merker svaret, så kvaliteten ikke forveksles.
 async function postChat({ messages, tools, maxTokens, signal }) {
   let res
   try {
@@ -358,11 +356,35 @@ async function postChat({ messages, tools, maxTokens, signal }) {
   if (!res.ok) {
     let serverText = ''
     try {
-      serverText = (await res.json())?.error ?? ''
+      const feil = await res.json()
+      serverText = feil?.error ?? ''
+      if (feil?.detalj) {
+        console.warn('[lende-ai] modellen feilet:', feil.detalj)
+        serverText = ikkeTilgjengeligTekst(feil.detalj) ?? serverText
+      }
     } catch { /* ikke JSON */ }
     throw new Error(feilmelding(res.status, serverText))
   }
-  return { data: await res.json(), reserve: res.headers?.get?.('X-Lende-Reserve') === '1' }
+  return { data: await res.json() }
+}
+
+// Kjente årsaker fra AI Gatewayen, sagt rett ut i chatten. Ukjente gir null,
+// og da står Workerens generelle «ikke tilgjengelig» — vi gjetter ikke.
+const KJENTE_AARSAKER = [
+  [/\b2021\b|insufficient[^.]*credits/i, 'kreditten for chatten er brukt opp.', false],
+  [/spend(ing)? limit|budget|limit exceeded|payment_defaulted|\b402\b/i, 'månedsgrensen eller betalingen for chatten stopper den.', false],
+  [/\b7007\b|not eligible for unified billing/i, 'betalingsoppsettet for chatten er ikke i orden.', false],
+  [/\b429\b|rate.?limit|too many requests/i, 'det er for mange forespørsler akkurat nå.', true],
+  [/overloaded|\b529\b|\b503\b/i, 'modellen er overbelastet.', true],
+  [/time(d)? ?out|deadline/i, 'modellen svarte ikke i tide.', true],
+]
+
+export function ikkeTilgjengeligTekst(detalj) {
+  const treff = KJENTE_AARSAKER.find(([re]) => re.test(String(detalj ?? '')))
+  if (!treff) return null
+  const [, aarsak, forbigaaende] = treff
+  return `Lende-chatten er ikke tilgjengelig: ${aarsak}`
+    + (forbigaaende ? ' Prøv igjen om litt.' : '')
 }
 
 function feilmelding(status, serverText) {

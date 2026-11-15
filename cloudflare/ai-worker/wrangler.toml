@@ -23,10 +23,10 @@ binding = "AI"
 # Claude Haiku 5.5 (v8.0.11): partnermodell via Workers AI, $0,10 inn / $0,50
 # ut per M (under 100K tokens). Det er INPUT som dominerer — prompten og
 # verktøyskjemaene sendes på nytt hver verktøyrunde. Valget i Utvikler-fana
-# er fjernet: én modell, og reserven tar over når den feiler.
+# er fjernet: én modell. Reserven (gpt-oss-120b) ble fjernet i v8.0.15 —
+# feiler Haiku, sier chatten «ikke tilgjengelig» i stedet for å bytte modell.
 [vars]
 MODEL = "anthropic/claude-haiku-5.5"
-RESERVE_MODEL = "@cf/openai/gpt-oss-120b"
 
 # Lav innsats: en chat skal svare, ikke resonnere i lengden. Feltet sendes,
 # og kallet kjøres om uten det hvis modellen avviser det (kjor() i index.js).

@@ -1,3 +1,11 @@
+## 2026-11-15 — v8.0.15: Én modell i chatten, diktering sendes med en gang
+
+Trykker man på mikrofonen i Lende-chatten, sendes meldingen nå i det talegjenkjenningen er ferdig, uten et Send-trykk etterpå. Det man sier er meldingen, og et ekstra trykk er nettopp det man vil slippe med hendene fulle ute. Feltet fokuseres heller ikke lenger etter dikteringen, siden det bare åpnet tastaturet over svaret man venter på. Søkefeltene er uendret: der kommer treffene alt mens man snakker ferdig, og å velge det første treffet automatisk ville gjettet på vegne av brukeren.
+
+Claude Haiku svarer nå gjennom AI Gatewayen. Det som stoppet den var bryteren «Require Provider Credentials» og at det ikke var kjøpt kreditt — ikke Zero Data Retention, som derfor er slått på igjen. Personvern på /om sier det: leverandøren sletter meldingene når svaret er sendt, mens Cloudflare fører en logg over forespørslene i Lendes egen konto, brukt til feilsøking. Reservemodellen (gpt-oss-120b) er fjernet: et svar fra en annen modell leses som at chatten er blitt dårligere, og i Stormoen-samtalen svarte reserven i første runde uten at noe var varig galt. Feiler Haiku, svarer Workeren nå 502 og chatten sier «Lende-chatten er ikke tilgjengelig akkurat nå. Prøv igjen om litt.» Er årsaken kjent, sier chatten den rett ut — «kreditten for chatten er brukt opp», «betalingsoppsettet er ikke i orden», «for mange forespørsler», «modellen svarte ikke i tide» — og ber bare om et nytt forsøk når feilen er forbigående; en ukjent årsak gjettes ikke på. Årsaken følger også med som `detalj` til konsollen og som X-Lende-Feil til røyktesten, som nå feiler med årsaken i stedet for å lete etter et reserve-hode.
+
+---
+
 ## 2026-11-15 — v8.0.14: Personvern sier hva som tas vare på i chatten
 
 Personvern på /om sier nå med enkle ord, for den som har chat-tilgang, hva som skjer med meldingene: Lende lagrer ikke samtalen, mens modellens leverandør og Cloudflare kan beholde dem en kort tid etter sine egne regler. Zero Data Retention i AI Gatewayen ble prøvd og slått av igjen, fordi den stoppet Claude Haiku med feil 7007; en kommentar i malen sier at teksten kan strammes om den slås på igjen.
