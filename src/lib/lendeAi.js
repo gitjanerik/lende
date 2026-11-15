@@ -290,8 +290,21 @@ export function parseTextToolCalls(tekst, kjenteNavn = []) {
  * parseTextToolCalls.
  */
 export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, signal }) {
-  const modell = getAiModell()
-  let data = await postChat({ messages, tools, maxTokens, signal, modell })
+  let modell = getAiModell()
+  let reserveFor = ''
+  let data
+  try {
+    data = await postChat({ messages, tools, maxTokens, signal, modell })
+  } catch (err) {
+    // En valgt modell som er tatt ut av Workeren (400) eller av Workers AI
+    // (502), skal ikke stenge chatten: svaret kommer fra standardmodellen, og
+    // merket under svaret sier hvem som skrev det. Valget i localStorage står,
+    // for en 502 kan like gjerne være forbigående.
+    if (!modell || !RESERVE_STATUSER.has(err?.status)) throw err
+    reserveFor = modell
+    modell = ''
+    data = await postChat({ messages, tools, maxTokens, signal, modell })
+  }
   let tekst = extractText(data)
   let strukturerte = extractToolCalls(data)
   // Tomt og kappet: tenkingen spiste budsjettet. Ett nytt forsøk med taket
@@ -316,7 +329,7 @@ export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, s
   const fraTekst = parseTextToolCalls(tekst, kjenteNavn)
   const sett = new Set(strukturerte.map((t) => `${t.name}:${JSON.stringify(t.args)}`))
   const ekstra = fraTekst.toolCalls.filter((t) => !sett.has(`${t.name}:${JSON.stringify(t.args)}`))
-  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data, kappet, modell }
+  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data, kappet, modell, reserveFor }
 }
 
 async function postChat({ messages, tools, maxTokens, signal, modell }) {
@@ -345,10 +358,14 @@ async function postChat({ messages, tools, maxTokens, signal, modell }) {
     try {
       serverText = (await res.json())?.error ?? ''
     } catch { /* ikke JSON */ }
-    throw new Error(feilmelding(res.status, serverText))
+    const feil = new Error(feilmelding(res.status, serverText))
+    feil.status = res.status
+    throw feil
   }
   return res.json()
 }
+
+const RESERVE_STATUSER = new Set([400, 404, 502])
 
 function feilmelding(status, serverText) {
   if (status === 401) return 'Invitasjonen din er ikke gyldig lenger. Be om en ny lenke.'

@@ -16,9 +16,10 @@ binding = "AI"
 # rettet funksjonskallingen, men svarte ustøtt: unødvendige oppklarings-
 # spørsmål, selvmotsigelser rett etter et vellykket verktøykall og ugrammatisk
 # norsk.
-# gpt-oss-120b (v6.5.80): $0,35 inn / $0,39 ut per M — litt dyrere inn, under
-# HALVE prisen ut, og det er output som dominerer i en chat. Sterkere på
-# funksjonskalling og strukturert output, 131K kontekst.
+# gpt-oss-120b (v6.5.80): $0,35 inn / $0,39 ut per M den gang — nå $0,75 ut
+# (nov. 2026). Sterkere på funksjonskalling og strukturert output, 128K
+# kontekst. Målt nov. 2026: det er INPUT som dominerer (system-prompt +
+# verktøyskjemaer sendes på nytt hver verktøyrunde), ikke output.
 [vars]
 MODEL = "@cf/openai/gpt-oss-120b"
 
@@ -32,7 +33,13 @@ REASONING_EFFORT = "low"
 # slått opp i Cloudflares changelog, ikke gjettet — en feil id gir 502 med
 # Workers AIs egen melding i chatten, som er målingen. GLM-5.2 krever betalt
 # Workers AI-plan.
-MODELLER = "@cf/zai-org/glm-5.2,@cf/moonshotai/kimi-k2.6"
+# GLM-5.2 og Kimi K2.6 fases ut av Workers AI 20.11.2026 — da svarer de 502, og
+# klienten faller tilbake til MODEL (`chatOnce`). Stryk dem herfra etter datoen.
+# GLM-4.7-flash ($0,06 inn / $0,40 ut) er tilbake som KANDIDAT: den ble
+# forkastet som standard i juli 2026 (tomme svar etter engelsk tenking), men
+# klienten leser nå begge svarformene, ber om nytt forsøk med fullt budsjett
+# når svaret er kappet, og Workeren sender reasoning.effort = low.
+MODELLER = "@cf/zai-org/glm-5.2,@cf/moonshotai/kimi-k2.6,@cf/zai-org/glm-4.7-flash"
 
 # Secreten LENDE_AI_TOKENS (kommaseparerte per-bruker-tokens) settes IKKE her.
 # CI-deployen (.github/workflows/deploy-ai-worker.yml) pusher den fra GitHub-
