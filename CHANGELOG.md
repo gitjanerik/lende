@@ -1,3 +1,9 @@
+## 2026-11-15 — v8.0.17: Chatten viser Haikus svar igjen
+
+Etter v8.0.16 kommer svaret fra Claude Haiku som et helt Anthropic-svar, og chatten viste «(Modellen ga et tomt svar — prøv å omformulere.)» selv om Haiku hadde svart, for eksempel at det høyeste punktet er Bergshammaren på 1260 moh. Tekstuttrekket i `lendeAi.js` behandlet alt med et `type`-felt som en hendelse fra gpt-oss-strømmen, og et Anthropic-svar har `type: "message"`. Det tilfellet går nå videre til innholdsblokkene, og en test holder det fast. Testen er sjekket i begge retninger.
+
+---
+
 ## 2026-11-15 — v8.0.16: Første spørsmål i chatten avvises ikke lenger
 
 Lende-chatten svarte «ikke tilgjengelig» på første spørsmål i en ny samtale, mens oppfølgingene gikk fint. AI Gatewayen gjetter formatet ut fra innholdet: med verktøykall i historikken leser den chattens OpenAI-form riktig, men første runde — bare systemprompt, spørsmål og verktøyliste — tolkes som Anthropics eget format, og da avvises verktøyene («tools.0: Input tag 'function' … does not match»). Det var også grunnen til at reserven tok første runde i Stormoen-samtalen. AI-Workeren oversetter nå hele forespørselen til Anthropics Messages-form for Claude-modellene (`cloudflare/ai-worker/src/anthropic.js`, testet): systemprompten løftes ut, verktøykall blir `tool_use`, verktøysvar blir `tool_result` i en bruker-melding, og verktøyene får `input_schema`. Klienten leste Anthropic-svar fra før. Røyktesten har fått nettopp denne forespørselen, så den feiler neste gang formatet gjettes feil.

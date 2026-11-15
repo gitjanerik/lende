@@ -404,3 +404,14 @@ describe('ikkeTilgjengeligTekst', () => {
     expect(ikkeTilgjengeligTekst(null)).toBe(null)
   })
 })
+
+describe('extractText — helt Anthropic-svar', () => {
+  it('leser teksten selv om svaret har type «message»', async () => {
+    const { extractText } = await import('./lendeAi.js')
+    expect(extractText({
+      id: 'msg_1', type: 'message', role: 'assistant',
+      content: [{ type: 'text', text: 'Det høyeste punktet er Bergshammaren.' }],
+      stop_reason: 'end_turn',
+    })).toBe('Det høyeste punktet er Bergshammaren.')
+  })
+})

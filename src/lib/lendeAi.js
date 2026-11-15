@@ -128,7 +128,9 @@ export function extractText(obj) {
   if (!obj || typeof obj !== 'object') return ''
   if (typeof obj.response === 'string') return obj.response
   // Responses-strømmen er typede hendelser: bare output_text-deltaene er svar.
-  if (typeof obj.type === 'string') {
+  // Et helt Anthropic-svar har også `type` («message»), og skal ikke hit — da
+  // leste vi Haikus svar som tomt (v8.0.17).
+  if (typeof obj.type === 'string' && obj.type !== 'message') {
     return obj.type.endsWith('output_text.delta') && typeof obj.delta === 'string'
       ? obj.delta
       : ''
