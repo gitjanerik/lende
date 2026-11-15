@@ -61,7 +61,7 @@ export const AI_TOOLS = [
     function: {
       name: 'sok_sted',
       description:
-        'Søk etter et stedsnavn i Norge og få koordinater (lat/lon). Bruk dette først når brukeren nevner et sted ved navn.',
+        'Geokod et stedsnavn i hele Norge (lat/lon). For steder UTENFOR brukerens kart og for å plassere nye kart — kan treffe navnebrødre; steder i kartet finnes med sok_i_kartet eller ved å gi navnet direkte til turverktøyene.',
       parameters: {
         type: 'object',
         properties: {
@@ -76,7 +76,7 @@ export const AI_TOOLS = [
     function: {
       name: 'mine_kart_og_ruter',
       description:
-        'List brukerens lagrede turkart og grusruter (navn, id, størrelse, sist endret). Bruk når brukeren refererer til egne kart/ruter («kartet mitt», «favorittruta», «det fra i går»).',
+        'List brukerens lagrede turkart og grusruter (navn, id, størrelse, sist endret) — når brukeren viser til egne kart/ruter, eller id trengs for et annet kart enn det i konteksten.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -99,10 +99,7 @@ export const AI_TOOLS = [
     function: {
       name: 'foreslaa_nytt_kart',
       description:
-        'Åpne «Nytt turkart» med senter, størrelse og navn ferdig utfylt — brukeren bekrefter og ' +
-        'bygger selv. OPPGI HELST «sted» (stedsnavnet slik brukeren sa det, gjerne med kommune: ' +
-        '«Sirikjerke, Øvre Eiker») — appen geokoder det selv. Da slipper du sok_sted, og du kan ' +
-        'ikke komme i skade for å gjenbruke koordinater fra et annet sted i samtalen.',
+        'Åpne «Nytt turkart» med senter, størrelse og navn ferdig utfylt — brukeren bekrefter og bygger selv. Bruk når du FORESLÅR et kart; lag_kart når brukeren ber om det. Oppgi helst «sted» (gjerne med kommune) — appen geokoder selv.',
       parameters: {
         type: 'object',
         properties: {
@@ -123,14 +120,7 @@ export const AI_TOOLS = [
     function: {
       name: 'lag_kart',
       description:
-        'Bygg et NYTT turkart med én gang: byggingen starter automatisk med senter, størrelse og ' +
-        'navn, og kartet åpnes når det er ferdig (tar 15–60 sekunder). Bruk KUN når brukeren ' +
-        'eksplisitt ber om å lage/bygge et kart — bruk foreslaa_nytt_kart når du bare foreslår. ' +
-        'OPPGI HELST «sted» (stedsnavnet slik brukeren sa det, gjerne med kommune: «Sirikjerke, ' +
-        'Øvre Eiker») — appen geokoder det selv, så du slipper sok_sted og kan ikke gjenbruke ' +
-        'koordinater fra et annet sted i samtalen. Vil brukeren OGSÅ gå en tur i det nye ' +
-        'kartet: oppgi turFraNavn og turTilNavn i SAMME kall — turen tegnes da inn automatisk ' +
-        'når kartet er ferdig bygget. Kall ALDRI foreslaa_tur for et kart som ikke finnes ennå.',
+        'Bygg et NYTT turkart med én gang (15–60 sekunder; kartet åpnes når det er ferdig). Bare når brukeren ber om å lage/bygge et kart over et område hen ikke har kart over. Oppgi helst «sted» (gjerne med kommune: «Sirikjerke, Øvre Eiker») — appen geokoder selv. Skal brukeren også gå en tur der: turFraNavn + turTilNavn i SAMME kall; turen tegnes inn når kartet er bygget.',
       parameters: {
         type: 'object',
         properties: {
@@ -141,7 +131,7 @@ export const AI_TOOLS = [
           navn: { type: 'string', description: 'Kartnavn (standard: stedsnavnet)' },
           turFraNavn: { type: 'string', description: 'Startsted for en tur som skal tegnes inn straks kartet er bygget, f.eks. «Brynsetertjern»' },
           turTilNavn: { type: 'string', description: 'Målsted for turen, f.eks. «Sirikjerke». Må oppgis sammen med turFraNavn.' },
-          vis3d: { type: 'boolean', description: 'Åpne turen i 3D når kartet er klart (KUN når brukeren har bedt om 3D)' },
+          vis3d: { type: 'boolean', description: 'Bare når brukeren ba om 3D' },
         },
         required: [],
       },
@@ -152,19 +142,11 @@ export const AI_TOOLS = [
     function: {
       name: 'sok_i_kartet',
       description:
-        'Søk etter navngitte steder INNE i brukerens kart — hele arket, ikke bare utsnittet ' +
-        'på skjermen: tjern/vann, topper, hytter, parkeringer, stedsnavn, med kartets egne, ' +
-        'eksakte koordinater (samme søk som appens søkefelt). Hvert treff oppgir en kartId, ' +
-        'som er APPENS INTERNE OPPDELING av arket — den skal ALDRI nevnes for brukeren, som ' +
-        'opplever alt dette som ETT kart. Bruk ALLTID denne for å finne start/mål/vendepunkt til foreslaa_tur/' +
-        'foreslaa_rundtur — den er fasit; sok_sted (nettbasert geokoding) kan treffe navnebrødre ' +
-        'andre steder. Nøkkelord gir OVERSIKTER: «vann»/«innsjø» alle ferskvann sortert på ' +
-        'areal (største først, arealM2 per treff), «topp» de høyeste toppene (moh), ' +
-        '«parkering» alle parkeringer.',
+        'Søk i kartets egne navn (hele arket): tjern/vann, topper, hytter, parkeringer, stedsnavn — med eksakte koordinater. Fasit for steder i kartet. Nøkkelord gir rangerte oversikter: «vann»/«innsjø» etter areal (største først, arealM2), «topp» etter høyde (moh), «parkering». Spør brukeren om største/minste/høyeste, er rad 1 svaret — gjett aldri ut fra en alfabetisk liste. kartId i treffene er intern oppdeling av samme ark; nevn den aldri.',
       parameters: {
         type: 'object',
         properties: {
-          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
+          kartId: { type: 'string', description: 'Utelat for kartet i konteksten' },
           sok: { type: 'string', description: 'Fritekst (f.eks. «Stordammen») ELLER nøkkelord: «vann», «topp», «parkering»' },
           maks: { type: 'number', description: 'Maks antall treff (standard 8)' },
         },
@@ -177,15 +159,7 @@ export const AI_TOOLS = [
     function: {
       name: 'styr_kartlag',
       description:
-        'Skru kartlag av og på i det åpne kartet (sti, høydekurver, vann, skog, bygninger, ' +
-        'navn, parkering, kulturminner …), bytt KARTSTIL, eller nullstill. Bruk ved ' +
-        '«skjul navnene», «vis bare stier og høydekurver», «slå på parkering», «bytt til ' +
-        'padling», «nullstill kartlagene». En kartstil bytter både farger, lag, strek og ' +
-        'sti-farger i én operasjon — foretrekk den framfor å skru enkeltlag når brukeren ' +
-        'beskriver et BRUK («jeg skal padle», «skal skrive det ut»). Kall UTEN argumenter for ' +
-        'å få listen over alle lag og hva som er synlig nå — gjør det når du er usikker på ' +
-        'hva brukeren mener. ' +
-        'Lagnavn kan skrives på norsk («høydekurver») eller som nøkkel («kontur»).',
+        'Skru kartlag av/på (sti, kontur, vann, skog, navn, parkering, kulturminner, lysloype …), bytt KARTSTIL eller nullstill. Beskriver brukeren et BRUK («skal padle», «skrive ut», «på ski»), velg kartstil — «vinter» gjør skiløypene røde og slår på løyper, heistraseer og slalåmbakker. Vil hen bare SE skiløypene: vis [\"lysloype\"] (+ \"heistrase\", \"slalombakke\" ved alpint); prikkene langs streken er lys, uten prikker er løypa uten lys. Kall uten argumenter for laglista og hva som er synlig nå. Lagnavn på norsk eller som nøkkel.',
       parameters: {
         type: 'object',
         properties: {
@@ -204,11 +178,7 @@ export const AI_TOOLS = [
     function: {
       name: 'bytt_kart_tema',
       description:
-        'Bytt fargetema på kartflaten (mørkt nattkart, sepia, monokrome varianter, eller ' +
-        'tilbake til standard ISOM-palett). Bruk ved «bytt til mørkt kart», «dark mode», ' +
-        '«gjør kartet mørkere», «tilbake til vanlige farger». Utelat «tema» for å få listen ' +
-        'over tilgjengelige temaer i svaret. Endringen gjelder alle kart og huskes til neste ' +
-        'gang. Dette er kartets farger — det er IKKE appens meny-utseende, og heller ikke 3D.',
+        'Bytt kartflatens fargetema (mørkt, sepia, monokrome varianter, standard). Gjelder alle kart og huskes; ikke appens meny og ikke 3D. Utelat «tema» for å liste alternativene.',
       parameters: {
         type: 'object',
         properties: {
@@ -226,14 +196,7 @@ export const AI_TOOLS = [
     function: {
       name: 'hold_skjermen_vaken',
       description:
-        'Hindre at telefonen låser skjermen, i et bestemt antall minutter (1–30). Bruk ved ' +
-        '«hold skjermen våken», «ikke la skjermen slukne mens jeg går», «behold skjermen på ' +
-        'i 20 minutter». Regn om til minutter selv: «en halvtime» = 30. Taket er 30 minutter — ' +
-        'ber brukeren om mer (f.eks. en time), sett 30 og SI i svaret at det er maks. ' +
-        'Nedtellingen vises som en gul ring med minutter igjen rundt menyknappen øverst til venstre. ' +
-        'minutter: 0 slår den AV igjen («la skjermen slukne som vanlig», «avbryt»). Et nytt ' +
-        'tall starter nedtellingen på nytt. Den varer bare denne økta — lukker brukeren appen, ' +
-        'er den av.',
+        'Hindre at skjermen låser seg i 1–30 minutter (bare denne økta). Regn om selv («en halvtime» = 30). Taket er 30: ber brukeren om mer, sett 30 og si at det er maks. 0 slår den AV. Si hvor lenge den varer, og at nedtellingen vises som en gul ring rundt menyknappen.',
       parameters: {
         type: 'object',
         properties: {
@@ -251,20 +214,11 @@ export const AI_TOOLS = [
     function: {
       name: 'analyser_stinett',
       description:
-        'Analyser stinettet i et lagret kart: total km sti (sti 505/506/507 + skogsbilvei 504, ' +
-        'hvert stisegment telt én gang), lengste sammenhengende turstrekning, og tur-kandidater ' +
-        '(A→B eller rundtur, minst 0,5 km — hev med minTurKm hvis brukeren vil ha lengre turer) ' +
-        'med lengde, gangtid, stigning/fall og bratteste/slakeste parti. Korte småveg-strekk regnes som bindeledd mellom stier, men teller ikke ' +
-        'i sti-summen; korte isolerte stumper ekskluderes. Bruk ved spørsmål som «hvor mange km ' +
-        'sti er det her?», «hva er den lengste turen?», «hvilken tur har minst stigning?». Hver ' +
-        'tur returnerer koordinater du kan sende rett videre: start/slutt/via → foreslaa_tur, ' +
-        'origo/via → foreslaa_rundtur. Analysen gjelder bare den delen av arket brukeren står i. ' +
-        'treff kan være 0 når nettet bare har korte fragmenter — si det ærlig da. Står ' +
-        'brukeren i et kart trengs INGEN argumenter — kall verktøyet uten kartId.',
+        'Analyser stinettet i delen av arket brukeren står i: total km sti, lengste sammenhengende strekning og tur-kandidater (A→B eller rundtur) med lengde, gangtid, stigning og bratteste/slakeste parti. Svar med totalStiTekst når den finnes, og nevn kartets størrelse (kartKm/arealKm2). Turenes koordinater kan sendes rett videre: start/slutt/via → foreslaa_tur, origo/via → foreslaa_rundtur. treff: 0 betyr bare korte fragmenter — si det. Ingen argumenter trengs i kartet i konteksten.',
       parameters: {
         type: 'object',
         properties: {
-          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter — KUN for et annet kart enn det brukeren står i (ellers utelat, kartet hentes fra konteksten)' },
+          kartId: { type: 'string', description: 'Bare for et annet kart enn det i konteksten' },
           minTurKm: { type: 'number', description: 'Minste turlengde i km for tur-kandidater (standard 0,5)' },
         },
         required: [],
@@ -276,19 +230,12 @@ export const AI_TOOLS = [
     function: {
       name: 'merk_i_kartet',
       description:
-        'Merk et sted i kartet med den rosa, blinkende ringen og pan dit — helt samme markering ' +
-        'som når brukeren velger et treff i søkefeltet. Bruk når brukeren ber om det («kan du ' +
-        'merke det», «marker Stordammen», «vis meg hvor det er»), og tilby det gjerne selv rett ' +
-        'etter at du har navngitt et sted i kartet. Oppgi HELST bare «navn» — appen slår det opp ' +
-        'i kartets egne navn og finner koordinatene selv; lat/lon er bare for punkter uten navn. ' +
-        'Ligger stedet i en annen del av arket, flyttes utsnittet dit av seg selv — det er ikke '
-        + 'noe å nevne for brukeren. Sett «fjern» for å fjerne markeringen. ' +
-        'Påstå ALDRI at noe er merket uten at dette verktøyet har svart ok.',
+        'Merk et sted med den rosa, blinkende ringen og pan dit. Oppgi helst bare «navn» — appen finner koordinatene; lat/lon bare for punkter uten navn. Rangerende ønsker sendes ordrett som navn («største innsjø», «høyeste topp») — appen rangerer selv. «fjern» fjerner markeringen.',
       parameters: {
         type: 'object',
         properties: {
           navn: { type: 'string', description: 'Stedsnavnet som skal merkes, f.eks. «Bijjie Gaajsjaevrie»' },
-          kartId: { type: 'string', description: 'Kart-id — KUN for et annet kart enn det brukeren står i (ellers utelat)' },
+          kartId: { type: 'string', description: 'Bare for et annet kart enn det i konteksten' },
           lat: { type: 'number', description: 'Breddegrad (kun for punkter uten navn i kartet)' },
           lon: { type: 'number', description: 'Lengdegrad (kun for punkter uten navn i kartet)' },
           fjern: { type: 'boolean', description: 'Fjern markeringen som står i kartet nå' },
@@ -302,15 +249,7 @@ export const AI_TOOLS = [
     function: {
       name: 'kartinnhold',
       description:
-        'Kulturminner, hydrologiske målestasjoner (NVE), stier og veier i kartet brukeren står i. ' +
-        'All telling og alle avstander regnes ut av appen — bruk tallene ORDRETT, regn aldri selv. ' +
-        'handling «tell»: antall per type, fordelt på kategori. «sok»: finn objekter på navn/type ' +
-        '(«gravhaug», «Pukerudlinna», «bautastein»). «naermeste»: nærmeste objekter av typen «mot» fra ' +
-        'ett objekt (id), et stedsnavn i kartet (sted) eller koordinater — ELLER, med «sok» og uten id/sted, ' +
-        'avstanden fra HVERT treff til nærmeste «mot» («hvilken gravhaug ligger nærmest en sti?»). ' +
-        '«beskriv»: alle opplysninger om ett objekt (id). Treffene vises som klikkbare pekere under svaret ' +
-        'ditt, så du trenger ikke tilby merking. Vil brukeren vite lengde/høydemeter MELLOM to objekter, ' +
-        'send koordinatene deres til foreslaa_tur.',
+        'Kulturminner, NVE-målestasjoner, stier og veier i kartet. Appen regner ut tellinger og avstander — bruk tallene ordrett. «tell»: antall per kategori. «sok»: finn på navn/type. «naermeste»: nærmeste «mot» fra et objekt (id), et sted i kartet (sted) eller lat/lon — eller, med «sok» uten id/sted, fra hvert treff («hvilken gravhaug ligger nærmest en sti?»). «beskriv»: alt om ett objekt. Treffene vises som klikkbare pekere; nevn ikke id-er. Står en kilde som «feilet», si at den ikke svarte. Lengde MELLOM to objekter: send koordinatene til foreslaa_tur.',
       parameters: {
         type: 'object',
         properties: {
@@ -333,17 +272,11 @@ export const AI_TOOLS = [
     function: {
       name: 'foreslaa_rundtur',
       description:
-        'Foreslå og tegn inn en RUNDTUR (start = mål) på et av brukerens lagrede kart: fra et ' +
-        'startpunkt, innom et vendepunkt, og tilbake — langs kartets stier og veier. Ruten ' +
-        'markeres i kartet. Bruk denne når brukeren ber om en rundtur/runde i kartet — IKKE ' +
-        'foreslaa_nytt_kart. Begge punktene må ligge i kartet. OPPGI HELST STEDSNAVNENE ' +
-        '(origoNavn/viaNavn) — appen slår dem opp i kartets egne navn, som er fasit. ' +
-        'Verktøyet beregner sløyfen før den tegnes og returnerer «rute» med ekte lengde, ' +
-        'stigning og gangtid — bruk DE tallene, aldri egne anslag.',
+        'Beregn og tegn inn en RUNDTUR (start = mål) via et vendepunkt, langs kartets stier og veier. Begge punktene må ligge i kartet. Oppgi helst navnene (origoNavn/viaNavn) — appen slår dem opp i kartets egne navn. Svaret har «rute» med ekte lengde, stigning og gangtid.',
       parameters: {
         type: 'object',
         properties: {
-          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
+          kartId: { type: 'string', description: 'Utelat for kartet i konteksten' },
           origoNavn: { type: 'string', description: 'ANBEFALT: startstedets navn slik brukeren sa det — appen slår det opp i kartets egne navn' },
           viaNavn: { type: 'string', description: 'ANBEFALT: vendepunktets navn — appen slår det opp i kartets egne navn' },
           origoLat: { type: 'number', description: 'Startpunkt = målpunkt (kun nødvendig uten origoNavn). Spør brukeren hvor turen skal starte hvis ukjent.' },
@@ -354,15 +287,11 @@ export const AI_TOOLS = [
             type: 'string',
             enum: ['sti', 'veg'],
             description:
-              'Underlag ruten skal foretrekke — OPPGI BARE når brukeren sier det i denne ' +
-              'meldingen, ellers brukes preferansen hen har satt i Innstillinger → ' +
-              'Preferanser. «veg» = skogsveg/småveg i marka, som er det man vil ha på ' +
-              'terrengsykkel («sykkelrute», «sykkeltur», «kjørbar», «grus»); «sti» = ' +
-              'stinettet, som er standard for fottur. Valget LAGRES, og verktøysvaret ' +
-              'sier fra — nevn det da i ett kort ledd.',
+              'Bare når brukeren ber om det i denne meldingen (ellers gjelder preferansen). ' +
+              '«veg» = skogsveg/småveg (sykkel, grus, kjørbar), «sti» = stinettet. Valget lagres — nevn det kort.',
           },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Rundtur Konnerudkollen»' },
-          vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D — ruten tegnes uansett)' },
+          vis3d: { type: 'boolean', description: 'Bare når brukeren ba om 3D' },
         },
         required: ['kartId'],
       },
@@ -373,18 +302,11 @@ export const AI_TOOLS = [
     function: {
       name: 'foreslaa_tur',
       description:
-        'Foreslå og tegn inn en fottur fra A til B på et av brukerens lagrede kart, langs ' +
-        'kartets stier og veier (Stifinneren). Ruten markeres i kartet. Begge punktene må ligge ' +
-        'innenfor kartet. OPPGI HELST STEDSNAVNENE (fraNavn/tilNavn) — appen slår dem opp i ' +
-        'kartets egne navn, som er fasit, så du slipper å hente eller huske koordinater. ' +
-        'Verktøyet beregner ruten før den tegnes og returnerer «rute» med ekte ' +
-        'lengde, stigning og gangtid — bruk DE tallene i svaret, aldri egne anslag. Mangler ' +
-        '«rute», er turen ikke beregnet ennå: nevn da ingen tall. Sett vis3d KUN når brukeren ' +
-        'eksplisitt har bedt om 3D — ellers tegnes ruten bare, og du kan tilby 3D som neste steg.',
+        'Beregn og tegn inn en tur fra A til B langs kartets stier og veier (Stifinneren). Begge punktene må ligge i kartet. Oppgi helst navnene (fraNavn/tilNavn) ordrett — appen slår dem opp i kartets egne navn. Svaret har «rute» med ekte lengde, stigning og gangtid.',
       parameters: {
         type: 'object',
         properties: {
-          kartId: { type: 'string', description: 'Kart-id fra mine_kart_og_ruter (utelat hvis brukeren står i kartet — bruk kartId fra konteksten)' },
+          kartId: { type: 'string', description: 'Utelat for kartet i konteksten' },
           fraNavn: { type: 'string', description: 'ANBEFALT: startstedets navn slik brukeren sa det («Krokekra») — appen slår det opp i kartets egne navn' },
           tilNavn: { type: 'string', description: 'ANBEFALT: målstedets navn («Fan-i-vold») — appen slår det opp i kartets egne navn' },
           fraLat: { type: 'number', description: 'Startpunkt (kun nødvendig uten fraNavn)' },
@@ -395,15 +317,11 @@ export const AI_TOOLS = [
             type: 'string',
             enum: ['sti', 'veg'],
             description:
-              'Underlag ruten skal foretrekke — OPPGI BARE når brukeren sier det i denne ' +
-              'meldingen, ellers brukes preferansen hen har satt i Innstillinger → ' +
-              'Preferanser. «veg» = skogsveg/småveg i marka, som er det man vil ha på ' +
-              'terrengsykkel («sykkelrute», «sykkeltur», «kjørbar», «grus»); «sti» = ' +
-              'stinettet, som er standard for fottur. Valget LAGRES, og verktøysvaret ' +
-              'sier fra — nevn det da i ett kort ledd.',
+              'Bare når brukeren ber om det i denne meldingen (ellers gjelder preferansen). ' +
+              '«veg» = skogsveg/småveg (sykkel, grus, kjørbar), «sti» = stinettet. Valget lagres — nevn det kort.',
           },
           navn: { type: 'string', description: 'Turnavn, f.eks. «Stormoen–Konnerudkollen»' },
-          vis3d: { type: 'boolean', description: 'Åpne 3D-visningen automatisk (KUN når brukeren har bedt om 3D)' },
+          vis3d: { type: 'boolean', description: 'Bare når brukeren ba om 3D' },
         },
         required: ['kartId'],
       },
@@ -414,14 +332,7 @@ export const AI_TOOLS = [
     function: {
       name: 'sett_rutepreferanse',
       description:
-        'Les eller endre hvilket UNDERLAG Stifinneren og Runde skal foretrekke — det samme ' +
-        'valget som står i Innstillinger → Preferanser, og som gjelder både i kartet og for ' +
-        'turene du foreslår. Kall den UTEN argumenter for bare å lese hva som gjelder nå. ' +
-        'Bruk «veg» når brukeren snakker om sykkeltur, terrengsykkel, sykkelrute, grus eller ' +
-        'kjørbar veg, og «sti» når hen vil gå. «krav» strammer valget til: da brukes det ' +
-        'andre underlaget bare der det ønskede er brutt. Dette er en MULTIPLIKATOR og ikke ' +
-        'et forbud — ruter finnes fortsatt, de legges bare om — så lov aldri at en rute blir ' +
-        '100 % på ønsket underlag. Bekreft endringen i ett kort ledd og tilby å tegne turen.',
+        'Les (uten argumenter) eller endre underlaget Stifinneren, Runde og turene dine foretrekker — samme valg som Innstillinger → Preferanser. «veg» for sykkel/terrengsykkel/grus/kjørbar, «sti» for å gå. «krav» strammer valget: det andre underlaget brukes bare der det ønskede er brutt. Bekreft kort og tilby å tegne turen.',
       parameters: {
         type: 'object',
         properties: {

@@ -17,38 +17,17 @@ export const AI_URL =
   import.meta.env?.VITE_LENDE_AI_URL ??
   'https://lende-ai.jepedersen73.workers.dev/api/ai'
 
-// Modellvalg for testing (Utvikler-fana). Tom = Workerens MODEL.
-export const AI_MODELL_KEY = 'lende-ai-modell'
-
-export function getAiModell() {
-  try { return localStorage.getItem(AI_MODELL_KEY) || '' } catch { return '' }
-}
-
-export function settAiModell(id) {
-  try {
-    if (id) localStorage.setItem(AI_MODELL_KEY, id)
-    else localStorage.removeItem(AI_MODELL_KEY)
-  } catch { /* privat modus */ }
-}
-
-// Workeren eier hvitelista, så klienten spør i stedet for å kjenne den.
-export async function hentAiModeller({ signal } = {}) {
-  const res = await fetch(AI_URL.replace(/\/api\/ai$/, '/health'), { signal })
-  if (!res.ok) throw new Error(`Helsesjekken svarte ${res.status}`)
-  const data = await res.json()
-  return { standard: data?.model ?? null, modeller: Array.isArray(data?.modeller) ? data.modeller : [] }
-}
-
 /**
  * Stoppet svaret fordi max_tokens var brukt opp? En resonnerings-modell bruker
  * av samme budsjett til tenkingen, så et kappet svar kan være helt TOMT.
  * Responses-API (gpt-oss) sier `status: 'incomplete'`, OpenAI-formen
- * `finish_reason: 'length'`.
+ * `finish_reason: 'length'`, Anthropic-formen `stop_reason: 'max_tokens'`.
  */
 export function erKappet(obj) {
   if (!obj || typeof obj !== 'object') return false
   if (obj.status === 'incomplete') return true
   if (obj.incomplete_details?.reason === 'max_output_tokens') return true
+  if (obj.stop_reason === 'max_tokens') return true
   return obj.choices?.[0]?.finish_reason === 'length'
 }
 
@@ -64,6 +43,32 @@ export function getAiToken() {
 
 export function hasAiToken() {
   return !!getAiToken()
+}
+
+// Leverandør og visningsnavn for en modell-id, så teksten som forteller
+// brukeren hvor meldingene går følger modellen Workeren faktisk kjører.
+const LEVERANDORER = {
+  anthropic: 'Anthropic', openai: 'OpenAI', 'zai-org': 'Zhipu AI',
+  meta: 'Meta', mistralai: 'Mistral AI', google: 'Google', moonshotai: 'Moonshot AI',
+}
+export function modellInfo(id) {
+  if (!id || typeof id !== 'string') return null
+  const [forste, ...rest] = id.replace(/^@cf\//, '').split('/')
+  const lev = rest.length ? forste : null
+  const navn = (rest.join('/') || forste)
+    .split('-')
+    .map((d) => (/^\d/.test(d) ? d : d.charAt(0).toUpperCase() + d.slice(1)))
+    .join(' ')
+    .replace(/^Gpt /, 'GPT ')
+    .replace(/ Oss /, '-OSS ')
+  return { id, leverandor: lev ? (LEVERANDORER[lev] ?? lev) : null, navn }
+}
+
+export async function hentAiModell({ signal } = {}) {
+  const res = await fetch(AI_URL.replace(/\/api\/ai$/, '/health'), { signal })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const data = await res.json()
+  return modellInfo(data?.model)
 }
 
 /**
@@ -112,7 +117,9 @@ export function pickupInviteTokenFromLocation() {
  *  • Responses-API:        { output: [{ type: 'message', content: [
  *                            { type: 'output_text', text: "…" } ] }] }, og i
  *                          strømmen TYPEDE hendelser (v6.5.80, gpt-oss)
- * Resonnering ignoreres bevisst i alle tre — `delta.reasoning`, `output`-poster
+ *  • Anthropic-blokker:    { content: [{ type: 'text', text: "…" }, { type:
+ *                            'tool_use', … }] } (v8.0.11, Claude Haiku)
+ * Resonnering ignoreres bevisst i alle fire — `delta.reasoning`, `output`-poster
  * av typen `reasoning` og `response.reasoning_*.delta` er modellens interne
  * tenking og skal aldri vises i chatten. Det er ikke pynt: det var nettopp
  * engelsk «tenking» lekket inn i svaret som gjorde GLM-4.7-flash ubrukelig.
@@ -128,6 +135,9 @@ export function extractText(obj) {
   }
   if (typeof obj.output_text === 'string') return obj.output_text
   if (Array.isArray(obj.output)) return tekstFraOutput(obj.output)
+  if (Array.isArray(obj.content)) {
+    return obj.content.filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('')
+  }
   const valg = obj.choices?.[0]
   const tekst = valg?.delta?.content ?? valg?.message?.content
   return typeof tekst === 'string' ? tekst : ''
@@ -184,6 +194,8 @@ export function parseSseBuffer(buffer) {
  *  • klassisk:      tool_calls[] med { name, arguments } som OBJEKT
  *  • Responses-API: output[]-poster av typen `function_call`, med `call_id`
  *    som id (v6.5.80, gpt-oss)
+ *  • Anthropic:     content[]-blokker av typen `tool_use`, med `input` som
+ *    OBJEKT (v8.0.11, Claude Haiku)
  * Uparsbare argumenter gir {} i stedet for å knekke kjeden.
  */
 export function extractToolCalls(obj) {
@@ -192,12 +204,15 @@ export function extractToolCalls(obj) {
     ?? (Array.isArray(obj?.output)
       ? obj.output.filter((p) => p?.type === 'function_call')
       : null)
+    ?? (Array.isArray(obj?.content)
+      ? obj.content.filter((b) => b?.type === 'tool_use')
+      : null)
   if (!Array.isArray(raa) || raa.length === 0) return []
   return raa
     .map((tc, i) => {
       const name = tc?.function?.name ?? tc?.name
       if (!name) return null
-      let args = tc?.function?.arguments ?? tc?.arguments ?? {}
+      let args = tc?.function?.arguments ?? tc?.arguments ?? tc?.input ?? {}
       if (typeof args === 'string') {
         try { args = JSON.parse(args) } catch { args = {} }
       }
@@ -290,28 +305,14 @@ export function parseTextToolCalls(tekst, kjenteNavn = []) {
  * parseTextToolCalls.
  */
 export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, signal }) {
-  let modell = getAiModell()
-  let reserveFor = ''
-  let data
-  try {
-    data = await postChat({ messages, tools, maxTokens, signal, modell })
-  } catch (err) {
-    // En valgt modell som er tatt ut av Workeren (400) eller av Workers AI
-    // (502), skal ikke stenge chatten: svaret kommer fra standardmodellen, og
-    // merket under svaret sier hvem som skrev det. Valget i localStorage står,
-    // for en 502 kan like gjerne være forbigående.
-    if (!modell || !RESERVE_STATUSER.has(err?.status)) throw err
-    reserveFor = modell
-    modell = ''
-    data = await postChat({ messages, tools, maxTokens, signal, modell })
-  }
+  let { data, reserve } = await postChat({ messages, tools, maxTokens, signal })
   let tekst = extractText(data)
   let strukturerte = extractToolCalls(data)
   // Tomt og kappet: tenkingen spiste budsjettet. Ett nytt forsøk med taket
   // Workeren tillater — et forsøk til koster mindre enn et svar som ikke kom.
   let kappet = erKappet(data)
   if (kappet && !tekst.trim() && !strukturerte.length && maxTokens < MAX_SVAR_TOKENS) {
-    data = await postChat({ messages, tools, maxTokens: MAX_SVAR_TOKENS, signal, modell })
+    ;({ data, reserve } = await postChat({ messages, tools, maxTokens: MAX_SVAR_TOKENS, signal }))
     tekst = extractText(data)
     strukturerte = extractToolCalls(data)
     kappet = erKappet(data)
@@ -329,10 +330,12 @@ export async function chatOnce({ messages, tools, toolNames, maxTokens = 1024, s
   const fraTekst = parseTextToolCalls(tekst, kjenteNavn)
   const sett = new Set(strukturerte.map((t) => `${t.name}:${JSON.stringify(t.args)}`))
   const ekstra = fraTekst.toolCalls.filter((t) => !sett.has(`${t.name}:${JSON.stringify(t.args)}`))
-  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data, kappet, modell, reserveFor }
+  return { text: fraTekst.text, toolCalls: [...strukturerte, ...ekstra], raw: data, kappet, reserve }
 }
 
-async function postChat({ messages, tools, maxTokens, signal, modell }) {
+// `reserve`: hovedmodellen feilet og Workerens reservemodell svarte
+// (X-Lende-Reserve). Chatten merker svaret, så kvaliteten ikke forveksles.
+async function postChat({ messages, tools, maxTokens, signal }) {
   let res
   try {
     res = await fetch(AI_URL, {
@@ -345,7 +348,6 @@ async function postChat({ messages, tools, maxTokens, signal, modell }) {
       body: JSON.stringify({
         messages,
         max_tokens: maxTokens,
-        ...(modell ? { model: modell } : {}),
         ...(Array.isArray(tools) && tools.length ? { tools } : {}),
       }),
     })
@@ -358,14 +360,10 @@ async function postChat({ messages, tools, maxTokens, signal, modell }) {
     try {
       serverText = (await res.json())?.error ?? ''
     } catch { /* ikke JSON */ }
-    const feil = new Error(feilmelding(res.status, serverText))
-    feil.status = res.status
-    throw feil
+    throw new Error(feilmelding(res.status, serverText))
   }
-  return res.json()
+  return { data: await res.json(), reserve: res.headers?.get?.('X-Lende-Reserve') === '1' }
 }
-
-const RESERVE_STATUSER = new Set([400, 404, 502])
 
 function feilmelding(status, serverText) {
   if (status === 401) return 'Invitasjonen din er ikke gyldig lenger. Be om en ny lenke.'
@@ -431,4 +429,30 @@ export async function streamChat({ messages, maxTokens = 1024, signal, onDelta }
     if (parsed.done) break
   }
   return full
+}
+
+// Det modellen leser av et verktøysvar eller konteksten: tomme felt ut (null,
+// '', [], {}), og desimaler kappet til det som betyr noe — 5 for grader
+// (~1 m), 1 for alt over 100 (meter, sekunder). Hver token koster, og et
+// felt uten innhold sier ingenting modellen kan svare med.
+export function kompaktForModell(verdi) {
+  if (typeof verdi === 'number') {
+    if (!Number.isFinite(verdi) || Number.isInteger(verdi)) return verdi
+    return Math.abs(verdi) >= 100 ? Math.round(verdi * 10) / 10 : Math.round(verdi * 1e5) / 1e5
+  }
+  if (Array.isArray(verdi)) {
+    return verdi.map(kompaktForModell).filter((v) => v !== undefined)
+  }
+  if (verdi && typeof verdi === 'object') {
+    const ut = {}
+    for (const [k, v] of Object.entries(verdi)) {
+      const kv = kompaktForModell(v)
+      if (kv === undefined || kv === null || kv === '') continue
+      if (Array.isArray(kv) && kv.length === 0) continue
+      if (typeof kv === 'object' && !Array.isArray(kv) && Object.keys(kv).length === 0) continue
+      ut[k] = kv
+    }
+    return ut
+  }
+  return verdi
 }

@@ -5,7 +5,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const chatOnce = vi.fn()
 const runTool = vi.fn()
 
-vi.mock('../lib/lendeAi.js', () => ({ chatOnce: (...a) => chatOnce(...a) }))
+vi.mock('../lib/lendeAi.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  chatOnce: (...a) => chatOnce(...a),
+}))
 vi.mock('../lib/lendeAiTools.js', async (importOriginal) => ({
   ...(await importOriginal()),
   runTool: (...a) => runTool(...a),

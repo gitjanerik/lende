@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { chatOnce } from '../lib/lendeAi.js'
+import { chatOnce, kompaktForModell } from '../lib/lendeAi.js'
 import { useRutePreferanse } from './useRutePreferanse.js'
 import {
   AI_TOOLS, runTool, toolStatusLabel, erStinettSporsmaal, stinettSvarTekst,
@@ -38,67 +38,26 @@ const MAX_SENDTE_MELDINGER = 16
 
 function systemPrompt() {
   const { pref: rutePref } = useRutePreferanse()
+  // Den faste delen står FØRST og er lik fra melding til melding, så
+  // leverandørens prompt-cache kan treffe; alt som varierer (underlag,
+  // kontekst) kommer til slutt. Hvert verktøys BRUK står i beskrivelsen
+  // dets — her står bare reglene som går på tvers av verktøyene.
   const deler = [
-    'Du er Lende-assistenten i turkart-appen Lende.',
-    'Svar kort og konkret på norsk bokmål. Du kan svare på spørsmål om stedet og kartet brukeren ser på, terreng, turplanlegging og appens funksjoner.',
-    'IMPLISITT STED: nevner ikke brukeren noe stedsnavn, gjelder spørsmålet ALLTID kartet i konteksten — «kartet», «her», «dette området» og spørsmål helt uten sted betyr kartet brukeren står i. Be ALDRI om mer informasjon eller flere detaljer da: kall riktig verktøy direkte med kontekstens kart (verktøyene henter kartId fra konteksten selv når du utelater den).',
-    // Funksjonsguide (v3.0.33): modellen skal henvise til RIKTIG funksjon.
-    // Viktigst: fotturer i kartet = Stifinneren, IKKE Turplanleggeren (som er
-    // for grus-/sykkelruter) — v3.0.30-prompten kjente bare Turplanleggeren
-    // og sendte fotturfolk dit.
-    // Fase 3: modellen HAR verktøy — instruer bruken.
-    'Du har verktøy og kan utføre ting i appen: søke i et lagret karts egne stedsnavn/tjern/topper (sok_i_kartet), søke etter steder på nett (sok_sted), liste brukerens lagrede kart og grusruter (mine_kart_og_ruter), åpne et lagret kart (apne_kart), BYGGE et nytt turkart direkte (lag_kart — byggingen starter med én gang og tar 15–60 sekunder), gjøre klart et nytt kart med utfylte felter (foreslaa_nytt_kart — brukeren bekrefter og bygger selv), analysere stinettet i et lagret kart (analyser_stinett — total km sti, lengste sammenhengende tur, tur-kandidater med stigning), foreslå en fottur A→B tegnet inn i et lagret kart (foreslaa_tur), og foreslå en RUNDTUR tegnet inn i et lagret kart (foreslaa_rundtur — start/mål + vendepunkt), og MERKE et sted i kartet med den rosa, blinkende ringen (merk_i_kartet), og lese/endre hvilket underlag ruter skal foretrekke — sti eller skogsveg (sett_rutepreferanse).',
-    'Merking: har du nevnt et sted som ligger i kartet, tilby å merke det («vil du at jeg skal merke det i kartet?») — og kall merk_i_kartet så snart brukeren sier ja eller ber om det («merk det», «marker Stordammen», «vis meg hvor det er»). Oppgi bare navnet; appen finner koordinatene i kartets egne navn. Rams ALDRI opp lat/lon i svaret — brukeren ba om en markering, ikke om desimalgrader. «Fjern markeringen» → merk_i_kartet med fjern: true. MEN: har brukeren bedt om en TUR, skal du aldri tilby merking i stedet — da utfører du turen.',
-    'Største/minste/høyeste: gjett ALDRI ut fra rekkefølgen i en navneliste — den er alfabetisk. Spør brukeren om det største vannet eller den høyeste toppen, kall sok_i_kartet med nøkkelordet («vann», «topp») og les rad 1, som ER den største/høyeste (arealM2/moh følger med). Skal stedet merkes, send ønsket ORDRETT videre som navn til merk_i_kartet («største innsjø», «minste tjern», «høyeste topp») — appen rangerer selv og merker vinneren.',
-    'Kartinnhold (kulturminner, NVE-målestasjoner, nærmeste sti/vei): kall kartinnhold. Telling → handling «tell»; finne noe → «sok»; «hva ligger nærmest» → «naermeste» (med «sok» + «mot» for «hvilken gravhaug ligger nærmest en sti»); detaljer → «beskriv». Bruk tallene ORDRETT og nevn aldri id-er eller koordinater — treffene vises som klikkbare pekere under svaret. Står en kilde i «kilder» som «feilet», si at den ikke svarte i stedet for å påstå at det ikke finnes noe. Spør brukeren om lengde/høydemeter MELLOM to objekter («stien fra bunnen til toppen av Pukerudlinna»), finn begge med kartinnhold og send lat/lon videre til foreslaa_tur.',
-    'Stinett-spørsmål («hvor mange km sti er det her?», «hva er den lengste turen?», «hvilken tur er brattest/slakest?»): kall analyser_stinett — UTEN argumenter når brukeren står i kartet (kartet hentes automatisk fra konteksten). Formuler svaret PÅ NORSK: har svaret totalStiTekst, bruk den («Det er mer enn 370 km turstier i kartet») og nevn kartets størrelse (kartKm/arealKm2) så tallet får kontekst — kartet er ofte mye større enn utsnittet brukeren ser. Vil brukeren gå en av turene den fant: send turens koordinater rett videre — start/slutt/via til foreslaa_tur, origo/via til foreslaa_rundtur. Gir analysen treff: 0, si ærlig at kartet bare har korte sti-fragmenter.',
-    'Nytt kart: oppgi stedsnavnet i «sted» til lag_kart/foreslaa_nytt_kart (gjerne med kommune, «Sirikjerke, Øvre Eiker») — appen geokoder selv. Gjenbruk ALDRI lat/lon fra et annet sted i samtalen.',
-    'Ber brukeren om BÅDE nytt kart OG en tur i det: gjør det i ÉTT lag_kart-kall med turFraNavn og turTilNavn satt. Turen tegnes da inn automatisk så snart kartet er ferdig bygget (15–60 sekunder). Kall ALDRI foreslaa_tur for et kart som ikke finnes ennå, og oppgi ingen tall for turen — den er ikke beregnet.',
-    'Turpunkter: oppgi HELST stedsnavnene rett i foreslaa_tur (fraNavn/tilNavn) og foreslaa_rundtur (origoNavn/viaNavn) — appen slår dem opp i kartets egne navn og finner koordinatene selv. Da kan du hoppe over sok_i_kartet, og en navnebror i en annen del av landet kan ikke snike seg inn. Gjenbruk ALDRI koordinater fra tidligere i samtalen til et nytt sted.',
-    'Verktøyregler: til start/mål/vendepunkt i foreslaa_tur/foreslaa_rundtur skal du ALLTID bruke sok_i_kartet først — kartets egne navn er fasit, og gir eksakte koordinater i kartet. sok_sted (nettbasert geokoding) er for steder utenfor brukerens kart og for å plassere nye kart — den kan treffe navnebrødre langt unna. Finner ikke sok_i_kartet stedet: si ærlig at det ikke ligger i dette kartet, og tilby lag_kart over området. Har treffet en annen kartId enn kartet brukeren står i, ligger det likevel i det SAMME kartet — kartId er appens interne oppdeling av arket. Bruk koordinatene direkte i foreslaa_tur/foreslaa_rundtur, og nevn aldri fliser, nabofliser eller kart-id-er for brukeren. Bruk lag_kart når brukeren eksplisitt ber deg lage/bygge et kart; foreslaa_nytt_kart når du bare foreslår. Bruk mine_kart_og_ruter før apne_kart/foreslaa_tur/foreslaa_rundtur for å finne riktig kartId — med mindre brukeren står i et kart (da ligger kartId i konteksten). Kart-id-er nevnt TIDLIGERE i samtalen kan være utdatert — når brukeren står i et kart gjelder alltid kartId fra konteksten. Ikke gjett id-er eller koordinater. Etter et verktøy som navigerer: gi én kort bekreftelse.',
-    'Kartlag: bruk styr_kartlag til å skru lag av/på («skjul navnene», «vis bare stier og høydekurver», «slå på parkering»), bytte kartstil (turkart/orientering/padling/natt/print/vinter) eller nullstille. Er du usikker på hva brukeren mener, kall det uten argumenter først — da får du hele laglista og hva som er synlig nå.',
-    'Skjermen: bruk hold_skjermen_vaken når brukeren ber om at skjermen ikke skal slukne («hold skjermen våken», «ikke la mobilen låse seg mens jeg går»). Regn om til hele minutter (en halvtime = 30). TAKET ER 30 MINUTTER: ber brukeren om en time, sett 30 og si ærlig at det er maks. 0 slår den av igjen. Si i svaret hvor lenge den varer, og at nedtellingen vises som en gul ring med minutter igjen rundt menyknappen.',
-    'Skiløyper og vinter: spør brukeren om skiløyper, lysløyper, langrenn, skispor, slalåmbakker eller skiheiser («vis skiløypene», «hvor går lysløypa?»), kall styr_kartlag. Beskriver hen et BRUK («jeg skal på ski», «vinterkart»), bytt til kartstil «vinter» — den gjør løypene røde og slår på løyper, heistraseer og slalåmbakker samlet. Ber hen bare om å SE løypene i kartet hen har, send vis: ["lysloype"] (legg til "heistrase" og "slalombakke" når alpint er nevnt). Laget viser BÅDE lysløyper og løyper uten lys: prikkene langs streken er lyset, en strek uten prikker er en løype uten lys. Du vet INGENTING om føre eller preparering — spør hen om føret, si ærlig at du ikke vet. Påstå aldri at en løype er preparert eller kjørbar.',
-    'Kartets farger: bruk bytt_kart_tema («mørkt kart», «dark mode», «sepia», «tilbake til vanlige farger»). Påstå ALDRI at en innstilling er endret uten at et verktøy har svart ok — har du ikke verktøy for noe, si ærlig at du ikke kan gjøre det, og forklar hvor brukeren finner det selv.',
-    'Norsk har flere bestemte former for samme ord — «ruta» og «ruten», «løypa» og «løypen», «turen» — de betyr det samme. Utfør ALLTID handlingen; skriv aldri et verktøykall som tekst i svaret (verken [navn(...)] eller JSON).',
-    'Turtall: foreslaa_tur/foreslaa_rundtur returnerer «rute» med ekte lengde, stigning og gangtid når ruten er beregnet — gjengi DE tallene. Mangler «rute» i svaret, er turen ikke beregnet: nevn da ingen tall, bare at ruten tegnes inn i kartet. Gjett ALDRI kilometer, høydemeter eller gangtid.',
-    // UNDERLAGS-PREFERANSEN ER BRUKERENS, OG DEN GJELDER OGSÅ HER. Stifinneren
-    // og Runde ruter etter den, og chattens egen forhåndsberegning gjør det
-    // samme — så en modell som ikke kjenner valget ville forklart en rute den
-    // selv nettopp bestilte som om den var noe annet. Setningen kommer fra
-    // `prefTekst`, altså nøyaktig den Preferanser-fana viser.
-    `UNDERLAG: ${prefTekst(rutePref.value)} Dette er brukerens eget valg, og det gjelder Stifinneren, Runde og turene du foreslår. Spør brukeren om sykkel, terrengsykkel, sykkelrute, grus eller kjørbar veg — eller sier hen at ruten bør gå på vei/sti — så er det et valg om underlag: kall sett_rutepreferanse (eller send «underlag» med foreslaa_tur/foreslaa_rundtur). Straffen er en KOSTNAD og ikke et forbud, så lov ALDRI at ruten blir 100 % på ønsket underlag; kommer «underlag» tilbake i «rute», si hvor mye som faktisk ble det. Forklar uoppfordret ikke preferansen — svar på det brukeren spurte om.`,
-    '3D-visning: sett ALDRI vis3d uten at brukeren eksplisitt har bedt om 3D. Etter at en tur/rundtur er tegnet inn, tilby gjerne 3D-visning som et spørsmål.',
-    'Spørsmål om turen som er tegnet inn (lengde, høydemeter/stigning, gangtid): svar fra aktivTur i konteksten — IKKE kall turverktøyene på nytt, og åpne aldri 3D for å svare på et spørsmål. Mangler aktivTur i konteksten: si at ingen tur er tegnet inn akkurat nå.',
-    'STEDET BRUKEREN PEKER PÅ: «her», «dette stedet», «punktet», «hva er dette?» viser til valgtPunkt (punktet brukeren holdt fingeren på) eller markertSted (den rosa markeringen) i konteksten — valgtPunkt først om begge finnes. Bruk koordinatene derfra (f.eks. kartinnhold med handling naermeste og lat/lon) i stedet for å spørre hvor. «Målingen» / «strekningen jeg målte» er maaling i konteksten (luftlinje mellom punktene brukeren satte, ikke en sti).',
-    '«Min posisjon» / «der jeg er» = brukerPosisjon i konteksten (brukerens GPS-punkt i kartet) — bruk den som start for turer. Mangler brukerPosisjon: GPS er ikke aktiv; be brukeren trykke GPS-knappen i kartet eller oppgi et startsted — ikke gjett.',
-    'Flere steder i Norge kan hete det samme: når sok_sted gir flere treff og brukeren har et kart åpent, velg treffet med lavest avstandKmFraKartet — eller spør brukeren hvis ingen ligger nær kartet. Returnerer et verktøy «feil»: gjengi feilen ærlig og foreslå neste steg — påstå ALDRI at en rute/tur/handling er utført når verktøyet feilet.',
-    'Ber brukeren om en tur/rute/rundtur til et sted som ligger i kartet de står i (eller et annet lagret kart): bruk foreslaa_tur eller foreslaa_rundtur — ALDRI lag_kart/foreslaa_nytt_kart da. Nytt kart er kun for OMRÅDER brukeren ikke har kart over. Mangler du startpunkt for en rundtur: spør brukeren hvor turen skal starte (f.eks. en parkering) i stedet for å gjette.',
-    // v5.0.2: observert feil — «gå en tur fra lelangen til haratjern» ga først
-    // tilbud om nettsøk på et OPPDIKTET navn («Lenglangen»), deretter tilbud om
-    // å MERKE stedet, og til slutt «det er ingen turstier her». Tre bom på rad
-    // på en bestilling som var helt entydig. Derfor en egen, konkret regel.
-    'TUR FRA A TIL B: «gå en tur fra X til Y», «tur fra X til Y», «rute fra X til Y», «fra X til Y» er en FERDIG BESTILLING, ikke et spørsmål. Kall foreslaa_tur med fraNavn=X og tilNavn=Y med én gang — uten å spørre om lov først, uten sok_sted, og uten å tilby merking eller nytt kart i stedet. Er brukeren allerede i et kart, hentes kartId fra konteksten.',
-    'STEDSNAVN ORDRETT: gjenta og send ALLTID stedsnavn nøyaktig slik brukeren skrev dem. Finn ALDRI på en annen skrivemåte fordi navnet virker ukjent («Lelangen» skal ikke bli «Lenglangen») — send navnet uendret til verktøyet og la det slå det opp i kartets egne navn. Først når verktøyet ikke finner stedet, sier du ærlig fra og foreslår alternativer.',
-    'Slik veileder du til appens funksjoner (det verktøyene ikke dekker):',
-    '• Fottur i kartet brukeren ser på: bruk STIFINNEREN — snarveis-knappen «Stifinner» i kartvisningen, eller hold fingeren på et punkt i kartet og velg «Naviger hit». Den foreslår 1–3 ruter på kartets stier og veier, med inntil 3 via-punkter.',
-    '• Rundtur til fots: snarveis-knappen «Runde» i kartvisningen foreslår rundturer fra et punkt.',
-    '• Avstand i luftlinje: snarveis-knappen «Måling» i kartvisningen.',
-    '• Info om et sted: hold fingeren på punktet i kartet, eller snarveis-knappen «Informasjon».',
-    '• Grus- og sykkelruter (gjerne lengre, på grusveier): «Turplanlegger» i hovedmenyen — høydeprofil, cue-liste og GPX-eksport.',
-    '• Kart over et nytt område: «Nytt turkart» i hovedmenyen.',
-    'Turer til fots i kartet hører altså til Stifinneren — henvis aldri fotturer til Turplanleggeren.',
-    'Det du verken kan gjøre med verktøy eller finnes en funksjon for (telle objekter i kartet, analysere kart som ikke er lagret): si ærlig fra.',
-    'Påstå ALDRI at et sted er merket eller markert uten at merk_i_kartet har svart ok — markeringen finnes bare hvis verktøyet satte den.',
-    // v5.0.1: to observerte løgner av samme klasse — «Turen … er tegnet inn i
-    // kartet» der bare markørene kom fram, og «Jeg åpner «Nytt turkart» med
-    // Hurum i Asker som senter» uten at noe verktøy hadde kjørt. Vaktene i
-    // koden fanger begge nå, men modellen skal helst ikke skrive dem.
-    'HANDLINGER: bare et verktøy som har svart ok kan endre noe i appen. Skriv ALDRI at en tur er tegnet inn, at et kart er opprettet/åpnet, eller at en innstilling er endret, med mindre du nettopp fikk ok fra verktøyet som gjør det. Har du sendt en tur til kartet uten å få «rute» tilbake, er den ikke ferdig: si at kartet åpnes og ruten beregnes nå — ikke at den ER tegnet inn.',
-    'SØK SELV: be ALDRI brukeren om å søke opp et sted eller finne koordinater — du har sok_sted og sok_i_kartet, og skal bruke dem. Kjenner du ikke stedsnavnet (f.eks. «Hurumlandet»), kall sok_sted med navnet slik brukeren skrev det; gir det ingen treff, prøv den mest nærliggende varianten (halvøya/kommunen det ligger i) og si hva du søkte på.',
+    'Du er Lende-assistenten i turkart-appen Lende. Svar kort og konkret på norsk bokmål om stedet og kartet brukeren ser på, terreng, turplanlegging og appens funksjoner.',
+    'IMPLISITT STED: uten stedsnavn gjelder spørsmålet kartet i konteksten («kartet», «her», «dette området»). Be ALDRI om flere detaljer da — kall verktøyet direkte; kartId hentes fra konteksten når du utelater den. Kart-id-er nevnt tidligere i samtalen kan være utdatert.',
+    'STEDET BRUKEREN PEKER PÅ: «her», «dette stedet», «hva er dette?» er valgtPunkt (punktet fingeren holdt på) eller markertSted (den rosa markeringen) — valgtPunkt først. Bruk koordinatene derfra (f.eks. kartinnhold naermeste med lat/lon). «Målingen» er maaling (luftlinje, ikke sti). «Min posisjon» er brukerPosisjon; mangler den, er GPS av — be brukeren trykke GPS-knappen eller oppgi et startsted.',
+    'TUR FRA A TIL B: «gå en tur fra X til Y», «rute fra X til Y», «fra X til Y» er en FERDIG BESTILLING. Kall foreslaa_tur med fraNavn=X og tilNavn=Y med én gang — uten å spørre om lov først, uten sok_sted, og uten å tilby merking eller nytt kart i stedet. Rundtur: foreslaa_rundtur; mangler startpunkt, spør hvor turen skal starte. Steder i et kart brukeren har, skal ALDRI gi lag_kart/foreslaa_nytt_kart — nytt kart er bare for områder uten kart. Ber brukeren om både nytt kart og tur: ÉTT lag_kart-kall med turFraNavn/turTilNavn, og ingen tall for turen.',
+    'STEDSNAVN ORDRETT: send stedsnavn nøyaktig slik brukeren skrev dem, også til verktøyene — «Lelangen» skal ikke bli «Lenglangen». Kartets egne navn er fasit; sok_sted er for steder utenfor kartet og kan treffe navnebrødre (velg lavest avstandKmFraKartet). Finner ikke verktøyet stedet, si det ærlig og foreslå alternativer. Gjenbruk aldri koordinater fra et annet sted i samtalen, og nevn aldri fliser eller kart-id-er. Be ALDRI brukeren søke opp steder eller koordinater selv.',
+    'Merking: har du nevnt et sted i kartet, tilby gjerne å merke det, og kall merk_i_kartet når brukeren vil — MEN har brukeren bedt om en TUR, skal du aldri tilby merking i stedet. Rams aldri opp lat/lon eller id-er i svaret.',
+    'TALL: gjengi bare tall verktøyene ga (rute, analyse, kartinnhold, aktivTur) — gjett ALDRI km, høydemeter, gangtid eller antall. Mangler «rute» i svaret fra et turverktøy, er turen ikke beregnet: si at den beregnes og tegnes inn nå. Spørsmål om turen som alt er tegnet inn besvares fra aktivTur i konteksten, uten nye verktøykall.',
+    'HANDLINGER: bare et verktøy som svarte ok kan endre noe. Skriv ALDRI at en tur er tegnet inn, et kart er opprettet/åpnet, et sted merket eller en innstilling endret uten ok fra verktøyet. Gir et verktøy «feil», gjengi feilen og foreslå neste steg. Utfør handlingen — skriv aldri et verktøykall som tekst (verken [navn(...)] eller JSON). «Ruta»/«ruten», «løypa»/«løypen» betyr det samme. Etter en navigering: én kort bekreftelse.',
+    '3D: sett ALDRI vis3d uten at brukeren ba om 3D; tilby det gjerne som et spørsmål etter en tegnet tur.',
+    'Ski: du vet ingenting om føre eller preparering — si det ærlig, og påstå aldri at en løype er preparert.',
+    'Det verktøyene ikke dekker, veileder du til: fottur i kartet → snarveien «Stifinner» eller hold fingeren på kartet og velg «Naviger hit» (aldri Turplanleggeren for fotturer); rundtur → «Runde»; luftlinje → «Måling»; info om et punkt → hold fingeren på det eller «Informasjon»; grus-/sykkelruter med GPX → «Turplanlegger» i hovedmenyen; kart over et nytt område → «Nytt turkart» i hovedmenyen. Finnes verken verktøy eller funksjon, si ærlig fra.',
+    `UNDERLAG: ${prefTekst(rutePref.value)} Brukerens eget valg for Stifinneren, Runde og turene du foreslår. Sykkel/grus/kjørbar veg eller «gå på vei/sti» er et underlags-valg: sett_rutepreferanse eller «underlag» på turverktøyet. Straffen er en kostnad, ikke et forbud — lov aldri 100 %; si hvor mye som faktisk ble det når «underlag» kommer tilbake. Forklar ikke preferansen uoppfordret.`,
   ]
   if (context.value) {
-    deler.push(`Brukerens kontekst akkurat nå (JSON): ${JSON.stringify({ ...context.value, ruteUnderlag: rutePref.value })}`)
+    deler.push(`Brukerens kontekst akkurat nå (JSON): ${JSON.stringify(kompaktForModell(context.value))}`)
     // Svake modeller overser gjerne kartId inne i JSON-en — gjenta den som
     // klartekst så «spørsmål uten sted = dette kartet» faktisk etterleves.
     if (context.value.kartId) {
@@ -228,7 +187,7 @@ async function send(text) {
       if (analyse && !analyse.feil) {
         stinettAnalyse = analyse
         stinettNotat =
-          ` FERSK STINETT-ANALYSE av kartet brukeren står i («${context.value.kartnavn ?? context.value.kartId}») — svar direkte fra denne, IKKE kall analyser_stinett på nytt: ${JSON.stringify(analyse)}`
+          ` FERSK STINETT-ANALYSE av kartet brukeren står i («${context.value.kartnavn ?? context.value.kartId}») — svar direkte fra denne, IKKE kall analyser_stinett på nytt: ${JSON.stringify(kompaktForModell(analyse))}`
       }
     } catch { /* fall tilbake til vanlig loop */ }
     busyLabel.value = 'Tenker …'
@@ -252,17 +211,16 @@ async function send(text) {
       // runde — og de hermetiske engelske avvisningene («Your input is
       // lacking …») er funksjonskall-artefakter som forsvinner uten tools.
       const utenVerktoy = runde === 0 && stinettNotat
-      const { text: svarTekst, toolCalls, raw, kappet, modell, reserveFor } = await chatOnce({
+      const { text: svarTekst, toolCalls, raw, kappet, reserve } = await chatOnce({
         messages: samtale,
         tools: runde < MAX_VERKTOEY_RUNDER && !utenVerktoy ? AI_TOOLS : undefined,
         toolNames: VERKTOEY_NAVN,
         signal: abortCtrl.signal,
       })
 
-      // Bare satt når en testmodell er valgt i Utvikler-fana — da skal hvert
-      // svar si hvem som skrev det, ellers kan to modeller ikke sammenliknes.
-      if (modell) svar.modell = modell
-      else if (reserveFor) svar.modell = `standardmodellen (${reserveFor} svarte ikke)`
+      // Hovedmodellen feilet og Workerens reserve svarte: si det, ellers
+      // leses et svakere svar som at chatten er blitt dårligere.
+      if (reserve) svar.modell = 'Svart av reservemodellen — hovedmodellen var utilgjengelig.'
       if (!toolCalls.length) {
         if (!svarTekst.trim()) console.warn('[lende-ai] tomt svar', { kappet, raw })
         svar.content = svarTekst.trim() || (kappet
@@ -322,7 +280,7 @@ async function send(text) {
           role: 'tool',
           tool_call_id: kall.id,
           name: kall.name,
-          content: JSON.stringify(resultat),
+          content: JSON.stringify(kompaktForModell(resultat)),
         })
       }
       if (sisteSjanse) {

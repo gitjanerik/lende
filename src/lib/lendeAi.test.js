@@ -298,12 +298,9 @@ describe('erKappet og nytt forsøk ved tomt, kappet svar', () => {
     expect(erKappet(null)).toBe(false)
   })
 
-  it('spør på nytt med fullt budsjett, og sender valgt modell', async () => {
-    const { chatOnce, AI_MODELL_KEY } = await import('./lendeAi.js')
-    const lager = { [AI_MODELL_KEY]: '@cf/zai-org/glm-5.2' }
-    vi.stubGlobal('localStorage', {
-      getItem: (k) => lager[k] ?? null, setItem: () => {}, removeItem: () => {},
-    })
+  it('spør på nytt med fullt budsjett, uten å velge modell selv', async () => {
+    const { chatOnce } = await import('./lendeAi.js')
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} })
     const kropper = []
     const svar = [
       { status: 'incomplete', output: [{ type: 'reasoning' }] },
@@ -311,58 +308,82 @@ describe('erKappet og nytt forsøk ved tomt, kappet svar', () => {
     ]
     vi.stubGlobal('fetch', async (_url, init) => {
       kropper.push(JSON.parse(init.body))
-      return { ok: true, json: async () => svar.shift() }
+      return { ok: true, headers: { get: () => null }, json: async () => svar.shift() }
     })
     try {
       const res = await chatOnce({ messages: [{ role: 'user', content: 'x' }] })
       expect(res.text).toBe('Hei')
-      expect(res.modell).toBe('@cf/zai-org/glm-5.2')
+      expect(res.reserve).toBe(false)
       expect(kropper.map((k) => k.max_tokens)).toEqual([1024, 4096])
-      expect(kropper.every((k) => k.model === '@cf/zai-org/glm-5.2')).toBe(true)
+      expect(kropper.every((k) => !('model' in k))).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('kjenner Anthropics stop_reason', async () => {
+    const { erKappet } = await import('./lendeAi.js')
+    expect(erKappet({ stop_reason: 'max_tokens' })).toBe(true)
+    expect(erKappet({ stop_reason: 'end_turn' })).toBe(false)
+  })
+})
+
+describe('Anthropic-formen (Claude via Workers AI, v8.0.11)', () => {
+  it('leser tekst og verktøykall fra content-blokker', async () => {
+    const { extractText, extractToolCalls } = await import('./lendeAi.js')
+    const data = {
+      content: [
+        { type: 'text', text: 'Jeg søker. ' },
+        { type: 'tool_use', id: 'tu_1', name: 'sok_sted', input: { navn: 'Håøya' } },
+      ],
+      stop_reason: 'tool_use',
+    }
+    expect(extractText(data)).toBe('Jeg søker. ')
+    const kall = extractToolCalls(data)
+    expect(kall).toHaveLength(1)
+    expect(kall[0].name).toBe('sok_sted')
+    expect(kall[0].args).toEqual({ navn: 'Håøya' })
+    expect(kall[0].id).toBe('tu_1')
+  })
+
+  it('melder fra når Workerens reserve svarte', async () => {
+    const { chatOnce } = await import('./lendeAi.js')
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} })
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      headers: { get: (h) => (h === 'X-Lende-Reserve' ? '1' : null) },
+      json: async () => ({ response: 'Hei' }),
+    }))
+    try {
+      const res = await chatOnce({ messages: [{ role: 'user', content: 'x' }] })
+      expect(res.text).toBe('Hei')
+      expect(res.reserve).toBe(true)
     } finally {
       vi.unstubAllGlobals()
     }
   })
 })
 
-describe('reserve når valgt modell er borte', () => {
-  it('faller til standardmodellen på 400/502', async () => {
-    const { chatOnce, AI_MODELL_KEY } = await import('./lendeAi.js')
-    const lager = { [AI_MODELL_KEY]: '@cf/zai-org/glm-5.2' }
-    vi.stubGlobal('localStorage', {
-      getItem: (k) => lager[k] ?? null, setItem: () => {}, removeItem: () => {},
-    })
-    const kropper = []
-    vi.stubGlobal('fetch', async (_url, init) => {
-      const k = JSON.parse(init.body)
-      kropper.push(k)
-      if (k.model) return { ok: false, status: 502, json: async () => ({ error: 'Workers AI feilet: model deprecated' }) }
-      return { ok: true, json: async () => ({ response: 'Hei' }) }
-    })
-    try {
-      const res = await chatOnce({ messages: [{ role: 'user', content: 'x' }] })
-      expect(res.text).toBe('Hei')
-      expect(res.modell).toBe('')
-      expect(res.reserveFor).toBe('@cf/zai-org/glm-5.2')
-      expect(kropper.map((k) => k.model)).toEqual(['@cf/zai-org/glm-5.2', undefined])
-      expect(lager[AI_MODELL_KEY]).toBe('@cf/zai-org/glm-5.2')
-    } finally {
-      vi.unstubAllGlobals()
-    }
+describe('kompaktForModell', () => {
+  it('tar bort tomme felt og kapper desimaler', async () => {
+    const { kompaktForModell } = await import('./lendeAi.js')
+    expect(kompaktForModell({
+      lat: 59.123456789, lengdeM: 1234.5678, antall: 3, ok: false,
+      tom: null, tekst: '', liste: [], obj: {}, nest: { x: null },
+      treff: [{ navn: 'A', moh: 340.25, ekstra: undefined }],
+    })).toEqual({ lat: 59.12346, lengdeM: 1234.6, antall: 3, ok: false, treff: [{ navn: 'A', moh: 340.3 }] })
+    expect(kompaktForModell(null)).toBe(null)
+    expect(kompaktForModell('hei')).toBe('hei')
   })
+})
 
-  it('401 og 429 gir ingen reserve', async () => {
-    const { chatOnce, AI_MODELL_KEY } = await import('./lendeAi.js')
-    vi.stubGlobal('localStorage', {
-      getItem: (k) => (k === AI_MODELL_KEY ? '@cf/x/y' : null), setItem: () => {}, removeItem: () => {},
+describe('modellInfo', () => {
+  it('gir leverandør og lesbart navn', async () => {
+    const { modellInfo } = await import('./lendeAi.js')
+    expect(modellInfo('anthropic/claude-haiku-5.5')).toEqual({
+      id: 'anthropic/claude-haiku-5.5', leverandor: 'Anthropic', navn: 'Claude Haiku 5.5',
     })
-    let kall = 0
-    vi.stubGlobal('fetch', async () => { kall++; return { ok: false, status: 429, json: async () => ({}) } })
-    try {
-      await expect(chatOnce({ messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow(/dagskvoten/)
-      expect(kall).toBe(1)
-    } finally {
-      vi.unstubAllGlobals()
-    }
+    expect(modellInfo('@cf/openai/gpt-oss-120b')).toMatchObject({ leverandor: 'OpenAI', navn: 'GPT-OSS 120b' })
+    expect(modellInfo(null)).toBe(null)
   })
 })
