@@ -324,3 +324,45 @@ describe('erKappet og nytt forsøk ved tomt, kappet svar', () => {
     }
   })
 })
+
+describe('reserve når valgt modell er borte', () => {
+  it('faller til standardmodellen på 400/502', async () => {
+    const { chatOnce, AI_MODELL_KEY } = await import('./lendeAi.js')
+    const lager = { [AI_MODELL_KEY]: '@cf/zai-org/glm-5.2' }
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => lager[k] ?? null, setItem: () => {}, removeItem: () => {},
+    })
+    const kropper = []
+    vi.stubGlobal('fetch', async (_url, init) => {
+      const k = JSON.parse(init.body)
+      kropper.push(k)
+      if (k.model) return { ok: false, status: 502, json: async () => ({ error: 'Workers AI feilet: model deprecated' }) }
+      return { ok: true, json: async () => ({ response: 'Hei' }) }
+    })
+    try {
+      const res = await chatOnce({ messages: [{ role: 'user', content: 'x' }] })
+      expect(res.text).toBe('Hei')
+      expect(res.modell).toBe('')
+      expect(res.reserveFor).toBe('@cf/zai-org/glm-5.2')
+      expect(kropper.map((k) => k.model)).toEqual(['@cf/zai-org/glm-5.2', undefined])
+      expect(lager[AI_MODELL_KEY]).toBe('@cf/zai-org/glm-5.2')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('401 og 429 gir ingen reserve', async () => {
+    const { chatOnce, AI_MODELL_KEY } = await import('./lendeAi.js')
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => (k === AI_MODELL_KEY ? '@cf/x/y' : null), setItem: () => {}, removeItem: () => {},
+    })
+    let kall = 0
+    vi.stubGlobal('fetch', async () => { kall++; return { ok: false, status: 429, json: async () => ({}) } })
+    try {
+      await expect(chatOnce({ messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow(/dagskvoten/)
+      expect(kall).toBe(1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
