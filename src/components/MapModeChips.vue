@@ -142,6 +142,17 @@ function formatElevationDiff(m) {
         <span v-if="highlightedFeature.sub"
               class="truncate text-[11px] font-normal text-ink">{{ highlightedFeature.sub }}</span>
       </span>
+      <!-- «Spør Lende» ved markeringen: pillen skjuler snarvei-raden, og
+           dermed chat-knappen. Stedet ligger i chat-konteksten (markertSted). -->
+      <button v-if="chatAktiv" @click="$emit('chat')" aria-label="Spør Lende om stedet"
+              class="flex items-center gap-1 rounded-full bg-ink/15 px-2 py-1 -my-0.5
+                     text-[11px] font-semibold text-ink active:scale-95 shrink-0">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+        </svg>
+        <span :style="{ zoom: uiTextScale }">Spør Lende</span>
+      </button>
       <button @click="$emit('clearHighlight')" aria-label="Fjern markering"
               class="w-5 h-5 -mr-1 rounded-full flex items-center justify-center
                      text-ink active:bg-ink/20 shrink-0">
@@ -162,6 +173,15 @@ function formatElevationDiff(m) {
       <div class="text-[9px] text-ink-2 mt-0.5">
         {{ ANNOTATION_SYMBOLS.find(s => s.symbolKey === annot.selectedSymbol.value)?.label }}
       </div>
+      <button v-if="chatAktiv" @click="$emit('chat')"
+              class="pointer-events-auto mt-1.5 w-full flex items-center justify-center gap-1
+                     rounded bg-ink/15 px-2 py-1 text-[10px] font-medium active:scale-95">
+        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+        </svg>
+        Spør Lende
+      </button>
     </div>
   </div>
 
@@ -186,6 +206,15 @@ function formatElevationDiff(m) {
         A {{ formatElevation(measureStats.eleA) }} · B {{ formatElevation(measureStats.eleB) }}
         <div>Høydeforskjell: {{ formatElevationDiff(measureStats.eleDiffM) }}</div>
       </div>
+      <button v-if="chatAktiv" @click="$emit('chat')"
+              class="mt-1.5 flex items-center gap-1 rounded bg-ink/15 px-2 py-1
+                     text-[10px] font-medium active:scale-95">
+        <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+        </svg>
+        Spør Lende
+      </button>
     </div>
     <button @click="$emit('stopMeasure')" aria-label="Avslutt måling"
             class="-mt-0.5 -mr-0.5 w-6 h-6 flex items-center justify-center rounded-md

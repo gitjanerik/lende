@@ -2486,7 +2486,9 @@ const stiSelectedClimb = computed(() => stiRouteClimbs.value[sti.selectedRouteId
 // stiSelectedClimb (immediate-watch — TDZ ellers).
 watch([shareInfo, mapTitle, () => sti.mode.value, () => sti.routes.value,
        () => sti.selectedRouteIdx.value, stiSelectedClimb,
-       () => userPos.latRaw, () => userPos.lonRaw], ([s, tittel]) => {
+       () => userPos.latRaw, () => userPos.lonRaw,
+       highlightedFeature, contextMenuOpen, contextMenuInfo,
+       measureMode, measureStats, measureVertices, measureClosed], ([s, tittel]) => {
   const ctx = s ? {
     visning: 'turkart',
     kartId: route.params.id ?? null,
@@ -2509,6 +2511,38 @@ watch([shareInfo, mapTitle, () => sti.mode.value, () => sti.routes.value,
       stigningM: climb ? Math.round(climb.ascent) : null,
       fallM: climb ? Math.round(climb.descent) : null,
       estimertGangtidMin: sti.estWalkMinutes(rute.lengthM, climb),
+    }
+  }
+  // «Spør Lende» står også ved den rosa markeringen, i punkt-arket og i
+  // måleboksen — der snarvei-raden er skjult. Uten stedet i konteksten ville
+  // «hva er dette?» ikke hatt noe «dette» å svare om.
+  const tilLatLon = (x, y) => {
+    const { lat, lon } = svgToWgs84(x, y, meta.value)
+    return { lat: +lat.toFixed(6), lon: +lon.toFixed(6) }
+  }
+  const hf = highlightedFeature.value
+  if (ctx && meta.value && hf && Number.isFinite(hf.x) && Number.isFinite(hf.y)) {
+    ctx.markertSted = { navn: hf.name, ...(hf.sub ? { beskrivelse: hf.sub } : {}), ...tilLatLon(hf.x, hf.y) }
+  }
+  const ci = contextMenuOpen.value ? contextMenuInfo.value : null
+  if (ctx && ci?.inside) {
+    ctx.valgtPunkt = {
+      lat: +ci.lat.toFixed(6), lon: +ci.lon.toFixed(6),
+      hoydeM: Number.isFinite(ci.elevationM) ? Math.round(ci.elevationM) : null,
+      vann: ci.isWater || undefined,
+      naermesteSted: ci.place?.name ?? undefined,
+    }
+  }
+  const mv = measureVertices.value
+  if (ctx && meta.value && measureMode.value && mv.length >= 2) {
+    const ms = measureStats.value
+    ctx.maaling = {
+      lengdeM: Math.round(ms.distM),
+      ...(measureClosed.value ? { arealM2: Math.round(ms.areaM2) } : {}),
+      punkter: mv.length,
+      fra: tilLatLon(mv[0].x, mv[0].y),
+      til: tilLatLon(mv[mv.length - 1].x, mv[mv.length - 1].y),
+      ...(Number.isFinite(ms.eleDiffM) ? { hoydeforskjellM: Math.round(ms.eleDiffM) } : {}),
     }
   }
   setChatContext(ctx)
@@ -3848,6 +3882,8 @@ onUnmounted(() => {
       :nearest-poi-from-point="nearestPoiFromPoint"
       :on-place-annotation-from-context="onPlaceAnnotationFromContext"
       :on-apne-eksternt-kart="onApneEksterntKart"
+      :chat-aktiv="lendeChatEnabled"
+      :on-chat="openChat"
       :show-info-tip="showInfoTip"
       :info-tip-minimized="infoTipMinimized"
       :toggle-info-tip="toggleInfoTip" />

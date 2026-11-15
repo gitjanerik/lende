@@ -89,6 +89,8 @@ const props = defineProps({
   onPlaceAnnotationFromContext: { type: Function, required: true },
   // De to eksterne kartene, øverst i kroppen (v7.2.0) — se malen.
   onApneEksterntKart: { type: Function, required: true },
+  chatAktiv: { type: Boolean, default: false },
+  onChat: { type: Function, default: null },
   showInfoTip: { type: Boolean, default: false },
   infoTipMinimized: { type: Boolean, default: false },
   toggleInfoTip: { type: Function, required: true },
@@ -767,6 +769,18 @@ function formatDistance(m) {
       <!-- Handlinger. Koordinat-kopiering bor i headeren (ved tallene);
            eksterne karttjenester (Google/UT.no/Vegkart) bor i hovedmenyen. -->
       <div class="px-4 pt-4 rutenett">
+        <!-- Først: punktet ligger i chat-konteksten (valgtPunkt), så
+             «hva er det her?» har et svar. Arket blir stående under chatten. -->
+        <button v-if="chatAktiv && onChat" @click="onChat()"
+                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
+                       flex items-center gap-2 text-left leading-snug
+                       bg-emerald-500/15 border-emerald-400/40 text-ink">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+          </svg>
+          <span>Spør Lende om stedet</span>
+        </button>
         <button @click="onShareMap"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
                        flex items-center gap-2 text-left leading-snug
