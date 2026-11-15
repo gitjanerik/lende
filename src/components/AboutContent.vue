@@ -858,14 +858,16 @@ function tilPersonvern() {
         GPS-posisjonen din når den er slått på. Ingenting sendes før du sender
         en melding.
       </p>
-      <!-- Zero Data Retention er AV i AI Gatewayen (den stoppet partnermodellen
-           med feil 7007, v8.0.14). Slås den på igjen, kan teksten strammes. -->
+      <!-- Zero Data Retention er PÅ i AI Gatewayen (v8.0.15). Den gjelder
+           LEVERANDØREN; Gatewayens egen logg er en annen bryter, og teksten
+           må følge den. -->
       <p v-if="harChat" class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Hva som tas vare på.</strong>
         Lende lagrer ikke samtalen — lukker du chatten, er den borte.
-        {{ chatModell?.leverandor ?? 'Modellens leverandør' }} og Cloudflare
-        kan beholde meldingene en kort tid etter sine egne regler, blant annet
-        for å stoppe misbruk.
+        {{ chatModell?.leverandor ?? 'Modellens leverandør' }} lagrer heller
+        ikke meldingene: de slettes når svaret er sendt. Cloudflare, som sender
+        dem videre, fører en logg over forespørslene i Lendes egen konto. Den
+        brukes bare til å finne feil.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Som ved alle nettforespørsler ser mottakeren IP-adressen din.

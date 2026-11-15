@@ -214,16 +214,13 @@ async function send(text) {
       // runde — og de hermetiske engelske avvisningene («Your input is
       // lacking …») er funksjonskall-artefakter som forsvinner uten tools.
       const utenVerktoy = runde === 0 && stinettNotat
-      const { text: svarTekst, toolCalls, raw, kappet, reserve } = await chatOnce({
+      const { text: svarTekst, toolCalls, raw, kappet } = await chatOnce({
         messages: samtale,
         tools: runde < MAX_VERKTOEY_RUNDER && !utenVerktoy ? AI_TOOLS : undefined,
         toolNames: VERKTOEY_NAVN,
         signal: abortCtrl.signal,
       })
 
-      // Hovedmodellen feilet og Workerens reserve svarte: si det, ellers
-      // leses et svakere svar som at chatten er blitt dårligere.
-      if (reserve) svar.modell = 'Svart av reservemodellen — hovedmodellen var utilgjengelig.'
       if (!toolCalls.length) {
         if (!svarTekst.trim()) console.warn('[lende-ai] tomt svar', { kappet, raw })
         svar.content = svarTekst.trim() || (kappet

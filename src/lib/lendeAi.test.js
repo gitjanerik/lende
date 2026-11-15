@@ -313,7 +313,6 @@ describe('erKappet og nytt forsøk ved tomt, kappet svar', () => {
     try {
       const res = await chatOnce({ messages: [{ role: 'user', content: 'x' }] })
       expect(res.text).toBe('Hei')
-      expect(res.reserve).toBe(false)
       expect(kropper.map((k) => k.max_tokens)).toEqual([1024, 4096])
       expect(kropper.every((k) => !('model' in k))).toBe(true)
     } finally {
@@ -346,18 +345,18 @@ describe('Anthropic-formen (Claude via Workers AI, v8.0.11)', () => {
     expect(kall[0].id).toBe('tu_1')
   })
 
-  it('melder fra når Workerens reserve svarte', async () => {
+  it('viser Workerens «ikke tilgjengelig» når modellen feiler', async () => {
     const { chatOnce } = await import('./lendeAi.js')
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} })
+    vi.stubGlobal('console', { ...console, warn: () => {} })
     vi.stubGlobal('fetch', async () => ({
-      ok: true,
-      headers: { get: (h) => (h === 'X-Lende-Reserve' ? '1' : null) },
-      json: async () => ({ response: 'Hei' }),
+      ok: false,
+      status: 502,
+      json: async () => ({ error: 'Lende-chatten er ikke tilgjengelig akkurat nå. Prøv igjen om litt.', detalj: 'noe ukjent' }),
     }))
     try {
-      const res = await chatOnce({ messages: [{ role: 'user', content: 'x' }] })
-      expect(res.text).toBe('Hei')
-      expect(res.reserve).toBe(true)
+      await expect(chatOnce({ messages: [{ role: 'user', content: 'x' }] }))
+        .rejects.toThrow('Lende-chatten er ikke tilgjengelig akkurat nå.')
     } finally {
       vi.unstubAllGlobals()
     }
@@ -385,5 +384,23 @@ describe('modellInfo', () => {
     })
     expect(modellInfo('@cf/openai/gpt-oss-120b')).toMatchObject({ leverandor: 'OpenAI', navn: 'GPT-OSS 120b' })
     expect(modellInfo(null)).toBe(null)
+  })
+})
+
+describe('ikkeTilgjengeligTekst', () => {
+  it('sier årsaken rett ut når den er kjent', async () => {
+    const { ikkeTilgjengeligTekst } = await import('./lendeAi.js')
+    expect(ikkeTilgjengeligTekst('med reasoning: 2021: Insufficient unified billing credits. | uten: 2021: …'))
+      .toBe('Lende-chatten er ikke tilgjengelig: kreditten for chatten er brukt opp.')
+    expect(ikkeTilgjengeligTekst('7007: This request is not eligible for unified billing'))
+      .toMatch(/betalingsoppsettet/)
+    expect(ikkeTilgjengeligTekst('429 Too Many Requests')).toMatch(/for mange forespørsler akkurat nå\. Prøv igjen om litt\.$/)
+    expect(ikkeTilgjengeligTekst('request timed out')).toMatch(/svarte ikke i tide/)
+  })
+
+  it('gjetter ikke på en ukjent årsak', async () => {
+    const { ikkeTilgjengeligTekst } = await import('./lendeAi.js')
+    expect(ikkeTilgjengeligTekst('noe helt annet')).toBe(null)
+    expect(ikkeTilgjengeligTekst(null)).toBe(null)
   })
 })

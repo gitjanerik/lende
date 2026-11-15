@@ -39,10 +39,11 @@ function onSend() {
   void send(text)
 }
 
-// Taleinput — samme komposable og mønster som søkefeltene (MapSearchOverlay,
-// MapPickerContent m.fl.): transkriptet legges i feltet, brukeren sender selv.
+// Diktering SENDER med en gang (v8.0.15): det man sier er meldingen, og et
+// Send-trykk etterpå er et ekstra trykk med hendene fulle. Feltet fokuseres
+// ikke — det ville bare åpnet tastaturet over svaret man venter på.
 const { isSupported: micSupported, isListening: micListening, toggle: toggleMic } =
-  useSpeechInput({ onResult: (t) => { input.value = t; inputRef.value?.focus() } })
+  useSpeechInput({ onResult: (t) => { input.value = t; onSend() } })
 
 // Autoscroll til bunnen mens svaret strømmer inn.
 watch(
@@ -108,7 +109,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
               class="font-semibold">{{ seg.tekst }}</strong><em v-else-if="seg.kursiv">{{ seg.tekst }}</em><template
               v-else>{{ seg.tekst }}</template></template><span v-if="busy && i === messages.length - 1 && m.role === 'assistant'"
                                  class="chat-cursor" aria-hidden="true" /></template>
-            <span v-if="m.modell" class="block mt-1 text-[11px] text-ink-4 whitespace-normal">{{ m.modell }}</span>
           </div>
           <!-- Pekere: treff fra kartinnhold-verktøyet. Ett trykk lukker chatten,
                slår på laget og merker objektet med den rosa ringen. -->

@@ -30,7 +30,7 @@ function corsHeaders(origin) {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept',
     'Access-Control-Max-Age': '86400',
-    'Access-Control-Expose-Headers': 'X-Lende-Modell, X-Lende-Reserve, X-Lende-Feil',
+    'Access-Control-Expose-Headers': 'X-Lende-Modell, X-Lende-Feil',
     Vary: 'Origin',
   }
 }
@@ -81,7 +81,7 @@ export default {
     // Uautentisert helsesjekk — brenner ingen neurons, brukes til å verifisere
     // deploy uten å dele ut tokens.
     if (request.method === 'GET' && url.pathname === '/health') {
-      return json(200, { ok: true, model: env.MODEL ?? null, reserve: env.RESERVE_MODEL || null }, cors)
+      return json(200, { ok: true, model: env.MODEL ?? null }, cors)
     }
 
     if (request.method !== 'POST' || url.pathname !== '/api/ai') {
@@ -115,34 +115,22 @@ export default {
     if (Array.isArray(body.tools) && body.tools.length > 0) params.tools = body.tools
     if (body.stream === true) params.stream = true
 
-    // Hovedmodellen er en partnermodell (Anthropic via Workers AI), og den
-    // kan være nede uten at Lende har gjort noe galt. Da svarer reserven, og
-    // `X-Lende-Modell` sier hvem som svarte — chatten merker svaret, og
-    // røyktesten feiler på det, så en feil id ikke skjules av reserven.
-    let modell = env.MODEL
+    // ÉN modell, ingen reserve (v8.0.15). Et svar fra en annen modell leses
+    // som at chatten er blitt dårligere, så heller et ærlig «ikke tilgjengelig»
+    // — `detalj` og X-Lende-Feil bærer årsaken til konsollen og røyktesten.
+    const modell = env.MODEL
     let result
-    let hovedFeil = null
     try {
       result = await kjor(env, modell, params)
     } catch (err) {
-      if (!env.RESERVE_MODEL || env.RESERVE_MODEL === modell) {
-        return json(502, { error: `Workers AI feilet: ${err?.message ?? 'ukjent'}` }, cors)
-      }
-      hovedFeil = String(err?.message ?? 'ukjent')
-      console.warn(`[lende-ai] ${modell} feilet, prøver ${env.RESERVE_MODEL}: ${hovedFeil}`)
-      modell = env.RESERVE_MODEL
-      try {
-        result = await kjor(env, modell, params)
-      } catch (err2) {
-        return json(502, { error: `Workers AI feilet: ${err2?.message ?? 'ukjent'}` }, cors)
-      }
+      const detalj = String(err?.message ?? 'ukjent')
+      console.warn(`[lende-ai] ${modell} feilet: ${detalj}`)
+      return json(502, {
+        error: 'Lende-chatten er ikke tilgjengelig akkurat nå. Prøv igjen om litt.',
+        detalj,
+      }, { ...cors, 'X-Lende-Feil': detalj.replace(/[^\x20-\x7e]/g, '?').slice(0, 400) })
     }
-    const modellHode = {
-      'X-Lende-Modell': modell,
-      ...(modell !== env.MODEL ? { 'X-Lende-Reserve': '1' } : {}),
-      // Hvorfor hovedmodellen feilet — lesbar i røyktesten uten Worker-loggen.
-      ...(hovedFeil ? { 'X-Lende-Feil': hovedFeil.replace(/[^\x20-\x7e]/g, '?').slice(0, 400) } : {}),
-    }
+    const modellHode = { 'X-Lende-Modell': modell }
 
     // Streaming gir en ReadableStream med SSE-bytes; ellers et JSON-objekt.
     // Formen varierer per modell — klassisk Workers AI ({ response }),

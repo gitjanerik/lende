@@ -381,3 +381,4 @@ describe('useLendeChat — temasperre', () => {
     expect(sys).toContain('Jeg svarer bare på spørsmål om kartet, stedene og turene dine i Lende.')
   })
 })
+
