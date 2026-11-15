@@ -240,26 +240,36 @@ try {
   sjekk('X-en skjuler varselet i utsnitts-velgeren', vBorte, vBorte ? 'borte' : 'står igjen')
   await sV.close()
 
-  // /om har TO faner fra v7.8.14 (Fritt lende-fana falt med modusen). En fane
-  // er lett å miste i en refaktorering av v-if/v-else-kjeden, og den som blir
-  // stående må fortsatt kunne velges — en `v-else` som aldri nås ser helt
-  // normal ut i koden. Sjekken er nettverksfri.
+  // /om er lukkede seksjoner med søk fra v8.0.13 (Turkart og Ruteplanlegger
+  // var faner, og Fritt lende-fana falt i v7.8.14). Sjekken trykker på en
+  // overskrift og søker, fordi det er de to tingene som kan være brutt uten at
+  // markupen ser annerledes ut. Nettverksfri.
   const s6 = await ctx.newPage()
   s6.on('pageerror', (e) => jsFeil.push(e.message))
   await s6.goto(`${BASE}/om`, { waitUntil: 'domcontentloaded' })
   await sov(700)
-  const faner = await s6.evaluate(() => [...document.querySelectorAll('button')]
-    .map((b) => b.textContent.trim())
-    .filter((t) => ['Turkart', 'Fritt lende', 'Ruteplanlegger'].includes(t)))
-  sjekk('/om har begge fanene, og ingen Fritt lende-fane',
-    faner.length === 2 && !faner.includes('Fritt lende'),
-    faner.join(', ') || 'fant ingen')
+  const seksjoner = await s6.evaluate(() => [...document.querySelectorAll('[data-seksjon] > summary')]
+    .map((el) => el.textContent.trim()))
+  sjekk('/om har Turkart og Ruteplanlegger som seksjoner, og ingen Fritt lende',
+    seksjoner.includes('Turkart') && seksjoner.includes('Ruteplanlegger') && !seksjoner.includes('Fritt lende'),
+    seksjoner.join(', ') || 'fant ingen')
+  const lukket = await s6.evaluate(() => [...document.querySelectorAll('[data-seksjon]')].every((d) => !d.open))
+  sjekk('/om: seksjonene er lukket fra start', lukket, lukket ? 'alle lukket' : 'noen åpne')
 
-  await s6.locator('button', { hasText: 'Ruteplanlegger' }).first().click()
+  await s6.locator('summary', { hasText: 'Ruteplanlegger' }).first().click()
   await sov(300)
   const ruteTekst = await s6.evaluate(() => document.body.innerText)
-  sjekk('/om: Ruteplanlegger-fanen kan velges og forklarer seg',
-    /grus/i.test(ruteTekst), 'fanen byttet innhold')
+  sjekk('/om: Ruteplanlegger-seksjonen åpnes og forklarer seg',
+    /grus- og stiruter/i.test(ruteTekst), 'seksjonen åpnet')
+
+  await s6.fill('#om-sok', 'meridian')
+  await sov(300)
+  const synlige = await s6.evaluate(() => [...document.querySelectorAll('[data-seksjon]')]
+    .filter((d) => !d.hidden).map((d) => ({ tittel: d.querySelector('summary').textContent.trim(), open: d.open })))
+  sjekk('/om: søket viser og åpner bare seksjonene med treff',
+    synlige.length === 1 && synlige[0].tittel === 'Nord er nord' && synlige[0].open,
+    JSON.stringify(synlige))
+  await s6.close()
 
   // TEGNFORKLARINGEN MÅ TÅLE 200 % TEKST (v6.5.43). Raden var en fast
   // 120 px-prøve med `shrink-0` og en tekstspalte som fikk resten: ved 200 % på
