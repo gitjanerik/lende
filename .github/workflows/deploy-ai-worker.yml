@@ -102,6 +102,18 @@ jobs:
                   "max_tokens":150}')
             echo "$RUNDTUR" | head -c 400; echo
             echo "$RUNDTUR" | grep -Eqi '"response"|"content": *"|"text": *"' || { echo "::error::Verktøy-rundturen ga ikke tekstsvar — meldingsformen avvist?"; exit 1; }
+            echo "— /api/ai første runde med tools (system + bruker, ingen historikk) —"
+            # Gatewayen gjettet Anthropic-format her og avviste tools.0 (v8.0.16).
+            FORSTE=$(curl -sS -w '\n%{http_code}' -X POST "$BASE/api/ai" \
+              -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
+              -d '{"messages":[
+                    {"role":"system","content":"Du er en testassistent. Bruk verktøyet."},
+                    {"role":"user","content":"Hvor ligger Håøya?"}
+                  ],
+                  "tools":[{"type":"function","function":{"name":"sok_sted","description":"Søk etter et stedsnavn og få koordinater.","parameters":{"type":"object","properties":{"navn":{"type":"string"}},"required":["navn"]}}}],
+                  "max_tokens":200}')
+            echo "$FORSTE" | head -c 400; echo
+            test "$(echo "$FORSTE" | tail -1)" = "200" || { echo "::error::Første runde med tools ble avvist"; exit 1; }
           fi
         env:
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}

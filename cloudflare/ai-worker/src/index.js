@@ -12,6 +12,8 @@
 // Modellen er en var (MODEL i wrangler.toml) så bytte er en én-linjes deploy,
 // jf. leverandør-agnostisk design i AI_ARKITEKTUR.md.
 
+import { tilAnthropic } from './anthropic.js'
+
 const ALLOWED_ORIGINS = new Set([
   'https://gitjanerik.github.io',
   'http://localhost:5173',
@@ -121,7 +123,7 @@ export default {
     const modell = env.MODEL
     let result
     try {
-      result = await kjor(env, modell, params)
+      result = await kjor(env, modell, modell.startsWith('anthropic/') ? tilAnthropic(params) : params)
     } catch (err) {
       const detalj = String(err?.message ?? 'ukjent')
       console.warn(`[lende-ai] ${modell} feilet: ${detalj}`)
