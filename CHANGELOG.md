@@ -1,3 +1,9 @@
+## 2026-11-15 — v8.0.16: Første spørsmål i chatten avvises ikke lenger
+
+Lende-chatten svarte «ikke tilgjengelig» på første spørsmål i en ny samtale, mens oppfølgingene gikk fint. AI Gatewayen gjetter formatet ut fra innholdet: med verktøykall i historikken leser den chattens OpenAI-form riktig, men første runde — bare systemprompt, spørsmål og verktøyliste — tolkes som Anthropics eget format, og da avvises verktøyene («tools.0: Input tag 'function' … does not match»). Det var også grunnen til at reserven tok første runde i Stormoen-samtalen. AI-Workeren oversetter nå hele forespørselen til Anthropics Messages-form for Claude-modellene (`cloudflare/ai-worker/src/anthropic.js`, testet): systemprompten løftes ut, verktøykall blir `tool_use`, verktøysvar blir `tool_result` i en bruker-melding, og verktøyene får `input_schema`. Klienten leste Anthropic-svar fra før. Røyktesten har fått nettopp denne forespørselen, så den feiler neste gang formatet gjettes feil.
+
+---
+
 ## 2026-11-15 — v8.0.15: Én modell i chatten, diktering sendes med en gang
 
 Trykker man på mikrofonen i Lende-chatten, sendes meldingen nå i det talegjenkjenningen er ferdig, uten et Send-trykk etterpå. Det man sier er meldingen, og et ekstra trykk er nettopp det man vil slippe med hendene fulle ute. Feltet fokuseres heller ikke lenger etter dikteringen, siden det bare åpnet tastaturet over svaret man venter på. Søkefeltene er uendret: der kommer treffene alt mens man snakker ferdig, og å velge det første treffet automatisk ville gjettet på vegne av brukeren.
