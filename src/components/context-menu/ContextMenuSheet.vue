@@ -235,6 +235,21 @@ function formatDistance(m) {
            og etiketten dyttet dem ned på en egen linje ved stor tekst. -->
       <div class="px-4 pt-3 flex flex-wrap items-center gap-2"
            :style="{ zoom: uiTextScale }">
+        <!-- Spør Lende står FØRST i raden (v8.0.11): punktet ligger i
+             chat-konteksten (valgtPunkt), og «hva er det her?» er samme slags
+             neste spørsmål som å se stedet hos noen andre — men den blir i
+             appen, derfor egen farge og ikke ut-ikonet. Bare med chat-tilgang. -->
+        <button v-if="chatAktiv && onChat" type="button" @click="onChat()"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl
+                       bg-emerald-500/15 text-[12px] text-ink font-medium
+                       active:scale-95 transition hover:bg-emerald-500/25">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0"
+               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
+          </svg>
+          Spør Lende
+        </button>
         <button type="button" @click="onApneEksterntKart('utno')"
                 class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-ink/8
                        text-[12px] text-ink font-medium active:scale-95 transition
@@ -769,18 +784,6 @@ function formatDistance(m) {
       <!-- Handlinger. Koordinat-kopiering bor i headeren (ved tallene);
            eksterne karttjenester (Google/UT.no/Vegkart) bor i hovedmenyen. -->
       <div class="px-4 pt-4 rutenett">
-        <!-- Først: punktet ligger i chat-konteksten (valgtPunkt), så
-             «hva er det her?» har et svar. Arket blir stående under chatten. -->
-        <button v-if="chatAktiv && onChat" @click="onChat()"
-                class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
-                       flex items-center gap-2 text-left leading-snug
-                       bg-emerald-500/15 border-emerald-400/40 text-ink">
-          <svg viewBox="0 0 24 24" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>
-          </svg>
-          <span>Spør Lende om stedet</span>
-        </button>
         <button @click="onShareMap"
                 class="px-3 py-2.5 rounded-lg border text-[12px] active:scale-[0.98]
                        flex items-center gap-2 text-left leading-snug

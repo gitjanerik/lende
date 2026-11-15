@@ -16,30 +16,22 @@ binding = "AI"
 # rettet funksjonskallingen, men svarte ustøtt: unødvendige oppklarings-
 # spørsmål, selvmotsigelser rett etter et vellykket verktøykall og ugrammatisk
 # norsk.
-# gpt-oss-120b (v6.5.80): $0,35 inn / $0,39 ut per M den gang — nå $0,75 ut
-# (nov. 2026). Sterkere på funksjonskalling og strukturert output, 128K
-# kontekst. Målt nov. 2026: det er INPUT som dominerer (system-prompt +
-# verktøyskjemaer sendes på nytt hver verktøyrunde), ikke output.
+# gpt-oss-120b (v6.5.80–v8.0.10): $0,35 inn / $0,75 ut per M. Solid
+# funksjonskalling, men svak norsk og ustø i lange verktøykjeder.
+# GLM-5.2 og Kimi K2.6 (testet v8.0.7) fases ut 20.11.2026, og GLM-4.7-flash
+# holdt ikke mål i en ny runde (v8.0.10).
+# Claude Haiku 5.5 (v8.0.11): partnermodell via Workers AI, $0,10 inn / $0,50
+# ut per M (under 100K tokens). Det er INPUT som dominerer — prompten og
+# verktøyskjemaene sendes på nytt hver verktøyrunde. Valget i Utvikler-fana
+# er fjernet: én modell, og reserven tar over når den feiler.
 [vars]
-MODEL = "@cf/openai/gpt-oss-120b"
+MODEL = "anthropic/claude-haiku-5.5"
+RESERVE_MODEL = "@cf/openai/gpt-oss-120b"
 
-# gpt-oss ER en resonnerings-modell, og det var nettopp det som drepte
-# GLM-4.7-flash: tenkingen gikk på engelsk og spiste budsjettet. Forskjellen er
-# at denne har en knott. Tom verdi = ikke send feltet i det hele tatt.
+# Lav innsats: en chat skal svare, ikke resonnere i lengden. Feltet sendes,
+# og kallet kjøres om uten det hvis modellen avviser det (kjor() i index.js).
+# Tom verdi = ikke send feltet i det hele tatt.
 REASONING_EFFORT = "low"
-
-# Modeller som kan prøves fra Utvikler-fana uten deploy (v8.0.7). Klienten
-# sender `model`, og Workeren godtar bare id-ene her (pluss MODEL). Id-ene er
-# slått opp i Cloudflares changelog, ikke gjettet — en feil id gir 502 med
-# Workers AIs egen melding i chatten, som er målingen. GLM-5.2 krever betalt
-# Workers AI-plan.
-# GLM-5.2 og Kimi K2.6 fases ut av Workers AI 20.11.2026 — da svarer de 502, og
-# klienten faller tilbake til MODEL (`chatOnce`). Stryk dem herfra etter datoen.
-# GLM-4.7-flash ($0,06 inn / $0,40 ut) er tilbake som KANDIDAT: den ble
-# forkastet som standard i juli 2026 (tomme svar etter engelsk tenking), men
-# klienten leser nå begge svarformene, ber om nytt forsøk med fullt budsjett
-# når svaret er kappet, og Workeren sender reasoning.effort = low.
-MODELLER = "@cf/zai-org/glm-5.2,@cf/moonshotai/kimi-k2.6,@cf/zai-org/glm-4.7-flash"
 
 # Secreten LENDE_AI_TOKENS (kommaseparerte per-bruker-tokens) settes IKKE her.
 # CI-deployen (.github/workflows/deploy-ai-worker.yml) pusher den fra GitHub-

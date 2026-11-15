@@ -74,14 +74,18 @@ jobs:
           if [ -n "$LENDE_AI_TOKENS" ]; then
             echo "— /api/ai med token + norsk prompt —"
             TOK="${LENDE_AI_TOKENS%%,*}"
-            SVAR=$(curl -fsS -X POST "$BASE/api/ai" \
+            SVAR=$(curl -fsS -D hoder.txt -X POST "$BASE/api/ai" \
               -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
               -d '{"messages":[{"role":"user","content":"Svar med én kort setning på norsk: hva er en ekvidistanse på et turkart?"}],"max_tokens":300}')
             echo "$SVAR" | head -c 500; echo
             # Godta begge svarformatene fra Workers AI: klassisk {response} og
             # OpenAI-stil choices[].message.content (må ha faktisk tekst — en
             # resonneringsmodell som brenner budsjettet gir content:null og skal feile).
-            echo "$SVAR" | grep -Eqi '"response"|"content": *"' || { echo "::error::Fant ikke tekstsvar fra modellen"; exit 1; }
+            grep -i '^x-lende-' hoder.txt || true
+            # Reserven skal ikke skjule at hovedmodellen feiler (feil id, ikke
+            # slått på i kontoen): da er deployen rød, selv om chatten virker.
+            if grep -qi '^x-lende-reserve' hoder.txt; then echo "::error::Hovedmodellen $FORVENTET svarte ikke — reserven tok over. Se Worker-loggen."; exit 1; fi
+            echo "$SVAR" | grep -Eqi '"response"|"content": *"|"text": *"' || { echo "::error::Fant ikke tekstsvar fra modellen"; exit 1; }
             echo "— /api/ai verktøy-rundtur (Fase 3-meldingsformen må aksepteres av skjemaet) —"
             # Etterligner nøyaktig det chatten sender i runde 2: sanert
             # assistent-melding med tool_calls (content: streng, aldri null) +
@@ -98,7 +102,7 @@ jobs:
                   "tools":[{"type":"function","function":{"name":"sok_sted","description":"Søk etter et stedsnavn og få koordinater.","parameters":{"type":"object","properties":{"navn":{"type":"string"}},"required":["navn"]}}}],
                   "max_tokens":150}')
             echo "$RUNDTUR" | head -c 400; echo
-            echo "$RUNDTUR" | grep -Eqi '"response"|"content": *"' || { echo "::error::Verktøy-rundturen ga ikke tekstsvar — meldingsformen avvist?"; exit 1; }
+            echo "$RUNDTUR" | grep -Eqi '"response"|"content": *"|"text": *"' || { echo "::error::Verktøy-rundturen ga ikke tekstsvar — meldingsformen avvist?"; exit 1; }
           fi
         env:
           LENDE_AI_TOKENS: ${{ secrets.LENDE_AI_TOKENS }}

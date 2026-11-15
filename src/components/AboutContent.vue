@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { hasAiToken, hentAiModell } from '../lib/lendeAi.js'
 import VersjonSjekk from './VersjonSjekk.vue'
 import { useOsmOppdatering } from '../composables/useOsmOppdatering.js'
 import UtmSoneFigur from './UtmSoneFigur.vue'
@@ -38,6 +39,16 @@ async function onInstallClick() {
 // Ruller selv i stedet for scrollIntoView: innholdet bor både på /om (vinduet
 // ruller) og i AboutModal (modal-kroppen ruller), og scrollIntoView ruller også
 // forfedre som er overflow-hidden — som MapView-rota modalen kan ligge over.
+// Lende-chatten finnes bare for den som har fått en invitasjon, og da skal
+// personvernet si hvor meldingene går. Modellen leses fra Workeren, så
+// teksten følger med om modellen byttes.
+const harChat = hasAiToken()
+const chatModell = ref(null)
+onMounted(async () => {
+  if (!harChat) return
+  try { chatModell.value = await hentAiModell() } catch { /* generisk tekst */ }
+})
+
 const personvernRef = ref(null)
 function tilPersonvern() {
   const maal = personvernRef.value
@@ -722,6 +733,20 @@ function tilPersonvern() {
         til punktet til Wikipedia for å finne nærmeste artikkel, og stedsnavnet
         til Store norske leksikon. Det skjer bare når du ber om det. Er punktet
         din egen posisjon, er det posisjonen din som sendes.
+      </p>
+      <p v-if="harChat" class="text-[13px] leading-relaxed text-ink-2">
+        <strong class="text-ink">Lende-chatten.</strong>
+        Chatten drives av
+        <template v-if="chatModell?.leverandor">{{ chatModell.navn }} fra {{ chatModell.leverandor }},</template>
+        <template v-else-if="chatModell">{{ chatModell.navn }},</template>
+        <template v-else>en KI-språkmodell,</template>
+        via Cloudflare Workers AI. Når du skriver i chatten, sendes det du
+        skriver til
+        {{ chatModell?.leverandor ?? 'modellens leverandør' }} sammen med
+        opplysninger om kartet du står i: navn og utsnitt, punktet du peker på
+        eller har markert, en måling eller tur du har tegnet inn, og
+        GPS-posisjonen din når den er slått på. Ingenting sendes før du sender
+        en melding, og samtalen lagres ikke hos Lende.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Som ved alle nettforespørsler ser mottakeren IP-adressen din.
