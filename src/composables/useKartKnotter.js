@@ -91,7 +91,7 @@ export function useKartKnotter({
 
   // ---- relieff-innstillinger, auto-av og reliefActive --------------
   // Relieff (terrengskygge) av/på + stil — fra v12.0.18 PER KART med global
-  // standard som fallback (useReliefSettings). `reliefEnabled`/`reliefMode` er de
+  // standard som fallback (useReliefSettings; stilen er global fra v8.0.30). `reliefEnabled`/`reliefMode` er de
   // EFFEKTIVE verdiene for kartet som vises (leses av applyHillshade, buildGhostSvg
   // og FAB-en); Innstillinger-fanen binder de GLOBALE. Relieff-FAB-panelet
   // (long-press) redigerer per-kart-verdiene. 'vektor' (default) = diskrete

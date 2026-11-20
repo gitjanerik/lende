@@ -944,6 +944,14 @@ dyttet inn foran seg.
 to steder — men brukeren stiller dem med ÉN skyv, der «0» betyr av. Komponentene
 er dumme med vilje: de viser trinnet de får og sier fra når brukeren drar.
 
+**RELIEFF-STILEN (skarp/mjuk) ER GLOBAL FRA v8.0.30**, som styrken
+(`useReliefSettings.reliefMode`). Den var per kart, og hoppet tilbake til
+«Skarp» hver gang appen byttet kart-id under brukeren — «Gjør dette til
+hovedkart» og «Bygg på nytt» gir en ny id, og init-prefs bærer tema og lag men
+ikke relieff. Valget står bare i Kartstil-fana (Format-fanas globale kopi er
+borte), og gamle per-kart-verdier leses ikke og ryddes ved neste valg.
+Nabofliser er fortsatt alltid vektor (`useGhostTiles`), med vilje.
+
 **OG FRA v7.8.4 GJELDER DET BEGGE FLATENE.** Kartstil-fana hadde en av/på-bryter
 (per kart) VED SIDEN AV styrke-slideren (global), mens raden hadde bare slideren.
 Begrunnelsen var at bryteren og knotten er to ulike ting som lagres to steder —

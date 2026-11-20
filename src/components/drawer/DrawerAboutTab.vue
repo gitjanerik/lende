@@ -54,7 +54,6 @@ const isAtDefaults = computed(() =>
   mapEquidistance.value == null
 )
 const globalReliefEnabled = defineModel('globalReliefEnabled', { type: Boolean, default: true })
-const globalReliefMode = defineModel('globalReliefMode', { type: String, default: 'vektor' })
 </script>
 
 <template>
@@ -175,29 +174,6 @@ const globalReliefMode = defineModel('globalReliefMode', { type: String, default
         <span class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
               :class="globalReliefEnabled ? 'left-5' : 'left-0.5'" />
       </button>
-    </div>
-    <!-- Relieff-stil (global standard): vektor (skarpe tone-bånd, liten fil,
-         best print) vs mjuk (myk PNG-gradient, men multi-MB i fil/eksport). -->
-    <div v-if="globalReliefEnabled" class="rounded-lg bg-ink/5 px-3 py-2.5 mb-3">
-      <div class="text-[13px] text-ink font-medium mb-2">Relieff-stil</div>
-      <div class="flex gap-2" role="group" aria-label="Relieff-stil">
-        <button @click="globalReliefMode = 'vektor'"
-                :aria-pressed="globalReliefMode === 'vektor'"
-                class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                :class="globalReliefMode === 'vektor' ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
-          Skarp (vektor)
-        </button>
-        <button @click="globalReliefMode = 'mjuk'"
-                :aria-pressed="globalReliefMode === 'mjuk'"
-                class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
-                :class="globalReliefMode === 'mjuk' ? 'bg-emerald-700 text-white' : 'bg-ink/10 text-ink-2'">
-          Mjuk (bilde)
-        </button>
-      </div>
-      <div class="text-[11px] text-ink-3 leading-snug mt-1.5">
-        Skarp = tone-bånd som vektor: liten fil, knivskarpt ved zoom og print.
-        Mjuk = myk gradient (foto-relieff), men gir et tungt bilde i kart-fila.
-      </div>
     </div>
     <p class="text-ink-4 text-[10px] mt-1">v{{ APP_VERSION }}</p>
   </div>

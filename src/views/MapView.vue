@@ -3743,7 +3743,6 @@ onUnmounted(() => {
             id="drawer-panel-om" role="tabpanel" aria-labelledby="drawer-fane-om"
             v-model:map-size-slider="mapSizeSlider"
             v-model:global-relief-enabled="globalReliefEnabled"
-            v-model:global-relief-mode="globalReliefMode"
             :rebuild-at-chosen-size="rebuildAtChosenSize"
             :building="buildingOnTheFly" :can-rebuild="!!meta?.bbox" />
 
