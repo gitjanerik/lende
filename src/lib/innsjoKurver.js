@@ -99,7 +99,8 @@ function linjerFra(geom) {
 export function byggKurveFil(nr, kurveFeatures, omrissFeatures, { tolM = 1.5 } = {}) {
   const kurver = []
   for (const f of kurveFeatures) {
-    const dybde = Number(f?.properties?.dybde_m)
+    const raa = f?.properties?.dybde_m
+    const dybde = raa == null || raa === '' ? NaN : Number(raa)
     if (!Number.isFinite(dybde) || dybde < 0) continue
     const type = kurveType(f?.properties?.objekttype)
     for (const linje of linjerFra(f.geometry)) {
