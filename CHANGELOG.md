@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.23: Hornindalsvatnet blant eksemplene i Om appen
+
+Hornindalsvatnet, Nord-Europas dypeste innsjø med 514 m, står nå blant eksempellenkene i «Innsjøer med dybde», rett etter Tyrifjorden. Et trykk bygger demo-utsnittet i Padling, som de andre eksemplene. Der kan man dykke ned i innsjøen i 3D.
+
+---
+
 ## 2026-11-20 — v8.0.22: Dykk ned i innsjøen i 3D
 
 De blå knappenålene i innsjø-volumet er byttet ut med et dykk. En pulserende ring over det dypeste punktet, eller knappen «Dykk» i bunnraden, tar kameraet gjennom vannflata og ned til bunnen. Der ser man opp mot flata, og man kan se seg rundt ved å dra. Det blir mørkere jo dypere man er. Mørket øker raskt de første metrene og flater ut ved 150 m, så Tyrifjorden på 288 m blir mørkeblå og ikke svart. Disen tykner med dybden, men flata over skal alltid kunne skimtes, for den viser hvor opp er. Under vann er himmel, skyer, regn og lyn skjult. Flata sett nedenfra er lyseblå, det kommer bobler på vei ned og opp, og det blinker kort når man bryter gjennom vannflata. Under vann står bare «Til overflaten» og dybden i meter igjen på skjermen. Escape tar deg også opp. Med redusert bevegelse er dykket et rent kutt uten bobler. Kameraet følger den senkede bunnen og ikke det ekte terrenget, ellers ville gulvet ha løftet det rett opp gjennom flata. Banen spilles av den frie riggen (`freeRig.spillSekvens`), og disen eies av `sceneCore.setUnderVann`. Regnestykkene står i `lib/tour3d/innsjoDykk.js` (ren, testet).
