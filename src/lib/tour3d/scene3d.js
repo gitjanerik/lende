@@ -53,6 +53,7 @@ import { buildInnsjoVolum, tonBunn } from './innsjoVolum.js'
 import {
   dypestePunkt, utenInnsjoNaler, undervannsGulv, dykkSekvens, oppSekvens, ekteDybde,
   undervannsFarge, undervannsDis, undervannsMorke, bratteVegg, dykkeTur, dypRenne,
+  dybdeVed, svommingIgjen,
 } from './innsjoDykk.js'
 
 export { TourSceneError }
@@ -517,6 +518,8 @@ export async function create3dScene(container, {
     return true
   }
 
+  const AUTOTUR_MS = 1500
+
   function dykkMaal() {
     const d = innsjoPlan?.dykk
     if (!d || !innsjoVolum) return null
@@ -536,7 +539,15 @@ export async function create3dScene(container, {
       : -Infinity))
     freeRig.spillSekvens(dykkSekvens({ ...m, redusert }), {
       underVann: true,
-      ferdig: () => { dykkTilstand = 'bunn'; sendDykk(true) },
+      ferdig: () => {
+        dykkTilstand = 'bunn'
+        sendDykk(true)
+        // Svømmeturen starter av seg selv etter et pust på bunnen. Med
+        // redusert bevegelse er turen et kutt, og da venter den på knappen.
+        if (!redusert && turMaal()) {
+          setTimeout(() => { if (dykkTilstand === 'bunn') startDykketur() }, AUTOTUR_MS)
+        }
+      },
     })
     sendDykk(true)
     return true
@@ -558,6 +569,20 @@ export async function create3dScene(container, {
     sendDykk(true)
   }
 
+  // Under svømmeturen: innsjøens dybde der svømmeren er, og hvor langt det er
+  // igjen å svømme.
+  function turStatus(under) {
+    if (dykkTilstand !== 'tur') return { pauset: false }
+    const st = freeRig.sekvensStatus
+    const p = camera.position
+    const { x, y } = coords.toSvg(p.x, p.z)
+    return {
+      pauset: freeRig.pauset,
+      bunnDybde: under ? dybdeVed(innsjoPlan.bunn, innsjoPlan.grov, x, y) : null,
+      igjen: st ? svommingIgjen(st.steg, st.i, p.x, p.z) : 0,
+    }
+  }
+
   function sendDykk(straks = false, nowMs = 0) {
     if (!straks && nowMs - sisteDykkEmit < TREKK_EMIT_MS) return
     sisteDykkEmit = nowMs
@@ -572,6 +597,7 @@ export async function create3dScene(container, {
       under,
       dybde,
       morke: under ? undervannsMorke(dybde) : 0,
+      ...turStatus(under),
     })
   }
 
@@ -1174,8 +1200,12 @@ export async function create3dScene(container, {
     dykkOpp(opts) { dykkOpp(opts) },
     /** Fra bunnen: gli til den bratteste veggen og stig langs berget. */
     dykketur(opts) { return startDykketur(opts) },
-    /** Stopp dykketuren der kameraet er, og se deg rundt. */
-    stoppDykketur() { if (dykkTilstand === 'tur') freeRig.stoppSekvens() },
+    /** Sett dykketuren på pause eller i gang igjen. */
+    pauseDykketur(paa) {
+      if (dykkTilstand !== 'tur') return
+      freeRig.settPause(paa)
+      sendDykk(true)
+    },
     /** Fly tilbake til innsjøen. Under vann: opp først. */
     tilInnsjoen() {
       if (!innsjoVolum) return
