@@ -483,7 +483,7 @@ function tilPersonvern() {
       </div>
     </details>
 
-    <!-- Innsjødybder (v8.0.20): hva Padling og 3D gjør med NVEs dybdekart, og
+    <!-- Innsjødybder (v8.0.20): hva kartet og 3D gjør med NVEs dybdekart, og
          lista som bygger et kart over en av dem. -->
     <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
       <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
@@ -494,10 +494,10 @@ function tilPersonvern() {
       <div class="px-4 pb-4 space-y-3">
       <p class="text-[13px] leading-relaxed text-ink-2">
         NVE har dybdekartlagt rundt 680 norske innsjøer, de fleste av de store
-        og mange av padlevannene rundt byene. I kartstilen
-        <strong class="text-ink">Padling</strong> står maksdypet under navnet på
-        hver av dem, og innsjøer med dybdekurver får en
-        <strong class="text-ink">Dybde</strong>-knapp.
+        og mange av padlevannene rundt byene. Innsjøer med dybdekurver får en
+        <strong class="text-ink">Dybde</strong>-knapp i kartet, uansett
+        kartstil. I <strong class="text-ink">Padling</strong> står i tillegg
+        maksdypet under navnet på hver av dem.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Knappen åpner innsjøen i <strong class="text-ink">3D som et volum</strong>:
@@ -507,7 +507,15 @@ function tilPersonvern() {
         Grunne innsjøer vises med forsterket dybde — hvor mye står i 3D.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        Velg en innsjø under, så lages et kart i Padling. Får innsjøen plass i
+        Trykk <strong class="text-ink">Dykk</strong>, eller på ringen over det dypeste punktet.
+        Nede på bunnen starter en svømmetur av seg selv — langs den dype renna
+        om innsjøen har en, ellers mot berget — med dybden der du er og hvor
+        langt det er igjen. Turen kan settes på pause, du kan dra for å se deg
+        rundt, og den ender i fugleperspektiv over dykkeringen. Kartet i 3D
+        beholder kartstilen du har valgt.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Velg en innsjø under, så lages et kart i din vanlige kartstil. Får innsjøen plass i
         et vanlig kart, dekker kartet hele vannet; de store får et utsnitt ved
         stranda nær det dypeste, så 3D viser både vann og land.
       </p>
