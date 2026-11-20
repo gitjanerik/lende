@@ -318,6 +318,11 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   let underVann = false
   // Pågående kamerabane (spillSekvens): steg med pose, tid og fase.
   let sekvens = null
+  // Fritt blikk under en bane: et utslag brukeren drar fram OPPÅ banens eget
+  // blikk. Det glir tilbake en stund etter at fingeren er løftet, så banen
+  // fortsatt viser det den skal vise.
+  const blikkUtslag = { az: 0, h: 0, sidenSlipp: 0 }
+  let blikkDrag = null
   const listeners = []
 
   const on = (target, event, fn, opts) => {
@@ -420,11 +425,34 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   on(domElement, 'pointerdown', (e) => {
     nedePekere.add(e.pointerId)
     dragY = e.clientY
+    if (sekvens?.friBlikk && !blikkDrag) {
+      blikkDrag = { id: e.pointerId, x: e.clientX, y: e.clientY }
+      domElement.setPointerCapture?.(e.pointerId)
+    }
   })
   const slippPeker = (e) => {
     nedePekere.delete(e.pointerId)
     if (!nedePekere.size) dragY = null
+    if (blikkDrag?.id === e.pointerId) { blikkDrag = null; blikkUtslag.sidenSlipp = 0 }
   }
+  // «Grip vannet», som under vann ellers: drag mot høyre ser til venstre,
+  // drag ned ser opp.
+  on(domElement, 'pointermove', (e) => {
+    if (!blikkDrag || e.pointerId !== blikkDrag.id || !sekvens?.friBlikk) return
+    const k = (1.2 * Math.PI) / (domElement.clientHeight || 1)
+    vriBlikk(-(e.clientX - blikkDrag.x) * k, (e.clientY - blikkDrag.y) * k)
+    blikkDrag.x = e.clientX
+    blikkDrag.y = e.clientY
+  })
+  if (typeof window !== 'undefined') on(window, 'keydown', (e) => {
+    if (!sekvens?.friBlikk || e.altKey || e.ctrlKey || e.metaKey) return
+    if (e.target?.closest?.('input, textarea, select')) return
+    const steg = PILSTEG[e.key]
+    if (!steg) return
+    e.preventDefault()
+    vriBlikk(steg[0], steg[1])
+    blikkUtslag.sidenSlipp = 0
+  })
   on(domElement, 'pointerup', slippPeker)
   on(domElement, 'pointercancel', slippPeker)
 
@@ -605,8 +633,32 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     controls.autoRotate = false
   }
 
+  const PILSTEG = {
+    ArrowLeft: [-Math.PI / 12, 0],
+    ArrowRight: [Math.PI / 12, 0],
+    ArrowUp: [0, Math.PI / 18],
+    ArrowDown: [0, -Math.PI / 18],
+  }
+  const BLIKK_HOYDE_TAK = (80 * Math.PI) / 180
+
+  function vriBlikk(dAz, dH) {
+    blikkUtslag.az = Math.atan2(Math.sin(blikkUtslag.az + dAz), Math.cos(blikkUtslag.az + dAz))
+    blikkUtslag.h = Math.max(-Math.PI, Math.min(Math.PI, blikkUtslag.h + dH))
+  }
+
+  function slippBlikk(dt) {
+    if (blikkDrag || (!blikkUtslag.az && !blikkUtslag.h)) return
+    blikkUtslag.sidenSlipp += dt
+    if (blikkUtslag.sidenSlipp < 2) return
+    const f = Math.exp(-dt / 0.9)
+    blikkUtslag.az *= f
+    blikkUtslag.h *= f
+    if (Math.abs(blikkUtslag.az) + Math.abs(blikkUtslag.h) < 1e-3) { blikkUtslag.az = 0; blikkUtslag.h = 0 }
+  }
+
   function sekvensSteg(dt) {
     const s = sekvens
+    if (s.friBlikk) slippBlikk(dt)
     const steg = s.steg[s.i]
     s.t += steg.tid > 0 ? dt / steg.tid : 1
     const k = s.t >= 1 ? 1 : (EASE[steg.ease] ?? easeInOutCubic)(s.t)
@@ -618,7 +670,11 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     const tilAz = steg.azimut ?? s.fra.azimut
     // Korteste vei rundt, ellers snurrer et bytte fra 350° til 10° hele runden.
     const dAz = Math.atan2(Math.sin(tilAz - s.fra.azimut), Math.cos(tilAz - s.fra.azimut))
-    settBlikk(s.fra.azimut + dAz * k, s.fra.hoyde + (steg.hoyde - s.fra.hoyde) * k)
+    const hoyde = s.fra.hoyde + (steg.hoyde - s.fra.hoyde) * k
+    settBlikk(
+      s.fra.azimut + dAz * k + blikkUtslag.az,
+      Math.max(-BLIKK_HOYDE_TAK, Math.min(BLIKK_HOYDE_TAK, hoyde + blikkUtslag.h)),
+    )
     if (s.t < 1) return
     s.fra = { pos: steg.pos, hoyde: steg.hoyde, azimut: s.fra.azimut + dAz }
     s.t = 0
@@ -629,8 +685,16 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
 
   function avsluttSekvens(s) {
     sekvens = null
-    if (s.underVann) settUnderVann(true)
-    else {
+    blikkDrag = null
+    blikkUtslag.az = 0
+    blikkUtslag.h = 0
+    if (s.friBlikk) controls.enabled = s.kontrollerPa
+    const ned = typeof s.underVann === 'function' ? s.underVann() : s.underVann
+    if (ned) settUnderVann(true)
+    else if (s.blikkpunkt) {
+      controls.target.set(...s.blikkpunkt)
+      camera.lookAt(controls.target)
+    } else {
       camera.getWorldDirection(_retning)
       controls.target.copy(camera.position).addScaledVector(_retning, 200)
     }
@@ -891,9 +955,12 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
      * Spill en kamerabane (se innsjoDykk.dykkSekvens). Asimuten er fast — den
      * kameraet står i nå — og hvert steg sier hvor kameraet skal stå og hvor
      * høyt det ser når steget er ferdig. `underVann` setter kameraet i
-     * se-seg-rundt-modus på slutten.
+     * se-seg-rundt-modus på slutten (en funksjon avgjøres der banen slutter —
+     * den kan stoppes over eller under flata). `friBlikk` lar brukeren dra
+     * blikket rundt mens banen spilles; orbiten er av så lenge. `blikkpunkt`
+     * er orbitens sentrum når banen ender over vann.
      */
-    spillSekvens(steg, { underVann: ned = false, ferdig = null } = {}) {
+    spillSekvens(steg, { underVann: ned = false, ferdig = null, friBlikk = false, blikkpunkt = null } = {}) {
       if (!steg?.length) return
       if (underVann) settUnderVann(false)
       transition = null
@@ -904,8 +971,14 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       camera.getWorldDirection(_retning)
       const hoyde = Math.asin(Math.max(-1, Math.min(1, _retning.y)))
       const azimut = Math.atan2(_retning.x, -_retning.z)
+      blikkUtslag.az = 0
+      blikkUtslag.h = 0
+      blikkDrag = null
+      const kontrollerPa = sekvens?.friBlikk ? sekvens.kontrollerPa : controls.enabled
+      if (friBlikk) controls.enabled = false
+      else controls.enabled = kontrollerPa
       sekvens = {
-        steg, i: 0, t: 0, underVann: ned, ferdig,
+        steg, i: 0, t: 0, underVann: ned, ferdig, friBlikk, kontrollerPa, blikkpunkt,
         fra: { pos: [camera.position.x, camera.position.y, camera.position.z], hoyde, azimut },
       }
     },

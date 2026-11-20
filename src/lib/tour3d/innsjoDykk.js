@@ -138,38 +138,203 @@ export function asimutMot(ax, az, bx, bz) {
 }
 
 /**
- * Dykketuren: snu mot veggen, gli langs bunnen dit, og stig opp langs berget
- * til like under flata med blikket opp. Kameraet holder seg en klaring over
+ * Den dype renna fra start: følger den dypeste vannveien til det fjerneste
+ * punktet som fortsatt er minst `andel` av maksdybden. Bare en LANG og SMAL
+ * renne teller — en rund gryte gir null, og da går turen mot veggen i stedet.
+ *
+ * @returns {{punkter:number[][], lengde:number}|null}  punktene i SVG-meter
+ */
+export function dypRenne(bunn, { cols, rows, transform }, start, { andel = 0.5, minLengdeM = 400 } = {}) {
+  const pw = Math.abs(transform.pixelWidth)
+  const ph = Math.abs(transform.pixelHeight)
+  const s0 = start.r * cols + start.c
+  const maks = bunn.dybde[s0]
+  if (!bunn.maske[s0] || !(maks > 0)) return null
+  const grense = andel * maks
+  const n = cols * rows
+  const dist = new Float64Array(n).fill(Infinity)
+  const forrige = new Int32Array(n).fill(-1)
+  const heap = new MinHeap()
+  dist[s0] = 0
+  heap.push(0, s0)
+  let antall = 0
+  let ende = s0
+  while (heap.size) {
+    const [d, i] = heap.pop()
+    if (d > dist[i]) continue
+    antall++
+    if (d > dist[ende]) ende = i
+    const c = i % cols
+    const r = (i - c) / cols
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue
+        const cc = c + dc
+        const rr = r + dr
+        if (cc < 0 || rr < 0 || cc >= cols || rr >= rows) continue
+        const j = rr * cols + cc
+        if (!bunn.maske[j] || bunn.dybde[j] < grense) continue
+        // Grunnere celler koster mer, så veien holder seg i bunnen av renna.
+        const steg = Math.hypot(dc * pw, dr * ph) * (1 + 2 * (1 - bunn.dybde[j] / maks))
+        if (d + steg < dist[j]) { dist[j] = d + steg; forrige[j] = i; heap.push(d + steg, j) }
+      }
+    }
+  }
+  const celler = []
+  for (let i = ende; i >= 0; i = forrige[i]) celler.push(i)
+  celler.reverse()
+  const punkter = celler.map((i) => {
+    const c = i % cols
+    return [c * transform.pixelWidth, ((i - c) / cols) * transform.pixelHeight]
+  })
+  let lengde = 0
+  for (let k = 1; k < punkter.length; k++) {
+    lengde += Math.hypot(punkter[k][0] - punkter[k - 1][0], punkter[k][1] - punkter[k - 1][1])
+  }
+  const areal = antall * pw * ph
+  if (lengde < minLengdeM || lengde * lengde < 2 * areal) return null
+  return { punkter, lengde }
+}
+
+class MinHeap {
+  constructor() { this.a = [] }
+  get size() { return this.a.length }
+  push(k, v) {
+    const a = this.a
+    a.push([k, v])
+    let i = a.length - 1
+    while (i > 0) {
+      const p = (i - 1) >> 1
+      if (a[p][0] <= a[i][0]) break
+      ;[a[p], a[i]] = [a[i], a[p]]
+      i = p
+    }
+  }
+  pop() {
+    const a = this.a
+    const top = a[0]
+    const siste = a.pop()
+    if (a.length) {
+      a[0] = siste
+      let i = 0
+      for (;;) {
+        const l = 2 * i + 1
+        const r = l + 1
+        let m = i
+        if (l < a.length && a[l][0] < a[m][0]) m = l
+        if (r < a.length && a[r][0] < a[m][0]) m = r
+        if (m === i) break
+        ;[a[m], a[i]] = [a[i], a[m]]
+        i = m
+      }
+    }
+    return top
+  }
+}
+
+// En polyline [x,z] med punkt og retning etter buelengde.
+function polyline(P) {
+  const cum = [0]
+  for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]))
+  const L = cum.at(-1)
+  const punkt = (s) => {
+    const t = Math.min(L, Math.max(0, s))
+    let i = 1
+    while (i < P.length - 1 && cum[i] < t) i++
+    const seg = cum[i] - cum[i - 1] || 1
+    const k = (t - cum[i - 1]) / seg
+    return [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * k, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * k]
+  }
+  return { L, punkt }
+}
+
+// Glatt en rute med glidende snitt; endepunktene står fast.
+function glattRute(P, vindu = 3) {
+  return P.map((p, i) => {
+    if (i === 0 || i === P.length - 1) return p
+    const v = Math.min(vindu, i, P.length - 1 - i)
+    let x = 0, z = 0
+    for (let j = i - v; j <= i + v; j++) { x += P[j][0]; z += P[j][1] }
+    return [x / (2 * v + 1), z / (2 * v + 1)]
+  })
+}
+
+/**
+ * Sluttposen: høyt over vannet, med blikket tilbake på dykke-ringen. Kameraet
+ * står mellom ringen og der turen kom opp, så det aldri står inne i berget
+ * man nettopp svømte til.
+ */
+export function fuglePose({ fra, ring, flateY, land = null, azimut = 0 }) {
+  let ux = fra.x - ring.x
+  let uz = fra.z - ring.z
+  const d = Math.hypot(ux, uz)
+  if (d < 1) { ux = -Math.sin(azimut); uz = Math.cos(azimut) } else { ux /= d; uz /= d }
+  const D = Math.max(0.8 * d, 150)
+  const x = ring.x + ux * D
+  const z = ring.z + uz * D
+  let y = flateY + 0.6 * D
+  if (land) {
+    for (let k = 0; k <= 4; k++) y = Math.max(y, land(ring.x + ux * D * (k / 4), ring.z + uz * D * (k / 4)) + 0.25 * D)
+  }
+  return { pos: [x, y, z], hoyde: -Math.atan2(y - flateY, D), azimut: asimutMot(x, z, ring.x, ring.z) }
+}
+
+/**
+ * Dykketuren: snu, gli langs bunnen — langs renna når `rute` er gitt, ellers
+ * mot veggen `mot` — og stig opp til like under flata med blikket opp. Med
+ * `ring` fortsetter turen gjennom flata og ender i fugleperspektiv med blikket
+ * tilbake på dykke-ringen. Under vann holder kameraet seg en klaring over
  * bunnen, aldri over flata.
  *
- * @param {{fra:{x:number,y:number,z:number}, mot:{x:number,z:number}, flateY:number,
- *   gulv:(x:number,z:number)=>number, klaring?:number, redusert?:boolean}} p
+ * @param {{fra:{x:number,y:number,z:number}, mot?:{x:number,z:number}, rute?:number[][],
+ *   ring?:{x:number,z:number}, flateY:number, gulv:(x:number,z:number)=>number,
+ *   land?:(x:number,z:number)=>number, klaring?:number, redusert?:boolean}} p
  */
-export function dykkeTur({ fra, mot, flateY, gulv, klaring = 6, redusert = false }) {
-  const az = asimutMot(fra.x, fra.z, mot.x, mot.z)
-  const L = Math.hypot(mot.x - fra.x, mot.z - fra.z)
+export function dykkeTur({ fra, mot = null, rute = null, ring = null, flateY, gulv, land = null, klaring = 6, redusert = false }) {
   const tak = flateY - 3
-  // Glid til et stykke foran veggen, så den fyller bildet uten å stå i det.
-  const foran = Math.min(250, 0.4 * L)
-  const slutt = Math.max(0, L - foran)
-  const punkt = (s) => {
-    const t = L ? s / L : 0
-    return [fra.x + (mot.x - fra.x) * t, fra.z + (mot.z - fra.z) * t]
+  let P
+  let Q
+  if (rute?.length >= 2) {
+    P = glattRute([[fra.x, fra.z], ...rute])
+    Q = P.at(-1)
+  } else {
+    const L = Math.hypot(mot.x - fra.x, mot.z - fra.z)
+    // Glid til et stykke foran veggen, så den fyller bildet uten å stå i det.
+    const foran = Math.min(250, 0.4 * L)
+    const t = (s) => (L ? s / L : 0)
+    const langs = (s) => [fra.x + (mot.x - fra.x) * t(s), fra.z + (mot.z - fra.z) * t(s)]
+    P = [[fra.x, fra.z], langs(Math.max(0, L - foran))]
+    Q = langs(Math.max(0, L - foran) + foran * 0.45)
   }
-  const yVed = (x, z) => Math.min(tak, gulv(x, z) + klaring)
-  const [ox, oz] = punkt(slutt + foran * 0.45)
-  const opp = { pos: [ox, tak, oz], hoyde: grad(30), azimut: az, tid: 4, ease: 'inn-ut', fase: 'stig' }
-  if (redusert) return [{ ...opp, tid: 0 }]
+  const bane = polyline(P)
+  const slutt = bane.L
+  const azVed = (s) => {
+    const D = Math.min(80, slutt / 4)
+    const a = bane.punkt(s - D)
+    const b = bane.punkt(s + D)
+    return asimutMot(a[0], a[1], b[0], b[1])
+  }
+  const azSlutt = slutt < 30 ? asimutMot(fra.x, fra.z, Q[0], Q[1]) : azVed(slutt)
+  const azStart = slutt < 30 ? azSlutt : azVed(0)
 
-  const steg = [{ pos: [fra.x, fra.y, fra.z], hoyde: grad(5), azimut: az, tid: 1.2, ease: 'inn-ut', fase: 'snu' }]
-  if (slutt < 30) return [...steg, opp]
-  const n = Math.max(6, Math.min(30, Math.round(slutt / 80)))
-  const fart = slutt / Math.max(8, Math.min(18, slutt / 120))
-  const ys = []
-  for (let i = 1; i <= n; i++) {
-    const [x, z] = punkt((slutt * i) / n)
-    ys.push(yVed(x, z))
+  const opp = { pos: [Q[0], tak, Q[1]], hoyde: grad(30), azimut: azSlutt, tid: ring ? 3.5 : 4, ease: 'inn-ut', fase: 'stig' }
+  const ende = []
+  if (ring) {
+    const fugl = fuglePose({ fra: { x: Q[0], z: Q[1] }, ring, flateY, land, azimut: azSlutt })
+    ende.push(
+      { pos: [Q[0], flateY + 6, Q[1]], hoyde: grad(20), azimut: azSlutt, tid: 1.4, ease: 'inn-ut', fase: 'gjennom' },
+      { ...fugl, tid: 5, ease: 'inn-ut', fase: 'fugl' },
+    )
   }
+  if (redusert) return [{ ...(ende.at(-1) ?? opp), tid: 0 }]
+
+  const steg = [{ pos: [fra.x, fra.y, fra.z], hoyde: grad(5), azimut: azStart, tid: 1.2, ease: 'inn-ut', fase: 'snu' }]
+  if (slutt < 30) return [...steg, opp, ...ende]
+  const n = Math.max(6, Math.min(rute ? 60 : 30, Math.round(slutt / 80)))
+  const fart = slutt / Math.max(8, Math.min(rute ? 30 : 18, slutt / 120))
+  const yVed = ([x, z]) => Math.min(tak, gulv(x, z) + klaring)
+  const ys = []
+  for (let i = 1; i <= n; i++) ys.push(yVed(bane.punkt((slutt * i) / n)))
   // Glatt høyden så kameraet ikke rister over hver kurve, men aldri under gulvet.
   const glatt = ys.map((_, i) => {
     let sum = 0, k = 0
@@ -180,14 +345,15 @@ export function dykkeTur({ fra, mot, flateY, gulv, klaring = 6, redusert = false
   // ved skjøten nøyaktig den lineære farten i midten, uten rykk.
   const segTid = slutt / n / Math.max(1, fart)
   for (let i = 0; i < n; i++) {
-    const [x, z] = punkt((slutt * (i + 1)) / n)
+    const s = (slutt * (i + 1)) / n
+    const [x, z] = bane.punkt(s)
     const kant = i === 0 ? 'inn-kvad' : i === n - 1 ? 'ut-kvad' : 'lineaer'
     steg.push({
-      pos: [x, glatt[i], z], hoyde: grad(8), azimut: az,
+      pos: [x, glatt[i], z], hoyde: grad(8), azimut: rute ? azVed(s) : azSlutt,
       tid: kant === 'lineaer' ? segTid : 2 * segTid, ease: kant, fase: 'glid',
     })
   }
-  steg.push(opp)
+  steg.push(opp, ...ende)
   return steg
 }
 

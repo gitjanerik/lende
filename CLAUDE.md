@@ -348,6 +348,13 @@ Bunnen må skyggelegges av relieffet (`bunnRelieff`, v8.0.25). Terrenget er
 uten form. Dykketuren (`dykkeTur` + `bratteVegg`) er steg i den samme
 `freeRig.spillSekvens`. Stegene kan bære sin egen `azimut`, og freeRig går
 korteste vei rundt.
+Fra v8.0.26 går turen langs den dype renna når innsjøen har en (`dypRenne`:
+lang og smal, ellers null og veggen), og ender i fugleperspektiv med blikket
+på dykke-ringen (`fuglePose`). To ting er lette å «rydde» bort: (1) under turen
+er ORBITEN AV (`friBlikk`) og brukerens drag legges som et utslag oppå banens
+blikk. Med orbiten på samler OrbitControls opp draget og kaster kameraet når
+banen slutter. (2) `underVann` til `spillSekvens` er en FUNKSJON for turen,
+fordi «Stopp her» kan treffe over eller under flata.
 
 **INNSJØ-VISNINGEN HAR NVE-RADEN OG IKKE VÆRRADEN (v8.0.24).** `vaerOn` er
 falsk når `props.innsjo` er satt. Stasjonen velges av omrisset fra dybdekurve-fila

@@ -32,7 +32,7 @@ import { naermesteTreff } from './himmelObjekter.js'
 import { skalRippe } from './valgRipple.js'
 import { createSceneCore, TourSceneError } from './sceneCore.js'
 import { createFreeRig } from './freeRig.js'
-import { createFollowRig } from './cameraRigs.js'
+import { createFollowRig, terrainFloorY } from './cameraRigs.js'
 import { buildPathNetwork } from './pathNetwork.js'
 import { createPinLayer } from './pinLayer.js'
 import { attachTapDispatcher } from './tapDispatcher.js'
@@ -52,7 +52,7 @@ import { byggInnsjoBunn, autoDybdeFaktor, senketDem } from './innsjoBunn.js'
 import { buildInnsjoVolum, tonBunn } from './innsjoVolum.js'
 import {
   dypestePunkt, utenInnsjoNaler, undervannsGulv, dykkSekvens, oppSekvens, ekteDybde,
-  undervannsFarge, undervannsDis, undervannsMorke, bratteVegg, dykkeTur,
+  undervannsFarge, undervannsDis, undervannsMorke, bratteVegg, dykkeTur, dypRenne,
 } from './innsjoDykk.js'
 
 export { TourSceneError }
@@ -440,6 +440,7 @@ export async function create3dScene(container, {
   let varUnder = false
   let sisteDykkEmit = 0
   let vegg   // undefined = ikke regnet ennå, null = ingen
+  let renne  // samme
 
   // Den bratteste veggen regnes først når noen dykker: den skanner hele
   // strandlinja, og de fleste åpner innsjøen uten å dykke.
@@ -455,23 +456,62 @@ export async function create3dScene(container, {
     return vegg
   }
 
+  // Har innsjøen en lang, dyp renne, svømmer turen langs den i stedet for
+  // mot land.
+  function finnRenne() {
+    if (renne !== undefined) return renne
+    renne = null
+    try {
+      const { grov, bunn, dykk } = innsjoPlan
+      const r = dypRenne(bunn, grov, dykk)
+      if (r) renne = r.punkter.map(([x, y]) => { const [wx, , wz] = coords.toWorld(x, y, 0); return [wx, wz] })
+    } catch (e) {
+      console.warn('[3D] Fant ingen renne for dykketuren:', e)
+    }
+    return renne
+  }
+
+  function turMaal() {
+    if (!innsjoPlan) return null
+    if (finnRenne()) return 'renne'
+    return finnVegg() ? 'vegg' : null
+  }
+
   function startDykketur({ redusert = false } = {}) {
     const m = dykkMaal()
-    const v = finnVegg()
-    if (!m || !v || dykkTilstand !== 'bunn') return false
-    const [vx, , vz] = coords.toWorld(v.x, v.y, 0)
+    const maal = turMaal()
+    if (!m || !maal || dykkTilstand !== 'bunn') return false
+    let mot = null
+    if (maal === 'vegg') {
+      const [vx, , vz] = coords.toWorld(vegg.x, vegg.y, 0)
+      mot = { x: vx, z: vz }
+    }
     const p = camera.position
     dykkTilstand = 'tur'
     freeRig.spillSekvens(dykkeTur({
       fra: { x: p.x, y: p.y, z: p.z },
-      mot: { x: vx, z: vz },
+      mot,
+      rute: maal === 'renne' ? renne : null,
+      ring: { x: m.x, z: m.z },
       flateY: m.flateY,
       gulv: (wx, wz) => undervannsGulv(innsjoPlan.terrengDem, coords, wx, wz, m.flateY),
+      land: (wx, wz) => terrainFloorY(innsjoPlan.terrengDem, coords, wx, wz, 0),
       klaring: 6 * coords.exaggeration,
       redusert,
     }), {
-      underVann: true,
-      ferdig: () => { if (dykkTilstand === 'tur') dykkTilstand = 'bunn'; sendDykk(true) },
+      friBlikk: true,
+      // «Stopp her» kan treffe over eller under flata.
+      underVann: () => camera.position.y < m.flateY,
+      blikkpunkt: [m.x, m.flateY, m.z],
+      ferdig: () => {
+        if (dykkTilstand !== 'tur') return
+        if (camera.position.y < m.flateY) dykkTilstand = 'bunn'
+        else {
+          dykkTilstand = null
+          freeRig.settGulv(null)
+        }
+        sendDykk(true)
+      },
     })
     sendDykk(true)
     return true
@@ -527,7 +567,7 @@ export async function create3dScene(container, {
       : 0
     emit('dykk', {
       tilstand: dykkTilstand,
-      tur: dykkTilstand === 'bunn' && !!finnVegg(),
+      tur: dykkTilstand === 'bunn' ? turMaal() : null,
       fase: freeRig.sekvensFase,
       under,
       dybde,
@@ -555,7 +595,8 @@ export async function create3dScene(container, {
     } else if (dykkTilstand) {
       sendDykk(false, nowMs)
     }
-    innsjoVolum.oppdaterRing(camera, container.clientHeight, !dykkTilstand && !under, nowMs / 1000)
+    const ringSynlig = (!dykkTilstand || freeRig.sekvensFase === 'fugl') && !under
+    innsjoVolum.oppdaterRing(camera, container.clientHeight, ringSynlig, nowMs / 1000)
   }
 
   // Et trykk innenfor ringen starter dykket. Målt i skjermrom, som nålene.
