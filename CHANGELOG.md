@@ -1,3 +1,8 @@
+## 2026-11-20 — v8.0.29: Tempo på svømmeturen, og innsjø-3D følger klokka
+
+Svømmeturen har nå tempo 0,25×, 0,5×, 1× og 1,5× ved siden av play/pause, og dybde og meter igjen står i infobokser — samme form og plass som turkontrollene over vann. 3D åpnet fra en innsjø med dybdekart følger nå klokka som vanlig 3D: om natta er himmelen mørk med stjerner, men blikket blir på innsjøen, og Dykk, kurver og stier står. Værvarsel og nordlys er borte så lenge man er i innsjø-modus; når dykket avsluttes over flata, blir 3D vanlig igjen — værraden erstatter NVE-raden, og om natta åpnes stjernekikkeren uten at blikket rykkes opp.
+
+---
 ## 2026-11-20 — v8.0.28: Dybde-knappen i alle kartstiler
 
 Innsjøer med bakte dybdekurver får Dybde-knappen i kartet uansett kartstil, ikke bare i Padling — så dykket og svømmeturen er en tur unna fra det kartet man faktisk ser på. 3D bruker kartet slik det står, og ingen inngang bytter lenger kartstil: innsjølista i «Om appen» bygger kartet i brukerens egen stil i stedet for å tvinge fram Padling. Maksdyp-etikettene under navnene er fortsatt Padling. «Om appen» beskriver nå også dykket og svømmeturen.

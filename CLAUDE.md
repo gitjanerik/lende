@@ -359,6 +359,20 @@ banen slutter. (2) `underVann` til `spillSekvens` er en FUNKSJON for turen,
 fordi turen kan avbrytes over eller under flata. Fra v8.0.27 starter turen av
 seg selv etter nedstigningen (`AUTOTUR_MS`, ikke med redusert bevegelse) og har
 pause (`freeRig.settPause`), som holder banen men ikke blikket.
+Tempoet (v8.0.29) er en multiplikator på SEKVENSENS klokke (`freeRig.settTempo`,
+`scene3d.settDykkeTempo`), ikke på stegenes `tid` — da kan det byttes midt i et
+steg uten hopp, og det huskes for turer som starter av seg selv. Gjelder bare
+svømmeturen; gåturen har sine egne 64/128/256×.
+
+**INNSJØ-MODUS ER EN TILSTAND I VIEWER3D, IKKE PROPEN (v8.0.29).** `innsjoModus`
+starter som `!!props.innsjo` og slås av når dykket avsluttes over flata
+(`paDykk`). Dag/natt følger klokka også her, men stjernekikker-pakka (løftet
+blikk, skjulte lag, himmelsøk, nordlys) gates på `stjernemodus` =
+`nightOn && !innsjoModus` — ellers ville natta skjult Dykk-knappen og løftet
+blikket vekk fra innsjøen. Værraden og nordlyset er av i innsjø-modus; etter
+dykket erstatter værraden NVE-raden for resten av økta. Går man ut av
+innsjø-modus om natta, åpnes stjernekikkeren UTEN løft (`loft: false`), så
+kameraet ikke rykkes ut av fugleperspektivet.
 
 **INNSJØ-VISNINGEN HAR NVE-RADEN OG IKKE VÆRRADEN (v8.0.24).** `vaerOn` er
 falsk når `props.innsjo` er satt. Stasjonen velges av omrisset fra dybdekurve-fila

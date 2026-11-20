@@ -662,7 +662,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     if (s.friBlikk && !s.pauset) slippBlikk(dt)
     const steg = s.steg[s.i]
     // På pause står banen, men blikket kan fortsatt dras rundt.
-    if (!s.pauset) s.t += steg.tid > 0 ? dt / steg.tid : 1
+    if (!s.pauset) s.t += steg.tid > 0 ? (dt * s.tempo) / steg.tid : 1
     const k = s.t >= 1 ? 1 : (EASE[steg.ease] ?? easeInOutCubic)(s.t)
     camera.position.set(
       s.fra.pos[0] + (steg.pos[0] - s.fra.pos[0]) * k,
@@ -962,7 +962,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
      * blikket rundt mens banen spilles; orbiten er av så lenge. `blikkpunkt`
      * er orbitens sentrum når banen ender over vann.
      */
-    spillSekvens(steg, { underVann: ned = false, ferdig = null, friBlikk = false, blikkpunkt = null } = {}) {
+    spillSekvens(steg, { underVann: ned = false, ferdig = null, friBlikk = false, blikkpunkt = null, tempo = 1 } = {}) {
       if (!steg?.length) return
       if (underVann) settUnderVann(false)
       transition = null
@@ -980,7 +980,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       if (friBlikk) controls.enabled = false
       else controls.enabled = kontrollerPa
       sekvens = {
-        steg, i: 0, t: 0, underVann: ned, ferdig, friBlikk, kontrollerPa, blikkpunkt,
+        steg, i: 0, t: 0, underVann: ned, ferdig, friBlikk, kontrollerPa, blikkpunkt, tempo,
         fra: { pos: [camera.position.x, camera.position.y, camera.position.z], hoyde, azimut },
       }
     },
@@ -989,6 +989,10 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       if (sekvens) sekvens.pauset = !!paa
     },
     get pauset() { return !!sekvens?.pauset },
+    /** Tempoet banen spilles i (1 = som stegene er skrevet). */
+    settTempo(x) {
+      if (sekvens && x > 0) sekvens.tempo = x
+    },
     /** Stegene og steget som spilles nå, eller null. */
     get sekvensStatus() { return sekvens ? { steg: sekvens.steg, i: sekvens.i } : null },
     /** Stopp banen der kameraet står, som om den var ferdig. */

@@ -171,7 +171,12 @@ const serOpp = ref(false)
 // Igjen står sol/måne-knappen (veien tilbake til dag), X-en, og himmelsøket
 // mellom dem. Kurver, stier og nåler skjules — se `nattSkjulteLag`. Nattmodus er
 // stjernekikkeren, ikke kartet i mørkt tema.
-const stjernemodus = computed(() => nightOn.value)
+// Innsjø-modus (v8.0.29): åpnet fra Dybde-knappen, før første dykk er over.
+// Natta er da en mørk himmel over vannet, ikke stjernekikkeren — den ville
+// løftet blikket bort fra innsjøen og skjult Dykk-knappen. Vær og nordlys står
+// også av. Når et dykk er ferdig over flata, er 3D vanlig igjen.
+const innsjoModus = ref(!!props.innsjo)
+const stjernemodus = computed(() => nightOn.value && !innsjoModus.value)
 
 // ---- Himmelsøket ---------------------------------------------------------
 // Lista over hva som er valgbart på himmelen regnes HER og sendes til motoren,
@@ -184,7 +189,7 @@ const valgtHimmel = ref(null)
 // var løftet — men natt løfter blikket selv, og et felt som dukker opp midt i
 // den bevegelsen leses som et blaff. Ser man ned i kartet igjen, står søket
 // fortsatt der: det er den ene tingen man leter etter i mørket.
-const himmelSokSynlig = computed(() => phase.value === 'ready' && nightOn.value)
+const himmelSokSynlig = computed(() => phase.value === 'ready' && stjernemodus.value)
 const himmelNaboer = computed(() => naboerFor(valgtHimmel.value, himmelListe.value, 3))
 
 // ---- Globene: månen, Mars, Jupiter, Saturn -------------------------------
@@ -404,6 +409,15 @@ function dykkNed() { engine?.dykkNed({ redusert: reduserBevegelse }) }
 function dykkOpp() { engine?.dykkOpp({ redusert: reduserBevegelse }) }
 function dykketur() { engine?.dykketur({ redusert: reduserBevegelse }) }
 const meterTekst = (m) => `${(Math.round(m / 10) * 10).toLocaleString('nb-NO')} m`
+// Svømmeturens tempo. 1× er farten turen er skrevet i; valget gjelder resten
+// av økta, også turer som starter av seg selv.
+const DYKK_TEMPO = [0.25, 0.5, 1, 1.5]
+const dykkTempo = ref(1)
+const tempoTekst = (x) => x.toLocaleString('nb-NO')
+function velgDykkTempo(x) {
+  dykkTempo.value = x
+  engine?.settDykkeTempo(x)
+}
 function paDykk(d) {
   const forrige = dykk.value
   dykk.value = d
@@ -421,6 +435,7 @@ function paDykk(d) {
   } else if (!d.tilstand && (forrige?.tilstand === 'opp' || forrige?.tilstand === 'tur')) {
     dykkMelding.value = `Tilbake ved overflaten av ${navn}`
   }
+  if (!d.tilstand && !d.under && forrige?.tilstand) innsjoModus.value = false
 }
 let abort = null
 let poppedByHistory = false
@@ -703,12 +718,12 @@ async function byggMotor() {
     // Vær-valget er husket fra forrige økt; hentingen er ikke-blokkerende.
     if (vaerOn.value) void hentVaer()
     if (props.innsjo?.omrissWgs) void hentInnsjoNve()
-    if (nightOn.value) byggHimmelListe()
+    if (stjernemodus.value) byggHimmelListe()
     // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
     if (demoPaa.value) demoStart()
     // Åpner 3D rett i natt, er det her nordlyset kommer fra: watch(nightOn)
     // fyrer ikke på en tilstand som var sann fra første frame.
-    if (nightOn.value) startNordlys()
+    if (stjernemodus.value) startNordlys()
 
     phase.value = 'ready'
     // Zoom-skyvens område kommer fra riggen og er kart-avhengig (maxDistance er
@@ -720,7 +735,7 @@ async function byggMotor() {
     // da skal stjernemodus gjelde her også, ikke bare når man trykker seg inn i
     // den. Etter phase='ready' med vilje: løftet skal skje i et bilde brukeren
     // ser, ikke bak lasteskjermen.
-    if (nightOn.value) aapneStjernemodus()
+    if (stjernemodus.value) aapneStjernemodus()
 
     // Nettbaserte kilder popper inn asynkront — feil svelges stille, som før.
     // Kartet skal aldri stå og vente på Riksantikvaren.
@@ -836,8 +851,6 @@ async function toggleContours() {
 // Faller utregningen igjennom (ark uten brukbar posisjon), er kart-temaet
 // fortsatt et bedre gjett enn en fast verdi.
 const nightOn = ref((() => {
-  // Innsjø-volumet er et dagsbilde: natta skjuler nettopp kurvene og bunnen.
-  if (props.innsjo) return false
   const m = props.meta
   if (m?.widthM && m?.heightM) {
     try {
@@ -866,8 +879,8 @@ const nightOn = ref((() => {
 // veien tilbake i samme økt.
 const vaerAvvist = ref(false)
 
-// Innsjø-visningen viser NVE-målingene i stedet: man har åpnet 3D for vannet.
-const vaerOn = computed(() => !nightOn.value && !vaerAvvist.value && !props.innsjo)
+// Innsjø-modusen viser NVE-målingene i stedet: man har åpnet 3D for vannet.
+const vaerOn = computed(() => !nightOn.value && !vaerAvvist.value && !innsjoModus.value)
 
 async function applyNight(on) {
   if (!engine) return
@@ -990,7 +1003,7 @@ let nordlysHentet = false
 
 // Panelet og gardinene henger på det SAMME flagget, så X-en tar bort begge —
 // nøyaktig som værradens X tar bort både raden og værhimmelen (v6.3.8).
-const nordlysOn = computed(() => nightOn.value && !nordlysAvvist.value)
+const nordlysOn = computed(() => stjernemodus.value && !nordlysAvvist.value)
 
 // Skydekket kommer fra MET-varselet vi ALLEREDE har hentet for arket. Vi spør
 // ikke på nytt: panelet trenger tallet, ikke en ny forespørsel.
@@ -1179,21 +1192,27 @@ watch(vaerOn, (on) => {
 })
 // Bytter man dag/natt mens været står på, skal himmelen males om (grunnfargen
 // for torden-blinket henger på natt/dag inne i motoren).
-watch(nightOn, (on) => {
+watch(nightOn, () => {
   // Et bytte av lysmodus gir været tilbake. Nullstilles FØR himmelen males om,
   // ellers ville vaerOn fortsatt vært falsk og været blitt liggende av.
   vaerAvvist.value = false
   if (vaerOn.value) leggVaerPaaHimmelen()
+  nordlysAvvist.value = false
+})
+// Stjernekikkeren følger natta, men ikke i innsjø-modus. Slutter innsjø-modusen
+// om natta, kommer stjernekikkeren uten løftet: kameraet står i fugleperspektiv
+// over innsjøen, og å rive det opp i himmelen ville vært et rykk ingen ba om.
+watch([stjernemodus, innsjoModus], ([on, inn], [varOn, varInn]) => {
+  if (on === varOn) return
+  const fraInnsjo = varInn && !inn
   // Himmellista bygges når natta slås på, og ryddes når den slås av: en valgt
   // formasjon som står fremhevet på en dagshimmel er bare rart.
   if (on) byggHimmelListe()
   else velgHimmel(null)
-  if (on) aapneStjernemodus()
+  if (on) aapneStjernemodus({ loft: !fraInnsjo })
   else lukkStjernemodus()
-  // Nordlyset er nattas motstykke til været: X-en nullstilles av et modusbytte,
-  // og varselet hentes først når natta faktisk er på — et 900 kB-kall ingen ser
-  // er turgåerens datakvote.
-  nordlysAvvist.value = false
+  // Nordlyset er nattas motstykke til været, og varselet hentes først når
+  // natta faktisk er på — et 900 kB-kall ingen ser er turgåerens datakvote.
   if (on) {
     startNordlys()
   } else {
@@ -1210,7 +1229,7 @@ watch(nightOn, (on) => {
 // Men de er brukerens valg, så de gis tilbake når hun går ut igjen.
 let lagForNatt = null
 
-function aapneStjernemodus() {
+function aapneStjernemodus({ loft = true } = {}) {
   if (!lagForNatt) {
     lagForNatt = {
       nåler: pinsOn.value, stier: pathsOn.value, kurver: contoursOn.value,
@@ -1229,7 +1248,7 @@ function aapneStjernemodus() {
   // nesa mot nord — og da vet man hvor på himmelen man er før man begynner.
   //
   // Går etter lag-skjulingen, så det ikke er noe å se forsvinne underveis.
-  engine?.apneStjernehimmel()
+  if (loft) engine?.apneStjernehimmel()
 }
 
 function lukkStjernemodus() {
@@ -1424,42 +1443,70 @@ function branchLabel(opt, i) {
           </svg>
           Til overflaten
         </button>
-        <div v-if="dykk?.under"
+        <div v-if="dykk?.under && dykk.tilstand !== 'tur'"
              class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-xs font-semibold text-white/85 tabular-nums"
              :style="{ zoom: uiTextScale }">
-          <template v-if="dykk.tilstand === 'tur' && dykk.bunnDybde != null">
-            {{ Math.round(dykk.bunnDybde) }} m dypt<template v-if="dykk.igjen >= 1">
-              · {{ meterTekst(dykk.igjen) }} igjen</template>
-          </template>
-          <template v-else>{{ Math.round(dykk.dybde) }} m</template>
+          {{ Math.round(dykk.dybde) }} m
         </div>
       </div>
 
       <!-- Dykketuren: langs den dype renna, eller til den bratteste veggen, og
-           opp til fugleperspektiv over dykke-ringen. Står nederst, der
-           turkontrollene står over vann. -->
+           opp til fugleperspektiv over dykke-ringen. Infoboksene og kontrollene
+           står der turkontrollene står over vann, i samme form: bokser over,
+           play/pause til venstre og tempo til høyre. -->
       <div v-if="phase === 'ready' && (dykk?.tur || dykk?.tilstand === 'tur')"
-           class="absolute inset-x-0 z-10 flex flex-col items-center gap-2 px-3 pointer-events-none"
-           style="bottom: max(env(safe-area-inset-bottom), 16px);">
-        <p v-if="dykk.tilstand === 'tur'" aria-hidden="true"
-           class="rounded-full bg-black/40 backdrop-blur px-3 py-1 text-xs text-white/80"
-           :style="{ zoom: uiTextScale }">
-          Dra for å se deg rundt
-        </p>
-        <button v-if="dykk.tilstand === 'tur'" type="button" data-dykketur-pause
-                @click="engine?.pauseDykketur(!dykk.pauset)"
-                class="pointer-events-auto h-11 px-4 rounded-full bg-black/60 backdrop-blur text-white/90
-                       text-xs font-medium flex items-center gap-1.5 active:scale-95 transition">
-          <svg v-if="dykk.pauset" viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor" aria-hidden="true">
-            <path d="M8 5.5v13l11-6.5z"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor" aria-hidden="true">
-            <rect x="6.5" y="5.5" width="4" height="13" rx="1"/><rect x="13.5" y="5.5" width="4" height="13" rx="1"/>
-          </svg>
-          {{ dykk.pauset ? 'Fortsett' : 'Pause' }}
-        </button>
+           class="absolute inset-x-0 z-10 flex flex-col gap-2 px-3"
+           style="bottom: max(env(safe-area-inset-bottom), 12px);">
+        <template v-if="dykk.tilstand === 'tur'">
+          <p aria-hidden="true"
+             class="self-center rounded-full bg-black/40 backdrop-blur px-3 py-1 text-xs text-white/80"
+             :style="{ zoom: uiTextScale }">
+            Dra for å se deg rundt
+          </p>
+          <div class="grid gap-1.5 w-full" style="grid-template-columns: repeat(2, minmax(0, 1fr));"
+               data-dykketur-info>
+            <div class="rounded-lg bg-black/72 backdrop-blur px-2 py-1.5 text-center min-w-0">
+              <div class="text-[0.5625rem] uppercase tracking-wide text-white/72 truncate">Dybde</div>
+              <div class="text-xs font-semibold text-white tabular-nums whitespace-nowrap">
+                {{ dykk.bunnDybde != null ? `${Math.round(dykk.bunnDybde)} m` : '–' }}
+              </div>
+            </div>
+            <div class="rounded-lg bg-black/72 backdrop-blur px-2 py-1.5 text-center min-w-0">
+              <div class="text-[0.5625rem] uppercase tracking-wide text-white/72 truncate">Igjen</div>
+              <div class="text-xs font-semibold text-white tabular-nums whitespace-nowrap">
+                {{ dykk.igjen >= 1 ? meterTekst(dykk.igjen) : '–' }}
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" data-dykketur-pause
+                    @click="engine?.pauseDykketur(!dykk.pauset)"
+                    :aria-label="dykk.pauset ? 'Fortsett svømmeturen' : 'Pause svømmeturen'"
+                    class="w-12 h-12 rounded-full bg-white text-gray-900 flex items-center
+                           justify-center shrink-0 active:scale-95"
+                    :class="{ 'pulse-play': dykk.pauset }">
+              <svg v-if="dykk.pauset" viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor" aria-hidden="true">
+                <polygon points="8,5 8,19 19,12"/></svg>
+              <svg v-else viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="5" width="4" height="14" rx="1"/>
+                <rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            </button>
+            <div class="ml-auto flex items-center gap-1 rounded-full bg-black/72 backdrop-blur p-1"
+                 role="radiogroup" aria-label="Tempo" data-dykketur-tempo>
+              <button v-for="x in DYKK_TEMPO" :key="x" type="button"
+                      @click="velgDykkTempo(x)"
+                      role="radio" :aria-checked="dykkTempo === x"
+                      :aria-label="`Tempo ${tempoTekst(x)} ganger`"
+                      class="h-9 px-2.5 rounded-full text-[0.6875rem] font-semibold tabular-nums
+                             active:scale-95 transition-colors"
+                      :class="dykkTempo === x ? 'bg-white text-gray-900' : 'text-white/80'">
+                {{ tempoTekst(x) }}×
+              </button>
+            </div>
+          </div>
+        </template>
         <button v-else type="button" data-dykketur @click="dykketur"
-                class="on-accent pointer-events-auto h-11 px-4 rounded-full bg-sky-700 text-white
+                class="on-accent self-center h-11 px-4 rounded-full bg-sky-700 text-white
                        text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1622,7 +1669,7 @@ function branchLabel(opt, i) {
            PLASSEN ER IKKE DEN SAMME LENGER (v6.5.18): den står over infokortet,
            ikke under, sammen med nordlyspanelet den overstyrer. Se panelet under
            for hvorfor. -->
-      <div v-if="phase === 'ready' && nordlysDemoPaa && nightOn"
+      <div v-if="phase === 'ready' && nordlysDemoPaa && stjernemodus"
            class="relative z-10 px-3 mt-2 flex justify-center">
         <div class="flex items-center gap-2 rounded-2xl bg-emerald-900/70 backdrop-blur
                     px-3 py-1.5 text-white max-w-full">
@@ -1774,7 +1821,7 @@ function branchLabel(opt, i) {
           <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
         </div>
       </div>
-      <div v-else-if="phase === 'ready' && innsjoNve && !walking && !stjernemodus && !dykker"
+      <div v-else-if="phase === 'ready' && innsjoModus && innsjoNve && !walking && !stjernemodus && !dykker"
            class="relative z-10 px-3 mt-2">
         <div class="flex justify-center" :style="{ zoom: uiTextScale }">
           <Tour3dInnsjoNve :data="innsjoNve"/>

@@ -504,6 +504,7 @@ export async function create3dScene(container, {
       // «Stopp her» kan treffe over eller under flata.
       underVann: () => camera.position.y < m.flateY,
       blikkpunkt: [m.x, m.flateY, m.z],
+      tempo: dykkTempo,
       ferdig: () => {
         if (dykkTilstand !== 'tur') return
         if (camera.position.y < m.flateY) dykkTilstand = 'bunn'
@@ -519,6 +520,8 @@ export async function create3dScene(container, {
   }
 
   const AUTOTUR_MS = 1500
+  // Svømmeturens tempo gjelder også turer som starter av seg selv etterpå.
+  let dykkTempo = 1
 
   function dykkMaal() {
     const d = innsjoPlan?.dykk
@@ -1205,6 +1208,12 @@ export async function create3dScene(container, {
       if (dykkTilstand !== 'tur') return
       freeRig.settPause(paa)
       sendDykk(true)
+    },
+    /** Svømmeturens tempo, 1 = normal. */
+    settDykkeTempo(x) {
+      if (!(x > 0)) return
+      dykkTempo = x
+      if (dykkTilstand === 'tur') freeRig.settTempo(x)
     },
     /** Fly tilbake til innsjøen. Under vann: opp først. */
     tilInnsjoen() {
