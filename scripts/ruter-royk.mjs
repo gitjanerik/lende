@@ -267,7 +267,7 @@ try {
   const synlige = await s6.evaluate(() => [...document.querySelectorAll('[data-seksjon]')]
     .filter((d) => !d.hidden).map((d) => ({ tittel: d.querySelector('summary').textContent.trim(), open: d.open })))
   sjekk('/om: søket viser og åpner bare seksjonene med treff',
-    synlige.length === 1 && synlige[0].tittel === 'Nord er nord' && synlige[0].open,
+    synlige.length === 1 && synlige[0].tittel === 'To slags nord' && synlige[0].open,
     JSON.stringify(synlige))
   await s6.close()
 

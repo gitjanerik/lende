@@ -47,6 +47,9 @@ import { buildHighlightMarker } from './highlightMarkers.js'
 import { buildGpsMarker } from './gpsMarker.js'
 import { createGpsMovement } from './gpsMovement.js'
 import { featureType } from './exploreData.js'
+import { decimateForTerrain } from './terrainGrid.js'
+import { byggInnsjoBunn, autoDybdeFaktor, senketDem } from './innsjoBunn.js'
+import { buildInnsjoVolum, tonBunn } from './innsjoVolum.js'
 
 export { TourSceneError }
 
@@ -70,6 +73,7 @@ export async function create3dScene(container, {
   dem, meta, getTextureSpec, onProgress = null, onTextureNote = null,
   pathFeatures = [], barrierFeatures = [], features = [],
   tour = null,
+  innsjo = null,
   options = {},
 }) {
   if (!dem) throw new TourSceneError('no-dem', 'Kartet mangler høydedata')
@@ -83,6 +87,23 @@ export async function create3dScene(container, {
     timeScale = null,
   } = options
 
+  // Innsjø-volumet (Padling): bunnen regnes på terrengets eget, desimerte
+  // gitter og senkes inn i DEM-et som bare MESHEN bygges av. Feiler noe her,
+  // åpnes 3D som vanlig — en innsjø uten bunn er bedre enn ingen 3D.
+  let innsjoPlan = null
+  if (innsjo?.omriss?.length) {
+    try {
+      const grov = decimateForTerrain(dem)
+      const bunn = byggInnsjoBunn(grov, innsjo)
+      if (bunn) {
+        const faktor = autoDybdeFaktor(bunn, grov)
+        innsjoPlan = { grov, bunn, faktor, terrengDem: senketDem(grov, bunn, faktor) }
+      }
+    } catch (e) {
+      console.warn('[3D] Innsjøbunnen kunne ikke bygges:', e)
+    }
+  }
+
   const hooks = {}
   const core = await createSceneCore(
     container,
@@ -91,11 +112,24 @@ export async function create3dScene(container, {
       // tvingHimmel er utvikler-bryteren fra Utvikler-fanen: vis månen og
       // planetene med globe selv når de står under horisonten, så globene kan
       // prøves når som helst.
-      options: { exaggeration, tvingHimmel: options.tvingHimmel ?? false },
+      options: {
+        exaggeration, tvingHimmel: options.tvingHimmel ?? false,
+        terrengDem: innsjoPlan?.terrengDem ?? null,
+      },
     },
     hooks,
   )
   const { scene, camera, coords, terrain, loop } = core
+
+  let innsjoVolum = null
+  if (innsjoPlan) {
+    const { grov, bunn, faktor } = innsjoPlan
+    tonBunn(terrain.geometry, terrain.material, bunn, grov.cols, grov.rows)
+    innsjoVolum = buildInnsjoVolum({ bunn, dem: grov, coords, innsjo, faktor })
+    scene.add(innsjoVolum.group)
+    loop.track(innsjoVolum)
+    innsjoVolum.setResolution(container.clientWidth, container.clientHeight)
+  }
 
   const listeners = new Map()
   const emit = (event, payload) => {
@@ -372,6 +406,11 @@ export async function create3dScene(container, {
     autoRotate: !tour,
     enabled: !tour,
   })
+  // Med en innsjø åpner kameraet på den, ikke på hele arket.
+  if (innsjoVolum) {
+    const { senter, radius } = innsjoVolum
+    freeRig.flyTo(senter.x, senter.y, senter.z, { radiusM: Math.max(150, radius * 0.9) })
+  }
   freeRig.onTakeOver(() => {
     if (!trip || playback?.playing) return
     detachCamera()
@@ -764,6 +803,7 @@ export async function create3dScene(container, {
   Object.assign(hooks, {
     onResize(w, h) {
       paths.setResolution(w, h)
+      innsjoVolum?.setResolution(w, h)
     },
     onFrame(dt, timeS) {
       if (reattachPending) attachCamera({ inherit: true, animate: false })
@@ -923,6 +963,17 @@ export async function create3dScene(container, {
 
     // --- live GPS-posisjon ---
     setUserPosition,
+
+    /** Innsjø-volumet, eller null: navnet viseren skriver og dybde-forsterkningen. */
+    innsjo: innsjoPlan
+      ? { navn: innsjo.navn ?? null, faktor: innsjoPlan.faktor, maksDybde: innsjo.maks ?? innsjoPlan.bunn.maksDybde }
+      : null,
+    /** Fly tilbake til innsjøen. */
+    tilInnsjoen() {
+      if (!innsjoVolum) return
+      const { senter, radius } = innsjoVolum
+      freeRig.flyTo(senter.x, senter.y, senter.z, { radiusM: Math.max(150, radius * 0.9) })
+    },
 
     // --- kamera ---
     /** Fugleperspektiv over hele kartet. En planlagt tur beholdes. */

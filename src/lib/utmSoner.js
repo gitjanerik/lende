@@ -13,7 +13,7 @@
 
 export const SONE_BREDDE_DEG = 6
 
-// Sonen Lende faktisk bruker, overalt. Se «Nord er nord» i AboutContent.
+// Sonen Lende faktisk bruker, overalt. Se «To slags nord» i AboutContent.
 export const LENDE_SONE = 32
 
 /** Sentralmeridianen i sone n, i grader øst. Sone 32 → 9°. */

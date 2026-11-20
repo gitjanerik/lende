@@ -83,6 +83,8 @@ const props = defineProps({
   // Live GPS-posisjon i SVG-meter, null når posisjonering ikke er aktiv.
   // MapView sender et nytt lite objekt per fix, så watch-en trigges.
   userPos: { type: Object, default: null },
+  // Innsjø-volumet (Padling): { navn, omriss, kurver } i SVG-meter. Null = vanlig 3D.
+  innsjo: { type: Object, default: null },
 })
 const emit = defineEmits(['close'])
 
@@ -377,6 +379,8 @@ const canvasHost = ref(null)
 const overleggRef = ref(null)
 useFokusFelle(overleggRef, () => true)
 let engine = null
+// Satt når motoren er bygd med et innsjø-volum (engine.innsjo).
+const innsjoInfo = ref(null)
 let abort = null
 let poppedByHistory = false
 let toastTimer = 0
@@ -552,9 +556,18 @@ async function byggMotor() {
       barrierFeatures: toRaw(props.barrierFeatures) ?? [],
       features: allFeatures,
       tour: tourOpts,
+      innsjo: toRaw(props.innsjo) ?? null,
       options: { estWalkMinutes: props.estWalkMinutes ?? null, tvingHimmel: himmelTvang },
     })
 
+    if (engine.innsjo) {
+      const { navn, faktor, maksDybde } = engine.innsjo
+      innsjoInfo.value = {
+        navn: navn ?? props.innsjo?.navn ?? null,
+        faktor,
+        maksTekst: maksDybde >= 10 ? String(Math.round(maksDybde)) : String(maksDybde).replace('.', ','),
+      }
+    }
     engine.on('progress', (p) => {
       walking.value = !!p.walking
       serOpp.value = !!p.serOpp
@@ -778,6 +791,8 @@ async function toggleContours() {
 // Faller utregningen igjennom (ark uten brukbar posisjon), er kart-temaet
 // fortsatt et bedre gjett enn en fast verdi.
 const nightOn = ref((() => {
+  // Innsjø-volumet er et dagsbilde: natta skjuler nettopp kurvene og bunnen.
+  if (props.innsjo) return false
   const m = props.meta
   if (m?.widthM && m?.heightM) {
     try {
@@ -1825,6 +1840,24 @@ function branchLabel(opt, i) {
            class="absolute right-0 bottom-0 z-10 pointer-events-none p-3"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
         <Tour3dHimmelKompass :blikk="blikk" @nord="engine?.seMotNord()"/>
+      </div>
+
+      <!-- Innsjø-volumet: navnet, dybden og forsterkningen. Forsterkningen står
+           skrevet fordi den ellers er en skjult løgn om hvor bratt bunnen er.
+           Trykk flyr tilbake til innsjøen. -->
+      <div v-if="phase === 'ready' && innsjoInfo && !stjernemodus"
+           class="absolute left-0 right-0 bottom-28 z-10 flex justify-center px-4 pointer-events-none">
+        <button type="button" @click="engine?.tilInnsjoen()"
+                data-innsjo-volum
+                class="pointer-events-auto max-w-full rounded-2xl bg-black/72 backdrop-blur ring-1 ring-white/20
+                       px-3.5 py-2 text-white/90 text-left leading-tight active:scale-[0.97] transition"
+                :style="tekstBoks(86)"
+                :aria-label="`${innsjoInfo.navn ?? 'Innsjøen'} — fly tilbake til innsjøen`">
+          <span class="block text-[0.8125rem] font-semibold">{{ innsjoInfo.navn ?? 'Innsjøen' }}</span>
+          <span class="block text-[0.6875rem] text-white/80">
+            maks {{ innsjoInfo.maksTekst }} m<template v-if="innsjoInfo.faktor > 1"> · dybden vist ×{{ innsjoInfo.faktor }}</template>
+          </span>
+        </button>
       </div>
 
       <!-- Skjerping av kartbildet etter at visningen er åpen -->

@@ -51,6 +51,8 @@ export function use3dEntry({
   // fliser utenfor utsnittet demontert — uten braketten ville de stille falt ut
   // av både terreng-teksturen og stinettet. Default = identitet.
   medAlleFliserAsync = (fn) => fn(),
+  // Aktiv kartstil (getter). Innsjø-knappene står bare i Padling.
+  aktivStil = () => null,
 }) {
   const view3dOpen = ref(false)
   const view3dLoading = ref(false)
@@ -87,14 +89,26 @@ export function use3dEntry({
     el.style.top = (scr.y - wrap.top) + 'px'
   }
 
+  // Innsjø-volumet: én knapp i hver innsjø med bakte dybdekurver, bare i
+  // Padling. Listen kommer fra byggeren (meta.innsjoVolum), så et kart bygd før
+  // kurvene fantes har ingen knapper før det bygges på nytt.
+  const innsjoPinner = computed(() =>
+    (aktivStil() === 'padling' && !view3dOpen.value ? (meta.value?.innsjoVolum ?? []) : []))
+  const innsjoPinElRefs = []
+  function settInnsjoPinEl(el, i) { innsjoPinElRefs[i] = el }
+
   function positionTour3dPin() {
     place3dPin(tour3dPinElRef.value, sti.start.value, tour3dPinVisible.value)
     place3dPin(tour3dEndPinElRef.value, sti.destination.value, tour3dEndPinVisible.value)
+    innsjoPinner.value.forEach((p, i) => {
+      place3dPin(innsjoPinElRefs[i], { svgX: p.x, svgY: p.y }, true)
+    })
   }
+  const harPinner = () => tour3dPinVisible.value || innsjoPinner.value.length > 0
   let tour3dPinRaf = 0
   function tour3dPinRafLoop() {
     positionTour3dPin()
-    if (animating.value && tour3dPinVisible.value) {
+    if (animating.value && harPinner()) {
       tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
     } else {
       tour3dPinRaf = 0
@@ -102,8 +116,10 @@ export function use3dEntry({
   }
   watch([tour3dPinVisible, tour3dEndPinVisible, () => sti.start.value, () => sti.destination.value,
     scale, translateX, translateY, rotation], positionTour3dPin)
+  // Knappene finnes først etter neste render; posisjonér dem da.
+  watch(innsjoPinner, () => requestAnimationFrame(positionTour3dPin))
   watch(animating, (v) => {
-    if (v && tour3dPinVisible.value && !tour3dPinRaf) tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
+    if (v && harPinner() && !tour3dPinRaf) tour3dPinRaf = requestAnimationFrame(tour3dPinRafLoop)
   })
 
   // Motorens ETA-kall er (meter, klatring-i-meter); stifinnerens Naismith tar
@@ -200,7 +216,29 @@ export function use3dEntry({
   // (med tur) rutas bounding-boks. DEM hentes for hele utsnittet via flis-cachen
   // og alle koordinater forskyves inn i det nye rommet — kartbildet skal ikke
   // stoppe ved en flisekant, og turen skal aldri «gå i tomme lufta».
-  async function prepare3dData({ medTur = false } = {}) {
+  // Dybdekurvene for innsjø-volumet, projisert inn i 3D-utsnittets SVG-rom.
+  // null når fila ikke kan hentes — da åpnes 3D som vanlig.
+  async function innsjoFor3d(innsjo, meta3d) {
+    if (!innsjo?.vatnlnr) return null
+    const [{ hentInnsjoKurver }, { wgs84ToSvg }] = await Promise.all([
+      import('../lib/innsjoKurver.js'),
+      import('../lib/utm.js'),
+    ])
+    const data = await hentInnsjoKurver(innsjo.vatnlnr)
+    if (!data?.omriss?.length) return null
+    const proj = (punkter) => punkter.map(([lon, lat]) => {
+      const p = wgs84ToSvg(lat, lon, meta3d)
+      return [p.x, p.y]
+    })
+    return {
+      navn: innsjo.navn ?? null,
+      maks: innsjo.maks ?? null,
+      omriss: data.omriss.map(proj),
+      kurver: data.kurver.map(k => ({ dybde: k.dybde, type: k.type, punkter: proj(k.punkter) })),
+    }
+  }
+
+  async function prepare3dData({ medTur = false, innsjo = null } = {}) {
     const svgEl = svgHostRef.value?.querySelector('svg')
     const m = meta.value
     if (!svgEl || !m) return null
@@ -267,8 +305,10 @@ export function use3dEntry({
     const lag = await medAlleFliserAsync(() => svgLagFor3d(svgEl, extent))
     const { nabonavn, ...lagene } = lag
     const indeks = medNabonavn(searchIndex.value, nabonavn)
+    const innsjoData = innsjo ? await innsjoFor3d(innsjo, extent ? extent.meta3d : baseMeta) : null
     return markRaw({
       ...lagene,
+      innsjo: innsjoData,
       dem: dem3d,
       meta: extent ? extent.meta3d : baseMeta,
       searchIndex: extent ? shiftIndex(indeks, extent) : indeks,
@@ -299,15 +339,19 @@ export function use3dEntry({
     }
   })
 
-  async function open3d({ medTur = false } = {}) {
+  async function open3d({ medTur = false, innsjo = null } = {}) {
     if (view3dOpen.value) return
     tour3dError.value = ''
     view3dOpen.value = true
     view3dLoading.value = true
     try {
       await ensureDem()
-      view3dData.value = await prepare3dData({ medTur })
+      view3dData.value = await prepare3dData({ medTur, innsjo })
       if (!view3dData.value) throw new Error(medTur ? 'ingen rute' : 'kartet er ikke lastet')
+      if (innsjo && !view3dData.value.innsjo) {
+        tour3dError.value = 'Fant ikke dybdekurvene — viser vanlig 3D'
+        setTimeout(() => { tour3dError.value = '' }, 4000)
+      }
       if (!view3dComp.value) {
         const mod = await import('../components/tour3d/Viewer3D.vue')
         view3dComp.value = markRaw(mod.default)
@@ -323,6 +367,8 @@ export function use3dEntry({
   }
   function openTour3d() { return open3d({ medTur: true }) }
   function openExplore3d() { return open3d({ medTur: false }) }
+  /** Innsjø-volumet: { vatnlnr, navn, maks } for en innsjø med dybdekurver. */
+  function openInnsjo3d(innsjo) { return open3d({ medTur: false, innsjo }) }
   function close3d() {
     view3dOpen.value = false
     view3dData.value = null
@@ -349,9 +395,11 @@ export function use3dEntry({
     // 3D-pin ved start/mål av en planlagt rute
     tour3dPinVisible, tour3dEndPinVisible, tour3dPinElRef, tour3dEndPinElRef,
     positionTour3dPin,
+    // innsjø-volumet i Padling
+    innsjoPinner, settInnsjoPinEl,
     // det vieweren får inn
     gpsFor3d, tour3dEstWalk,
     // handlinger
-    openTour3d, openExplore3d, close3d,
+    openTour3d, openExplore3d, openInnsjo3d, close3d,
   }
 }

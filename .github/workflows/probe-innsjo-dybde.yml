@@ -1,0 +1,42 @@
+name: Probe — hvor ligger dybden i NVE Innsjødatabasen?
+
+# EN MÅLING, IKKE EN GATE. NVE svarer 403 fra utviklings-sandkassene, så
+# spørsmålet «hvilke lag har dybde-tall og dybdekurver, og hvor mange innsjøer
+# har dem?» kan bare stilles her. Se scripts/probe-innsjo-dybde.mjs.
+# Skriver bare til probe-ut/ og feiler aldri. LES UTSKRIFTEN.
+
+on:
+  workflow_dispatch:
+    inputs:
+      innsjoer:
+        description: 'Innsjøer å slå opp: «Navn@lat,lon;…». Tom = standardlista i scriptet.'
+        required: false
+        default: ''
+  # workflow_dispatch registreres først når fila står på master, så første
+  # kjøring kommer på push — samme grep som de andre probene.
+  push:
+    paths:
+      - 'scripts/probe-innsjo-dybde.mjs'
+      - '.github/workflows/probe-innsjo-dybde.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Mål
+        env:
+          PROBE_INNSJOER: ${{ inputs.innsjoer || '' }}
+        run: |
+          if [ -z "$PROBE_INNSJOER" ]; then unset PROBE_INNSJOER; fi
+          npm run probe:innsjodybde
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: probe-innsjo-dybde
+          path: probe-ut/
+          if-no-files-found: warn

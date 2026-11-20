@@ -193,15 +193,15 @@ const noeUkjent = computed(() =>
           <span class="sr-only">, {{ merker[lay.key].tittel }}</span>
         </template>
       </button>
-      <!-- Dybde-lag: kun når kartet har ekte Sjøkart-dybde. Default av —
-           løfter soundings + dybdekurver fra long-press-inset til hovedkartet. -->
-      <button v-if="meta?.depthSource === 'sjokart'"
+      <!-- Dybde-lag: kun når kartet har ekte dybde — Sjøkart eller maksdyp for
+           oppmålte innsjøer. Default av — løfter detalj-lagene til hovedkartet. -->
+      <button v-if="meta?.depthSource === 'sjokart' || meta?.innsjoDybder > 0"
               @click="toggleDepth()"
               class="px-3 py-2 rounded-lg border text-left active:scale-[0.98] transition"
               :class="visibleLayers.has('dybde')
                       ? 'bg-sky-400/25 border-sky-300/50 text-ink'
                       : 'bg-ink/5 border-ink/10 text-ink-4'">
-        <span class="text-[12px]">Dybde (Sjøkart)</span>
+        <span class="text-[12px]">{{ meta?.depthSource === 'sjokart' ? 'Dybde (Sjøkart)' : 'Dybde (innsjøer)' }}</span>
       </button>
     </div>
     <div class="text-[10px] text-ink-4 leading-snug mb-2">

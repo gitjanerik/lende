@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { nordavvikDeg, nordavvikISoneDeg } from '../lib/utm.js'
 import { LENDE_SONE, STEDER, avvikTekst, sentralmeridian, sonebaand, utmSone } from '../lib/utmSoner.js'
 
-// Interaktiv figur til «Nord er nord» i «Om appen»: sonebåndene på den
+// Interaktiv figur til «To slags nord» i «Om appen»: sonebåndene på den
 // breddegraden du står på, og nordavviket det gir.
 //
 // GREPET ER AT FIGUREN TEGNER REGELEN, IKKE ET BILDE AV DEN. Båndene kommer fra

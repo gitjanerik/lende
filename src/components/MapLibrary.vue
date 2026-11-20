@@ -25,6 +25,7 @@ function stjerneTittel(n) {
 import RenameMapDialog from './RenameMapDialog.vue'
 import GpsFeilVarsel from './GpsFeilVarsel.vue'
 import { buildMapFromCenter } from '../lib/createMapFlow.js'
+import { kartStil } from '../lib/kartStiler.js'
 import { useMapSizePreference, effectiveEquidistanceForWidthKm, defaultMapDims, aspectForFormat } from '../composables/useMapSizePreference.js'
 import { useNominatim } from '../composables/useNominatim.js'
 import { useSpeechInput } from '../composables/useSpeechInput.js'
@@ -521,6 +522,9 @@ const showResults = computed(() =>
 // videresender signalet helt ned i hver enkelt henting.
 let byggAvbryter = null
 
+// `sted.km` og `sted.stil` kommer fra en bestilling (innsjølista i Om appen):
+// et kvadratisk kart i nøyaktig den bredden, åpnet i den kartstilen. Uten dem
+// gjelder brukerens egen standardbredde og kartet åpnes som før.
 async function byggKartFra(sted) {
   if (buildingOnTheFly.value) return
   query.value = ''
@@ -532,14 +536,24 @@ async function byggKartFra(sted) {
     const stamp = new Date().toLocaleDateString('no-NO', { day: '2-digit', month: 'short' })
     const { id } = await buildMapFromCenter({
       center: { lat: sted.lat, lon: sted.lon, name: sted.navn },
-      ...squareDims(),   // valgt format/bredde — standard 5 km kvadrat
-      equidistanceM: squareEquidistance(), // auto: fineste tillatte for bredden (5/10/20 m)
+      ...(sted.km ? { halfKm: sted.km / 2, aspect: 1 } : squareDims()),   // valgt format/bredde — standard 5 km kvadrat
+      equidistanceM: sted.km ? effectiveEquidistanceForWidthKm(sted.km) : squareEquidistance(), // auto: fineste tillatte for bredden (5/10/20 m)
       navn: `${sted.navn} ${stamp}`,
       terrainFirst: true,   // vis terreng straks, fyll inn OSM i bakgrunnen
       signal: byggAvbryter.signal,
       onProgress: (msg) => { buildingProgress.value = msg },
     })
     byggAvbryter = null
+    if (sted.stil) {
+      // Kartstilen settes av MapView ved første lasting, via samme engangs-
+      // nøkkel som auto-kartene bruker for tema og lag.
+      const stil = kartStil(sted.stil)
+      if (stil) {
+        try {
+          sessionStorage.setItem(`mapview-init-prefs:${id}`, JSON.stringify({ theme: stil.tema, layers: stil.lag }))
+        } catch { /* uten sessionStorage åpnes kartet i vanlig stil */ }
+      }
+    }
     gaaTil({ name: 'kart-vis', params: { id } })
   } catch (e) {
     const avbrutt = e?.name === 'AbortError'
@@ -607,7 +621,9 @@ function onGpsBygg() {
 // ville aldri fyrt på det første trykket, som er det eneste som teller.
 watch(() => props.byggFra, (p) => {
   if (!p || buildingOnTheFly.value) return
-  void byggFraPosisjon(p.lat, p.lon)
+  // En bestilling har navnet med seg; en GPS-fix må slå det opp.
+  if (p.navn) void byggKartFra(p)
+  else void byggFraPosisjon(p.lat, p.lon)
 }, { immediate: true })
 
 // ── Tastaturnavigasjon (desktop) ────────────────────────────────────────

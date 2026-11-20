@@ -1,7 +1,7 @@
 {
   "name": "lende",
   "private": true,
-  "version": "8.0.17",
+  "version": "8.0.20",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,8 @@
     "probe:n50vann": "node scripts/probe-n50-vann.mjs",
     "probe:sjo": "node scripts/probe-sjo.mjs",
     "probe:demost": "node scripts/probe-dem-ost.mjs",
+    "probe:innsjodybde": "node scripts/probe-innsjo-dybde.mjs",
+    "bygg:innsjodybder": "node scripts/bygg-innsjodybder.mjs",
     "mcp:protokoll": "node scripts/mcp-protokoll.mjs",
     "navnediff": "node scripts/navnediff.mjs",
     "frie": "node scripts/frie-variabler.mjs",

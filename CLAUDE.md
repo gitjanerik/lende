@@ -59,6 +59,8 @@ npm run vedlikehold    # Sårbarheter, utdaterte pakker og versjonsdrift mellom
                        # de fire katalogene
 npm run bygg:stjerner  # Baker stjernekatalogen for 3D-natthimmelen fra HYG.
                        # Kjør bare når utvalget eller stjernebildene endres.
+npm run bygg:innsjodybder  # Baker maksdyp for NVEs dybdekartlagte innsjøer
+                       # (kjøres i CI, bygg-innsjodybder.yml — NVE gir 403 her).
 npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
                        # eller mcp/headless.js, kjør denne — se «Workerne» under.
 npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
@@ -310,6 +312,34 @@ innsjø er 35,6 MB — innsjøene er 89 % av kostnaden, og de gir ingen ny
 informasjon, siden NVE live ER N50-geometrien (IoU 0,92–0,97 mot rå N50, målt på
 fire ark inkludert Finnmark). Skal de likevel bakes en dag, er det ett
 workflow-trykk: klienten leser dem alt. Se `docs/VANN_VURDERING.md`.
+
+**INNSJØDYBDEN ER BAKT, IKKE HENTET (v8.0.18).** `lib/innsjoDybde.js` slår
+opp maksdyp på `vatnlnr` i den genererte `innsjoDybderData.js` (NVE
+Innsjodatabase2, lag 4 «Dybdekart»). Laget innsjøflatene kommer fra (lag 5)
+har bare flagget `dybdekart = 'J'`, så `vatnlnr` MÅ stå i `OUT_FIELDS` i
+`n50Fetcher` — ellers forsvinner etikettene uten en lyd. Tallet emitteres som
+detalj-laget `innsjodybde` og følger `dybde`. Målt i nov. 2026
+(`probe-innsjo-dybde`): 607 av 267 194 innsjøer har dybdekart. Lag 2
+«DybdeKurve» bakes til én fil per innsjø i `public/data/innsjo-dybde/`
+(`lib/innsjoKurver.js`, 518 innsjøer, 16 MB), og 4. kolonne i tabellen sier
+hvem som har en.
+
+**INNSJØ-VOLUMET I 3D ER EN OPSJON PÅ `create3dScene` (v8.0.19)**, ikke en
+egen scene — som regelen under «Arkitektur-gjeld» krever. Tre ting er lette å
+«rydde» bort: (1) bare MESHEN bygges av det senkede DEM-et (`terrengDem` i
+sceneCore); høydekurvene, nålene, stiene og kameragulvet bruker det ekte, ellers
+står en nål på bunnen og kurvene tegner 90-meterskoten under vann. (2) Bunnen
+regnes på terrengets DESIMERTE gitter, fordi verteks-toningen (`tonBunn`) er
+indeksert på det. (3) Viseren åpner i dagmodus med en innsjø, uansett klokka:
+nattmodus skjuler nettopp det volumet finnes for å vise. Knappen på 2D-kartet
+leser `meta.innsjoVolum` (byggeren, ikke DOM-en) og står bare i Padling.
+
+**INNSJØLISTA I «OM APPEN» BYGGER GJENNOM «MINE KART» (v8.0.20)**, ikke selv:
+`useAppMenu.byggKartHer` → AppMenu → `byggFra`-propen → `byggKartFra`, og
+Padling settes med `mapview-init-prefs`. En egen byggeflyt i About ville vært
+en andre kopi av fremdrift, avbryt og navigasjon. Kartutsnittet er BAKT
+(`kartUtsnitt` i `innsjoKurver.js`, kjørt i baken) — endres regelen, bakes
+indeksen på nytt av seg selv, fordi fila står i workflowens `paths`.
 
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 

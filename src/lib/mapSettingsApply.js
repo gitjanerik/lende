@@ -242,7 +242,7 @@ export function buildSettingsCss(rawSettings = {}) {
     rules.push('.isom-map [data-label]:not([data-label="stedsnavn"]) { display: none !important; }')
   }
   if (visible.has('dybde')) {
-    rules.push('.isom-map [data-layer="dybdepunkt"], .isom-map [data-layer="dybdekurve"] { display: inline !important; }')
+    rules.push('.isom-map [data-layer="dybdepunkt"], .isom-map [data-layer="dybdekurve"], .isom-map [data-layer="innsjodybde"] { display: inline !important; }')
   }
 
   // Sti-palett: den navngitte veien til det `stiFarger` gjør med rå hex.

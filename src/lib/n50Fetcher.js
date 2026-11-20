@@ -33,15 +33,16 @@ function timeoutSignal(ms) {
   try { return AbortSignal.timeout(ms) } catch { return undefined }
 }
 
-// Feltene vi FAKTISK leser: `objectid` til dedup-en over, og `navn` til
+// Feltene vi FAKTISK leser: `objectid` til dedup-en over, `navn` til
 // innsjø-etiketten (mapBuilder leser `tags.navn` med et eget notat om at
-// NVE bruker det feltnavnet og ikke `name`). `outFields: '*'` dro med seg hele
+// NVE bruker det feltnavnet og ikke `name`), og `vatnlnr` som nøkkel inn i
+// den bakte dybde-tabellen (`innsjoDybde.js`). `outFields: '*'` dro med seg hele
 // attributt-tabellen for hver eneste innsjø — ren payload som deretter ble
 // spredt inn i `tags` på hvert element og struktur-klonet videre til
 // bygge-workeren. Feilslår den begrensede spørringen (en ArcGIS-versjon som
 // avviser ukjente feltnavn i stedet for å ignorere dem), henter forsøk 2 alt
 // som før — da koster det en runde, ikke innsjøene.
-const OUT_FIELDS = 'objectid,navn'
+const OUT_FIELDS = 'objectid,navn,vatnlnr'
 
 async function queryPage(base, bbox, offset, outFields) {
   const params = new URLSearchParams({
