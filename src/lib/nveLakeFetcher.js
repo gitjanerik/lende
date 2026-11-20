@@ -224,9 +224,11 @@ export function esriPolygonToRelation(geom, attrs, idBase) {
   // evenodd-fyllingen gjengir uansett hull korrekt.
   if (!anyOuter) for (const m of members) m.role = 'outer'
 
-  const navn = scanAttributes(attrs ?? {}).navn ?? null
+  const f = scanAttributes(attrs ?? {})
+  const navn = f.navn ?? null
   const tags = { natural: 'water' }
   if (navn) tags.name = navn
+  if (Number.isFinite(f.vatnLnr)) tags.vatnlnr = String(f.vatnLnr)
   return { type: 'relation', id: `nve-${idBase}`, members, tags, _source: 'nve' }
 }
 

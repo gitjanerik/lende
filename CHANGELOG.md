@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.18: Maksdyp på oppmålte innsjøer i Padling
+
+Med `dybde`-laget på, som Padling slår på, står nå «maks 38 m» under navnet på innsjøer NVE har dybdekartlagt. Det samme vises i lang-trykk-lupen. Tallene er bakt fra laget «Dybdekart» i NVE Innsjødatabasen (`scripts/bygg-innsjodybder.mjs` → `src/lib/innsjoDybderData.js`, workflow `bygg-innsjodybder.yml`), nøklet på innsjønummeret `vatnlnr`, som innsjø-hentingen nå tar med. Dataene endres sjeldnere enn hvert år og hentes derfor ikke ved hver bygging, og de virker uten nett. `probe-innsjo-dybde` målte kilden først: 607 av 267 194 innsjøer har dybdekart, 53 % av dem over 10 km² og nesten ingen under 0,1 km². Laget har også ekte dybdekurver (`DybdeKurve`, `dybde_m`), som er neste steg. Dybde-knappen i Detaljer-fana vises nå også på innsjøkart uten sjø.
+
+---
+
 ## 2026-11-15 — v8.0.17: Chatten viser Haikus svar igjen
 
 Etter v8.0.16 kommer svaret fra Claude Haiku som et helt Anthropic-svar, og chatten viste «(Modellen ga et tomt svar — prøv å omformulere.)» selv om Haiku hadde svart, for eksempel at det høyeste punktet er Bergshammaren på 1260 moh. Tekstuttrekket i `lendeAi.js` behandlet alt med et `type`-felt som en hendelse fra gpt-oss-strømmen, og et Anthropic-svar har `type: "message"`. Det tilfellet går nå videre til innholdsblokkene, og en test holder det fast. Testen er sjekket i begge retninger.

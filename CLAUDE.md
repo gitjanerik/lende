@@ -59,6 +59,8 @@ npm run vedlikehold    # Sårbarheter, utdaterte pakker og versjonsdrift mellom
                        # de fire katalogene
 npm run bygg:stjerner  # Baker stjernekatalogen for 3D-natthimmelen fra HYG.
                        # Kjør bare når utvalget eller stjernebildene endres.
+npm run bygg:innsjodybder  # Baker maksdyp for NVEs dybdekartlagte innsjøer
+                       # (kjøres i CI, bygg-innsjodybder.yml — NVE gir 403 her).
 npm run boot:workers   # Starter Cloudflare-Workerne i workerd. Rører du src/lib
                        # eller mcp/headless.js, kjør denne — se «Workerne» under.
 npm run mcp:protokoll  # Kjører MCP-protokollen mot lende-mcp i workerd:
@@ -310,6 +312,16 @@ innsjø er 35,6 MB — innsjøene er 89 % av kostnaden, og de gir ingen ny
 informasjon, siden NVE live ER N50-geometrien (IoU 0,92–0,97 mot rå N50, målt på
 fire ark inkludert Finnmark). Skal de likevel bakes en dag, er det ett
 workflow-trykk: klienten leser dem alt. Se `docs/VANN_VURDERING.md`.
+
+**INNSJØDYBDEN ER BAKT, IKKE HENTET (v8.0.18).** `lib/innsjoDybde.js` slår
+opp maksdyp på `vatnlnr` i den genererte `innsjoDybderData.js` (NVE
+Innsjodatabase2, lag 4 «Dybdekart»). Laget innsjøflatene kommer fra (lag 5)
+har bare flagget `dybdekart = 'J'`, så `vatnlnr` MÅ stå i `OUT_FIELDS` i
+`n50Fetcher` — ellers forsvinner etikettene uten en lyd. Tallet emitteres som
+detalj-laget `innsjodybde` og følger `dybde`. Målt i nov. 2026
+(`probe-innsjo-dybde`): 607 av 267 194 innsjøer har dybdekart. Lag 2
+«DybdeKurve» har ekte dybdekurver (`dybde_m`, ~20 000 hjørner for Bogstadvannet
+og Tyrifjorden hver) — de er ikke tatt inn ennå.
 
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 

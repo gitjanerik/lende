@@ -54,6 +54,7 @@ export function metaFromSvgMeta(m) {
     source: m.source,
     demSource: m.demSource ?? null,
     demResolutionM: m.demResolutionM ?? null, // grid-oppløsning (m) — diagnostikk for kyst-presisjon
+    innsjoDybder: m.innsjoDybder ?? null,  // antall innsjøer med maksdyp-etikett (detalj-lag)
     depthSource: m.depthSource ?? null, // 'sjokart' | 'dem-estimat' | 'ingen' | null (eldre kart)
     contoursSkipped: m.contoursSkipped ?? null,
     coastal: m.coastal ?? null,        // true=kyst, false=innland, null=ukjent (eldre kart)

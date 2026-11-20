@@ -41,6 +41,7 @@ import {
   classifyBuildings, multiPolyToPath, simplifyUrbanMass, URBAN_MASS_MIN_AREA_M2,
 } from './buildingMass.js'
 import polygonClipping from 'polygon-clipping'
+import { dybdeFor, dybdeEtikett } from './innsjoDybde.js'
 import {
   raceOverpassMirrors, fetchOverpassWithRetry,
   OVERPASS_TIMEOUT_MS, OVERPASS_TIMEOUT_MAX_MS,
@@ -2211,8 +2212,9 @@ export function buildSvg(elements, bbox, options = {}) {
         if (v != null && Number.isFinite(v)) elev = Math.round(v)
       }
 
-      if (name || elev != null) {
-        lakeLabels.push({ x: centroid.x, y: centroid.y, name, elev, areaM2 })
+      const dyp = isSeawater ? null : dybdeFor(el.tags?.vatnlnr)
+      if (name || elev != null || dyp) {
+        lakeLabels.push({ x: centroid.x, y: centroid.y, name, elev, areaM2, maksDyp: dyp?.maks ?? null })
       }
     }
   }
@@ -2741,6 +2743,7 @@ export function buildSvg(elements, bbox, options = {}) {
       ? Math.round((Math.abs(dem.transform.pixelWidth) + Math.abs(dem.transform.pixelHeight)) / 2) || null
       : null,
     lakeLabels: lakeLabels.length,
+    innsjoDybder: lakeLabels.filter(l => l.maksDyp != null).length, // innsjøer med bakt maksdyp
     contoursSkipped: dem && !usableDem ? 'syntetisk DEM — ingen ekte høydekurver tilgjengelig' : null,
     isomVersion: '2017-2-derived',
     // Tetthets-beslutningen kartet ble bygd med (mapDensityRules). `null` =
@@ -2927,6 +2930,19 @@ export function buildSvg(elements, bbox, options = {}) {
       }).join('\n')}\n  </g>\n`
     : ''
 
+  // Maksdyp for oppmålte innsjøer (bakt fra NVE, `innsjoDybde.js`). Et
+  // detalj-lag som sjøens dybde-tall: skjult på hovedkartet til `dybde`-laget
+  // slås på (Padling), synlig i lang-trykk-lupen. Linja står under navn og moh,
+  // med samme labelScale-stabling.
+  const innsjoDybdeRader = lakeLabels.filter(l => l.maksDyp != null).map(l => {
+    const linjer = (l.name ? 1 : 0) + (l.elev != null ? 1 : 0)
+    const dyMm = (linjer === 2 ? 3.4 : linjer === 1 ? 2.3 : 0.4) * labelScale
+    return `    <text x="${fmt(l.x)}" y="${fmt(l.y)}" dy="${fmt(dyMm)}mm" text-anchor="middle" data-label="dybde-tall">${dybdeEtikett(l.maksDyp)}</text>`
+  })
+  const innsjoDybdeLayerSvg = innsjoDybdeRader.length
+    ? `  <g data-layer="innsjodybde" data-detail="1" style="display:none">\n${innsjoDybdeRader.join('\n')}\n  </g>\n`
+    : ''
+
   // Stupkanter males UNDER vann (painter's order, se body) så DTM-artefakter
   // (vannflate-nivå, LiDAR-tile-skjøter) som slår ut som falske stupkanter midt
   // i en innsjø dekkes av vann-fyllet — like meningsløst som en høydekurve
@@ -3014,7 +3030,7 @@ export function buildSvg(elements, bbox, options = {}) {
   const dybdekonturLayerSvg = dybdekonturRows.length
     ? `  <g data-layer="dybdekurve" data-detail="1" style="display:none">\n${dybdekonturRows.join('\n')}\n  </g>\n`
     : ''
-  const detailLayerSvg = dybdekonturLayerSvg + soundingLayerSvg
+  const detailLayerSvg = dybdekonturLayerSvg + soundingLayerSvg + innsjoDybdeLayerSvg
 
   // ── Stedsnavn for elver og bekker (304/305) ─────────────────────────
   // Gjenta navnet ~hver 2 km langs polylinjen så det er synlig uansett
