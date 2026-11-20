@@ -551,17 +551,17 @@ function tilPersonvern() {
               og med 4 km bredde, 10 m til og med 6 km, 20 m til og med 10 km.
               25 og 50 m går alltid.</li>
             <li><strong class="text-ink">Vegetasjon</strong> kommer fra
-              Kartverkets kart over skog, myr og isbre, som ligger ferdig
-              klargjort i appen, supplert med OpenStreetMap. Der Kartverket viser
+              Kartverkets <strong class="text-ink">N50 Arealdekke</strong> — skog,
+              myr og isbre, ferdig klargjort i appen — supplert med OpenStreetMap. Der Kartverket viser
               skog, er resten av kartet åpen mark; der det mangler skogdata,
               tegner Turkart-stilen skog som bakgrunn.</li>
             <li><strong class="text-ink">Stier og veier</strong> hentes fra tre
               kilder: OpenStreetMap, Kartverkets
               <strong class="text-ink">Turrutebasen</strong> for merkede fotruter,
-              og Kartverkets egne sti- og veidata, som ligger ferdig klargjort i
-              appen fordi OpenStreetMap har hull i norsk utmark. Bygg kommer fra
+              og <strong class="text-ink">N50 Samferdsel</strong>, Kartverkets egne
+              sti- og veidata, som ligger ferdig klargjort i appen fordi OpenStreetMap har hull i norsk utmark. Bygg kommer fra
               OpenStreetMap; <strong class="text-ink">vann og kyst</strong> fra
-              høydemodellen, NVEs innsjødatabase, Kartverket og sjøkartet.</li>
+              høydemodellen, NVEs innsjødatabase, N50 og sjøkartet.</li>
             <li><strong class="text-ink">OpenStreetMap-dataene</strong> lastes
               ned den 1. hver måned og deles opp i ruter på omtrent 5 × 5 km,
               som et nytt kart henter på sekunder. De er derfor inntil en måned
@@ -807,7 +807,7 @@ function tilPersonvern() {
           samme vilkår — GPX-filene bærer henvisningen.</p>
         <p>Ruteberegning: <strong class="text-ink-2">BRouter</strong> (brouter.de),
           MIT-lisens, drevet på donasjoner.</p>
-        <p>Høydemodell, kartdata og sjøkart: <strong class="text-ink-2">Kartverket</strong> (NLOD / CC BY 4.0).</p>
+        <p>Høydemodell, N50 og sjøkart: <strong class="text-ink-2">Kartverket</strong> (NLOD / CC BY 4.0).</p>
         <p>Værvarsel: <strong class="text-ink-2">MET Norway</strong> (NLOD 2.0 / CC BY 4.0).</p>
         <p>Nordlysvarsel, Kp-indeks og solvind:
           <strong class="text-ink-2">NOAA Space Weather Prediction Center</strong>
