@@ -950,7 +950,11 @@ er dumme med vilje: de viser trinnet de får og sier fra når brukeren drar.
 hovedkart» og «Bygg på nytt» gir en ny id, og init-prefs bærer tema og lag men
 ikke relieff. Valget står bare i Kartstil-fana (Format-fanas globale kopi er
 borte), og gamle per-kart-verdier leses ikke og ryddes ved neste valg.
-Nabofliser er fortsatt alltid vektor (`useGhostTiles`), med vilje.
+Naboflisene følger stilen fra v8.0.30 (`useGhostTiles` får `reliefMode`).
+De var alltid vektor fra v5.19.0 fordi raster var den eneste kostnaden som
+skalerte med flisetallet; eieren la det hensynet bort, fordi skjøten mellom en
+mjuk aktiv flis og skarpe naboer var synlig. Hillshaden caches per flis og
+deles av begge stilene.
 
 **OG FRA v7.8.4 GJELDER DET BEGGE FLATENE.** Kartstil-fana hadde en av/på-bryter
 (per kart) VED SIDEN AV styrke-slideren (global), mens raden hadde bare slideren.

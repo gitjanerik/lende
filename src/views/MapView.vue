@@ -1690,10 +1690,7 @@ const {
 } = useGhostTiles({
   svgHostRef, wrapperRef, meta, mapId, isAlive: () => componentAlive, isGesturing,
   scale, rotation, translateX, translateY,
-  // reliefMode sendes IKKE inn: nabofliser bruker alltid vektor-relieff, uansett
-  // hva brukeren har valgt for aktiv flis. Se notatet ved relieff-passet i
-  // useGhostTiles — raster er den eneste kostnaden som skalerer med flisetallet.
-  reliefEnabled: reliefActive, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
+  reliefEnabled: reliefActive, reliefMode, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
   applyLayerVisibility, clampPan, maxTiles,
   // Spøkelses-cullingen må vite når feste-settet endrer seg (v6.5.73). Wrapper,
   // ikke verdien: kallet står etter useViewportCull, men wrapperen holder

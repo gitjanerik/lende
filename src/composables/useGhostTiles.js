@@ -22,7 +22,7 @@ import { ref } from 'vue'
 import { listMaps as listStoredMaps, loadMap as loadStoredMap, deleteMap as deleteStoredMap } from '../lib/mapStorage.js'
 import { isomCatalog, buildIsomDefs, buildIsomCss } from '../lib/symbolizer.js'
 import { unpackDem } from '../lib/demSampling.js'
-import { computeHillshade } from '../lib/hillshade.js'
+import { computeHillshade, hillshadeToDataURL } from '../lib/hillshade.js'
 import { buildReliefBands } from '../lib/reliefBands.js'
 import { tileOffset, tilesAreGridCompatible } from '../lib/tileCache.js'
 import { velgFestede, utvidRekt, manglendeNoder, fjernesteNode } from '../lib/ghostFeste.js'
@@ -41,7 +41,7 @@ function flisBytes(e) {
 export function useGhostTiles({
   svgHostRef, wrapperRef, meta, mapId, isAlive, isGesturing,
   scale, rotation, translateX, translateY,
-  reliefEnabled, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
+  reliefEnabled, reliefMode, reliefOpacity, reliefBlendMode, RELIEF_BANDS,
   applyLayerVisibility, clampPan, maxTiles, onNaboFlisKlar, onFesteEndret,
 }) {
   // ── Mosaikk / spøkelses-fliser ──────────────────────────────────────────────
@@ -274,23 +274,37 @@ export function useGhostTiles({
     }
   }
 
-  // ── Relieff-passet — nabofliser bruker ALLTID vektor (v5.19.0) ──────────────
-  // Aktiv flis følger fortsatt brukerens `reliefMode`. Naboene gjør det ikke, og
-  // det er et bevisst valg: raster-kostnaden er den ENESTE som skalerer med
-  // flisetallet. Per flis koster mjuk, etter den felles hillshaden, en ny full
-  // RGBA-buffer, en canvas-PNG-encoding, en base64-streng satt på TO attributter
-  // (href + xlink:href), og en dekoding tilbake til en bitmap kompositoren må
-  // holde. Vektor koster fem <path>. Den gamle data-URL-cachen ble dessuten
-  // aldri tømt — den holdt base64 for opptil tolv fliser × to blend-modi i heap
-  // så lenge komponenten levde.
-  //
-  // Kostnaden, ærlig: har brukeren aktivt valgt «Mjuk», får aktiv flis en
-  // kontinuerlig gradient mens naboene har fem diskrete bånd. Båndalfaen speiler
-  // shadeToToneRGBA-matematikken bånd for bånd (reliefBands.js), så intensiteten
-  // stemmer — men trinnene er synlige ved skjøten. Det treffer bare brukere som
-  // har valgt bort defaulten ('vektor'), og det treffer i arkkanten der fliser
-  // uansett er ulike. Å flippe HELE kartet til vektor når mosaikken vokser ble
-  // vurdert og forkastet: det overstyrer et valg brukeren har tatt eksplisitt.
+  // ── Relieff-passet — nabofliser følger brukerens stil (v8.0.30) ──────────────
+  // Fra v5.19.0 til v8.0.29 var naboene alltid vektor, fordi raster var den
+  // eneste kostnaden som skalerte med flisetallet. Eieren har lagt det
+  // hensynet bort: med «Mjuk» valgt var skjøten mellom aktiv flis og naboene
+  // synlig, og mosaikken skal leses som ETT kart.
+
+  // Hillshade per flis, delt av begge stilene; data-URL-ene per id:blend.
+  const ghostShadeCache = new Map()
+  const ghostRasterCache = new Map()
+  function ghostShade(stored) {
+    const key = stored.id ?? stored.navn
+    if (ghostShadeCache.has(key)) return ghostShadeCache.get(key)
+    let sh = null
+    try {
+      const dem = unpackDem(stored.dem)
+      if (dem) sh = computeHillshade(dem)
+    } catch { sh = null }
+    ghostShadeCache.set(key, sh)
+    return sh
+  }
+  function ghostReliefRaster(stored, blend) {
+    const key = `${stored.id ?? stored.navn}:${blend}`
+    if (ghostRasterCache.has(key)) return ghostRasterCache.get(key)
+    const sh = ghostShade(stored)
+    let r = null
+    try {
+      if (sh) r = { url: hillshadeToDataURL(sh, { mode: blend }), widthM: sh.widthM, heightM: sh.heightM }
+    } catch { r = null }
+    ghostRasterCache.set(key, r)
+    return r
+  }
 
   // Vektor-relieff-bånd for en spøkelses-flis. Cachet på id:blend:bands
   // (d3-contour pr flis er ikke gratis). Returnerer null/[] ved manglende DEM.
@@ -300,9 +314,8 @@ export function useGhostTiles({
     if (hit !== undefined) return hit
     let bands = null
     try {
-      const dem = unpackDem(stored.dem)
-      if (dem) {
-        const sh = computeHillshade(dem)
+      const sh = ghostShade(stored)
+      if (sh) {
         bands = buildReliefBands(sh, {
           bands: RELIEF_BANDS, blend, widthM: sh.widthM, heightM: sh.heightM,
         })
@@ -328,11 +341,34 @@ export function useGhostTiles({
     node.relieffPaa = true
     const t0 = performance.now()
     let bandCount = 0
-    if (node.stored?.dem && reliefEnabled.value && reliefOpacity.value > 0) {
+    const ns = 'http://www.w3.org/2000/svg'
+    const settInn = (el) => {
+      if (isGesturing && isGesturing.value) el.style.visibility = 'hidden'
+      const vann = gsvg.querySelector('[data-ghost-layer="vann"]')
+      if (vann) gsvg.insertBefore(el, vann)
+      else gsvg.appendChild(el)
+    }
+    const paa = node.stored?.dem && reliefEnabled.value && reliefOpacity.value > 0
+    if (paa && reliefMode?.value === 'mjuk') {
+      const r = ghostReliefRaster(node.stored, reliefBlendMode())
+      if (r) {
+        bandCount = 1
+        const img = gsvg.ownerDocument.createElementNS(ns, 'image')
+        img.setAttribute('data-ghost-relief', '1')
+        img.setAttribute('pointer-events', 'none')
+        img.setAttribute('preserveAspectRatio', 'none')
+        img.setAttribute('decoding', 'async')
+        img.setAttribute('x', '0'); img.setAttribute('y', '0')
+        img.setAttribute('width', String(r.widthM))
+        img.setAttribute('height', String(r.heightM))
+        img.setAttribute('href', r.url)
+        img.setAttribute('opacity', String(reliefOpacity.value))
+        settInn(img)
+      }
+    } else if (paa) {
       const bands = ghostReliefBands(node.stored, reliefBlendMode())
       if (bands && bands.length) {
         bandCount = bands.length
-        const ns = 'http://www.w3.org/2000/svg'
         const doc = gsvg.ownerDocument
         const g = doc.createElementNS(ns, 'g')
         g.setAttribute('data-ghost-relief', '1')
@@ -351,10 +387,7 @@ export function useGhostTiles({
           p.setAttribute('fill-opacity', String(b.fillOpacity))
           g.appendChild(p)
         }
-        if (isGesturing && isGesturing.value) g.style.visibility = 'hidden'
-        const vann = gsvg.querySelector('[data-ghost-layer="vann"]')
-        if (vann) gsvg.insertBefore(g, vann)
-        else gsvg.appendChild(g)
+        settInn(g)
       }
     }
     if (fade) {
