@@ -357,6 +357,48 @@ export function dykkeTur({ fra, mot = null, rute = null, ring = null, flateY, gu
   return steg
 }
 
+/**
+ * Innsjøens dybde (ekte meter) i SVG-punktet, bilineært mellom cellene i
+ * masken. 0 utenfor innsjøen.
+ */
+export function dybdeVed(bunn, { cols, rows, transform }, x, y) {
+  const fc = x / transform.pixelWidth
+  const fr = y / transform.pixelHeight
+  const c0 = Math.floor(fc)
+  const r0 = Math.floor(fr)
+  let sum = 0
+  let vekt = 0
+  for (let dr = 0; dr <= 1; dr++) {
+    for (let dc = 0; dc <= 1; dc++) {
+      const c = c0 + dc
+      const r = r0 + dr
+      if (c < 0 || r < 0 || c >= cols || r >= rows) continue
+      const i = r * cols + c
+      const w = (dc ? fc - c0 : 1 - (fc - c0)) * (dr ? fr - r0 : 1 - (fr - r0))
+      if (bunn.maske[i]) sum += w * bunn.dybde[i]
+      vekt += w
+    }
+  }
+  return vekt > 0 ? sum / vekt : 0
+}
+
+/**
+ * Hvor mange meter av svømmingen (glide-stegene) som gjenstår, målt langs
+ * bakken fra der kameraet er nå.
+ */
+export function svommingIgjen(steg, i, x, z) {
+  let sum = 0
+  let fx = x
+  let fz = z
+  for (let k = i; k < steg.length; k++) {
+    const [sx, , sz] = steg[k].pos
+    if (steg[k].fase === 'glid') sum += Math.hypot(sx - fx, sz - fz)
+    fx = sx
+    fz = sz
+  }
+  return sum
+}
+
 /** Det dypeste punktet i bunnen: gittercella og SVG-meter. */
 export function dypestePunkt(bunn, { cols, transform }) {
   let best = -1

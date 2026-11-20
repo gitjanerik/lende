@@ -403,6 +403,7 @@ const BOBLER = Array.from({ length: 18 }, (_, i) => ({
 function dykkNed() { engine?.dykkNed({ redusert: reduserBevegelse }) }
 function dykkOpp() { engine?.dykkOpp({ redusert: reduserBevegelse }) }
 function dykketur() { engine?.dykketur({ redusert: reduserBevegelse }) }
+const meterTekst = (m) => `${(Math.round(m / 10) * 10).toLocaleString('nb-NO')} m`
 function paDykk(d) {
   const forrige = dykk.value
   dykk.value = d
@@ -414,7 +415,9 @@ function paDykk(d) {
   if (d.tilstand === 'bunn' && forrige?.tilstand === 'ned') {
     dykkMelding.value = `Du er på bunnen av ${navn}, ${innsjoInfo.value?.maksTekst ?? ''} m`
   } else if (d.tilstand === 'tur' && forrige?.tilstand !== 'tur') {
-    dykkMelding.value = 'Dykketuren går. Dra eller bruk piltastene for å se deg rundt.'
+    dykkMelding.value = 'Svømmeturen går. Dra eller bruk piltastene for å se deg rundt.'
+  } else if (d.tilstand === 'tur' && d.pauset !== forrige?.pauset) {
+    dykkMelding.value = d.pauset ? 'Svømmeturen står på pause' : 'Svømmeturen fortsetter'
   } else if (!d.tilstand && (forrige?.tilstand === 'opp' || forrige?.tilstand === 'tur')) {
     dykkMelding.value = `Tilbake ved overflaten av ${navn}`
   }
@@ -1424,7 +1427,11 @@ function branchLabel(opt, i) {
         <div v-if="dykk?.under"
              class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-xs font-semibold text-white/85 tabular-nums"
              :style="{ zoom: uiTextScale }">
-          {{ Math.round(dykk.dybde) }} m
+          <template v-if="dykk.tilstand === 'tur' && dykk.bunnDybde != null">
+            {{ Math.round(dykk.bunnDybde) }} m dypt<template v-if="dykk.igjen >= 1">
+              · {{ meterTekst(dykk.igjen) }} igjen</template>
+          </template>
+          <template v-else>{{ Math.round(dykk.dybde) }} m</template>
         </div>
       </div>
 
@@ -1439,14 +1446,17 @@ function branchLabel(opt, i) {
            :style="{ zoom: uiTextScale }">
           Dra for å se deg rundt
         </p>
-        <button v-if="dykk.tilstand === 'tur'" type="button" data-dykketur-stopp
-                @click="engine?.stoppDykketur()"
+        <button v-if="dykk.tilstand === 'tur'" type="button" data-dykketur-pause
+                @click="engine?.pauseDykketur(!dykk.pauset)"
                 class="pointer-events-auto h-11 px-4 rounded-full bg-black/60 backdrop-blur text-white/90
                        text-xs font-medium flex items-center gap-1.5 active:scale-95 transition">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor" aria-hidden="true">
-            <rect x="6" y="6" width="12" height="12" rx="1.5"/>
+          <svg v-if="dykk.pauset" viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor" aria-hidden="true">
+            <path d="M8 5.5v13l11-6.5z"/>
           </svg>
-          Stopp her
+          <svg v-else viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor" aria-hidden="true">
+            <rect x="6.5" y="5.5" width="4" height="13" rx="1"/><rect x="13.5" y="5.5" width="4" height="13" rx="1"/>
+          </svg>
+          {{ dykk.pauset ? 'Fortsett' : 'Pause' }}
         </button>
         <button v-else type="button" data-dykketur @click="dykketur"
                 class="on-accent pointer-events-auto h-11 px-4 rounded-full bg-sky-700 text-white

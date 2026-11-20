@@ -559,6 +559,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   function applyPose({ pos, target }, { animate = false } = {}) {
     // Enhver programmatisk pose er et blikk NED i kartet, så himmelvippen skal
     // ikke overleve den. «Oversikt» skal alltid gi oversikt.
+    if (sekvens?.friBlikk) controls.enabled = sekvens.kontrollerPa
     sekvens = null
     if (underVann) settUnderVann(false)
     nullstillVipp()
@@ -658,9 +659,10 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
 
   function sekvensSteg(dt) {
     const s = sekvens
-    if (s.friBlikk) slippBlikk(dt)
+    if (s.friBlikk && !s.pauset) slippBlikk(dt)
     const steg = s.steg[s.i]
-    s.t += steg.tid > 0 ? dt / steg.tid : 1
+    // På pause står banen, men blikket kan fortsatt dras rundt.
+    if (!s.pauset) s.t += steg.tid > 0 ? dt / steg.tid : 1
     const k = s.t >= 1 ? 1 : (EASE[steg.ease] ?? easeInOutCubic)(s.t)
     camera.position.set(
       s.fra.pos[0] + (steg.pos[0] - s.fra.pos[0]) * k,
@@ -982,6 +984,13 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
         fra: { pos: [camera.position.x, camera.position.y, camera.position.z], hoyde, azimut },
       }
     },
+    /** Sett banen på pause eller i gang igjen. */
+    settPause(paa) {
+      if (sekvens) sekvens.pauset = !!paa
+    },
+    get pauset() { return !!sekvens?.pauset },
+    /** Stegene og steget som spilles nå, eller null. */
+    get sekvensStatus() { return sekvens ? { steg: sekvens.steg, i: sekvens.i } : null },
     /** Stopp banen der kameraet står, som om den var ferdig. */
     stoppSekvens() {
       if (sekvens) avsluttSekvens(sekvens)

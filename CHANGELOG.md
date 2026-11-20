@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.27: Svømmeturen starter av seg selv, med pause, dybde og distanse igjen
+
+Svømmeturen langs bunnen starter nå av seg selv halvannet sekund etter at dykket har nådd bunnen. Knappen «Stopp her» er erstattet av «Pause»/«Fortsett». På pause står kameraet stille, men du kan fortsatt dra blikket rundt. Under turen viser dybdepillen innsjøens dybde der svømmeren er (`dybdeVed`, interpolert i dybdegitteret) og hvor mange meter av svømmingen som gjenstår, målt langs banen (`svommingIgjen`). Med redusert bevegelse er turen et kutt til sluttposen, og da starter den fortsatt bare på knappen. En pose som avbryter turen gir nå kamerakontrollen tilbake.
+
+---
+
 ## 2026-11-20 — v8.0.26: Se deg rundt under dykketuren, svøm langs renna og avslutt i fugleperspektiv
 
 Under dykketuren kan du nå dra for å se deg rundt mens kameraet svømmer, eller bruke piltastene. Blikket glir tilbake til retningen turen ser i to sekunder etter at du slipper. Har innsjøen en lang, dyp renne, svømmer turen langs den i stedet for inn mot land, og knappen heter da «Svøm langs renna». Renna er den dypeste vannveien fra dykkepunktet til det fjerneste punktet som fortsatt er minst halve maksdybden, og den teller bare når den er lang og smal (`dypRenne`). En rund gryte gir fortsatt turen mot den bratteste veggen. Uansett vei stiger turen opp til slutt, går gjennom flata og ender i fugleperspektiv med blikket tilbake på dykke-ringen over det dypeste punktet (`fuglePose`). Der står kameraet høyt nok over terrenget, og det kan dreies rundt ringen etterpå.

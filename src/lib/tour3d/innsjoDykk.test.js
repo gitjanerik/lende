@@ -4,6 +4,7 @@ import {
   dybdeGrad, undervannsMorke, undervannsFarge, undervannsDis, dypestePunkt,
   iInnsjoen, utenInnsjoNaler, undervannsGulv, dykkSekvens, oppSekvens, ekteDybde,
   MORKE_TAK, bunnRelieff, bratteVegg, dykkeTur, asimutMot, dypRenne, fuglePose,
+  dybdeVed, svommingIgjen,
 } from './innsjoDykk.js'
 
 // 4 × 3 celler à 10 m; innsjøen er de fire midtre, dypest i (2,1).
@@ -262,5 +263,27 @@ describe('fuglePose', () => {
     const f = fuglePose({ fra: { x: 0, z: 0 }, ring: { x: 0, z: 0 }, flateY: 0, azimut: 0 })
     expect(f.pos[2]).toBeGreaterThan(0)
     expect(f.azimut).toBeCloseTo(0)
+  })
+})
+
+describe('dybdeVed', () => {
+  it('interpolerer mellom cellene og gir 0 på land', () => {
+    expect(dybdeVed(bunn, grid, 20, 10)).toBeCloseTo(40)
+    expect(dybdeVed(bunn, grid, 15, 10)).toBeCloseTo(26)
+    expect(dybdeVed(bunn, grid, 0, 0)).toBe(0)
+  })
+})
+
+describe('svommingIgjen', () => {
+  const steg = [
+    { pos: [0, -10, 0], fase: 'snu' },
+    { pos: [100, -10, 0], fase: 'glid' },
+    { pos: [100, -10, 300], fase: 'glid' },
+    { pos: [100, -3, 400], fase: 'stig' },
+  ]
+  it('summerer glidestrekkene fra kameraet', () => {
+    expect(svommingIgjen(steg, 0, 0, 0)).toBeCloseTo(400)
+    expect(svommingIgjen(steg, 1, 40, 0)).toBeCloseTo(360)
+    expect(svommingIgjen(steg, 3, 100, 300)).toBe(0)
   })
 })

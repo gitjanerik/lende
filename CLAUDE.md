@@ -354,7 +354,9 @@ på dykke-ringen (`fuglePose`). To ting er lette å «rydde» bort: (1) under tu
 er ORBITEN AV (`friBlikk`) og brukerens drag legges som et utslag oppå banens
 blikk. Med orbiten på samler OrbitControls opp draget og kaster kameraet når
 banen slutter. (2) `underVann` til `spillSekvens` er en FUNKSJON for turen,
-fordi «Stopp her» kan treffe over eller under flata.
+fordi turen kan avbrytes over eller under flata. Fra v8.0.27 starter turen av
+seg selv etter nedstigningen (`AUTOTUR_MS`, ikke med redusert bevegelse) og har
+pause (`freeRig.settPause`), som holder banen men ikke blikket.
 
 **INNSJØ-VISNINGEN HAR NVE-RADEN OG IKKE VÆRRADEN (v8.0.24).** `vaerOn` er
 falsk når `props.innsjo` er satt. Stasjonen velges av omrisset fra dybdekurve-fila
