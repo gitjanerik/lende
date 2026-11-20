@@ -90,6 +90,7 @@ describe('mapBuilder: maksdyp som detalj-lag', () => {
     expect(lag).not.toBeNull()
     expect(lag[1]).toContain('data-label="dybde-tall">maks 11 m</text>')
     expect(meta.innsjoDybder).toBe(1)
+    expect(meta.innsjoVolum).toEqual([expect.objectContaining({ nr: 5252, navn: 'Bogstadvannet', maks: 10.5 })])
   })
 
   it('emitterer ingenting for en innsjø uten dybdekart', () => {
@@ -97,5 +98,6 @@ describe('mapBuilder: maksdyp som detalj-lag', () => {
     const { svg, meta } = buildSvg([lake], bbox, {})
     expect(svg).not.toContain('data-layer="innsjodybde"')
     expect(meta.innsjoDybder).toBe(0)
+    expect(meta.innsjoVolum).toEqual([])
   })
 })

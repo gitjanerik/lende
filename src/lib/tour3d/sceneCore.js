@@ -15,6 +15,7 @@ import {
 } from 'three'
 import { makeCoords } from './coords.js'
 import { buildTerrainMesh } from './terrainMesh.js'
+import { decimateForTerrain } from './terrainGrid.js'
 import {
   buildMapTexture, buildFallbackTexture, textureSourceIsBlank,
   pickTextureSize, PREVIEW_TEXTURE_PX,
@@ -125,7 +126,12 @@ export async function createSceneCore(container, {
   let disposed = false
 
   melding('Bygger terrengmodellen …')
-  const terrain = buildTerrainMesh(dem, coords, texture)
+  // `terrengDem` er et DEM med noe senket inn — innsjøbunnen (innsjoBunn.js).
+  // Bare MESHEN bygges av det: høydekurvene skal fortsatt være landets, og
+  // alt annet (nåler, stier, kameragulvet) står på det ekte DEM-et, altså på
+  // vannflata og ikke på bunnen.
+  const terrain = buildTerrainMesh(options.terrengDem ?? dem, coords, texture)
+  if (options.terrengDem) terrain.dem = decimateForTerrain(dem)
   scene.add(terrain.mesh)
 
   // Hvor stor del av utsnittet mangler høydedata? terrainGrid flater noData til

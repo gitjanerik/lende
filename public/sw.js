@@ -16,7 +16,7 @@
  *       Everything else → network only (Google Fonts, opentype from CDN, etc.)
  */
 
-const CACHE_VERSION = '8.0.18'
+const CACHE_VERSION = '8.0.19'
 // NAVNENE MÅ HA `lende-`-PREFIKSET, og det er ikke pynt: opprydningen under
 // gjenkjenner sine egne cacher på det, og github.io er ÉN origin delt med
 // eierens andre Pages-prosjekter — en opprydning uten prefiks ville slettet
@@ -183,6 +183,22 @@ self.addEventListener('fetch', (e) => {
   // then succeeds once the background revalidation has replaced the entry).
   // Always prefer fresh network; fall back to cache only when offline.
   if (url.pathname.startsWith(`${BASE}maps/`)) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone()
+          caches.open(DATA_CACHE).then((c) => c.put(req, copy))
+        }
+        return res
+      }).catch(() => caches.open(DATA_CACHE).then((c) => c.match(req)))
+    )
+    return
+  }
+
+  // Dybdekurver per innsjø (data/innsjo-dybde/<vatnlnr>.json) → network-first
+  // med cache som offline-fallback. Én fil hentes først når innsjøen åpnes i
+  // 3D, og en innsjø man har sett skal kunne åpnes igjen uten dekning.
+  if (url.pathname.startsWith(`${BASE}data/innsjo-dybde/`)) {
     e.respondWith(
       fetch(req).then((res) => {
         if (res && res.ok) {

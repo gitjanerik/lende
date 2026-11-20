@@ -320,8 +320,19 @@ har bare flagget `dybdekart = 'J'`, så `vatnlnr` MÅ stå i `OUT_FIELDS` i
 `n50Fetcher` — ellers forsvinner etikettene uten en lyd. Tallet emitteres som
 detalj-laget `innsjodybde` og følger `dybde`. Målt i nov. 2026
 (`probe-innsjo-dybde`): 607 av 267 194 innsjøer har dybdekart. Lag 2
-«DybdeKurve» har ekte dybdekurver (`dybde_m`, ~20 000 hjørner for Bogstadvannet
-og Tyrifjorden hver) — de er ikke tatt inn ennå.
+«DybdeKurve» bakes til én fil per innsjø i `public/data/innsjo-dybde/`
+(`lib/innsjoKurver.js`, 518 innsjøer, 16 MB), og 4. kolonne i tabellen sier
+hvem som har en.
+
+**INNSJØ-VOLUMET I 3D ER EN OPSJON PÅ `create3dScene` (v8.0.19)**, ikke en
+egen scene — som regelen under «Arkitektur-gjeld» krever. Tre ting er lette å
+«rydde» bort: (1) bare MESHEN bygges av det senkede DEM-et (`terrengDem` i
+sceneCore); høydekurvene, nålene, stiene og kameragulvet bruker det ekte, ellers
+står en nål på bunnen og kurvene tegner 90-meterskoten under vann. (2) Bunnen
+regnes på terrengets DESIMERTE gitter, fordi verteks-toningen (`tonBunn`) er
+indeksert på det. (3) Viseren åpner i dagmodus med en innsjø, uansett klokka:
+nattmodus skjuler nettopp det volumet finnes for å vise. Knappen på 2D-kartet
+leser `meta.innsjoVolum` (byggeren, ikke DOM-en) og står bare i Padling.
 
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 

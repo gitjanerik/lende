@@ -2666,7 +2666,8 @@ const {
   view3dOpen, view3dLoading, view3dComp, view3dData, tour3dError,
   tour3dPinVisible, tour3dEndPinVisible, tour3dPinElRef, tour3dEndPinElRef,
   gpsFor3d, tour3dEstWalk,
-  openTour3d, openExplore3d, close3d,
+  openTour3d, openExplore3d, openInnsjo3d, close3d,
+  innsjoPinner, settInnsjoPinEl,
 } = use3dEntry({
   meta, storedDem, searchIndex, svgHostRef, wrapperRef, animating,
   scale, translateX, translateY, rotation,
@@ -2676,6 +2677,7 @@ const {
   // union som pan-grensa bruker, så «det du kan panorere til» og «det du får i
   // 3D» er samme kart.
   mosaicBounds: () => extendZonesBounds(),
+  aktivStil: () => aktivStil.value,
 })
 
 
@@ -3322,6 +3324,27 @@ onUnmounted(() => {
         </svg>
       </div>
 
+      <!-- Innsjø-volumet (Padling): én knapp i hver innsjø med bakte dybdekurver,
+           rett under navnet. Samme overlay-mønster som 3D-pinene under. -->
+      <button v-for="(p, i) in innsjoPinner" :key="p.nr"
+              :ref="(el) => settInnsjoPinEl(el, i)"
+              @click="openInnsjo3d({ vatnlnr: p.nr, navn: p.navn, maks: p.maks })"
+              :aria-label="`Vis ${p.navn ?? 'innsjøen'} med dybde i 3D`"
+              data-innsjo-pin
+              class="absolute top-0 left-0 z-[7] pointer-events-auto flex items-center gap-1
+                     rounded-full bg-sky-900/90 text-white text-[11px] font-bold
+                     pl-2 pr-2.5 py-1 shadow-lg border border-white/25 active:scale-90
+                     transition-transform"
+              style="visibility:hidden;margin-left:-30px;margin-top:22px;">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 8c3-2 6 2 9 0s6-2 9 0"/>
+          <path d="M5 13l7 7 7-7"/>
+          <path d="M12 9v11"/>
+        </svg>
+        Dybde
+      </button>
+
       <!-- «3D»-pin i BEGGE ender av ruta (stifinner/rundtur valgt): HTML-
            overlay UTENFOR pinch-transformen, samme mønster som long-press-
            siktet over. Flyter rett over start- og målprikken. -->
@@ -3967,6 +3990,7 @@ onUnmounted(() => {
                :barrier-features="view3dData.barrierFeatures"
                :brukerminner="view3dData.brukerminner"
                :tour="view3dData.tour"
+               :innsjo="view3dData.innsjo ?? null"
                :est-walk-minutes="tour3dEstWalk"
                :get-texture-spec="(opts) => medAlleSpokelserFestet(() => mapSvgTilesFor3d({ theme: opts?.dark ? 'dark' : null, extent: view3dData.extent }))"
                :is-dark="isDark"

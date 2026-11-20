@@ -2214,7 +2214,11 @@ export function buildSvg(elements, bbox, options = {}) {
 
       const dyp = isSeawater ? null : dybdeFor(el.tags?.vatnlnr)
       if (name || elev != null || dyp) {
-        lakeLabels.push({ x: centroid.x, y: centroid.y, name, elev, areaM2, maksDyp: dyp?.maks ?? null })
+        lakeLabels.push({
+          x: centroid.x, y: centroid.y, name, elev, areaM2,
+          maksDyp: dyp?.maks ?? null,
+          kurveNr: dyp?.harKurver ? Math.round(Number(el.tags.vatnlnr)) : null,
+        })
       }
     }
   }
@@ -2744,6 +2748,9 @@ export function buildSvg(elements, bbox, options = {}) {
       : null,
     lakeLabels: lakeLabels.length,
     innsjoDybder: lakeLabels.filter(l => l.maksDyp != null).length, // innsjøer med bakt maksdyp
+    // Innsjøer med bakte dybdekurver: 3D-knappen i Padling står på (x, y).
+    innsjoVolum: lakeLabels.filter(l => l.kurveNr != null).slice(0, 12)
+      .map(l => ({ nr: l.kurveNr, navn: l.name || null, x: Math.round(l.x), y: Math.round(l.y), maks: l.maksDyp })),
     contoursSkipped: dem && !usableDem ? 'syntetisk DEM — ingen ekte høydekurver tilgjengelig' : null,
     isomVersion: '2017-2-derived',
     // Tetthets-beslutningen kartet ble bygd med (mapDensityRules). `null` =
