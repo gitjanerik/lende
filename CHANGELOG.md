@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.25: Relieff på innsjøbunnen, lysere dykk og dykketur til berget
+
+Bunnen under vann var en jevn blå gradient. Den ble farget etter dybde alene, og terrenget i 3D har ingen lyssetting, så en skråning og en flate på samme dybde fikk samme farge. Nå skyggelegges bunnen også etter helning, med lys fra nordvest i 45° som relieffet på kartet (`bunnRelieff`), så rygger, renner og stup synes. Dykket er lysere: mørket har tak på 0,3 i stedet for 0,55, disen er lysere blå og rekker lenger, og flata sett nedenfra er tynnere, så fjellet over vannet skimtes gjennom den. På bunnen kommer knappen «Svøm til berget». Den snur kameraet mot den bratteste veggen i innsjøen, glir langs bunnen dit noen meter over bunnen, og stiger til slutt opp langs berget til like under flata med blikket opp. Veggen er strandcella med mest fall under og mest fjell over seg innen 400 m, og som kan nås i rett linje uten å krysse land (`bratteVegg`). «Stopp her» avbryter turen og lar deg se deg rundt der du er. Med redusert bevegelse er turen et kutt til sluttposen.
+
+---
+
 ## 2026-11-20 — v8.0.24: NVE-målinger i stedet for værvarsel i innsjø-visningen
 
 Innsjø-visningen i 3D viser ikke lenger værvarsel og værhimmel. Har innsjøen en NVE-målestasjon i vannet eller i en elv innen 2 km fra strandlinja, står stasjonens navn i stedet, sammen med siste vanntemperatur, vannføring og lufttemperatur. Vannstand vises når stasjonen ikke måler vannføring. Bare det stasjonen faktisk måler vises. Måler den ikke lufttemperatur, brukes METs varsel for nå, merket «Luft (MET)». En stasjon i selve vannet går foran en elvestasjon like ved. Ellers vinner den nærmeste, med et lite fortrinn for stasjoner som måler vanntemperatur og vannføring (`lib/innsjoStasjon.js`, ren og testet). Finnes det ingen stasjon, står det ingen rad. Stasjonsnavnet lenker til Sildre.

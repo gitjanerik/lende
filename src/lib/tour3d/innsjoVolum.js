@@ -17,30 +17,35 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { settLinjeSegmenter } from './linjeSegmenter.js'
+import { bunnRelieff } from './innsjoDykk.js'
 
-const GRUNT = new Color(0.82, 0.93, 1.0)
-const DYPT = new Color(0.12, 0.26, 0.5)
+const GRUNT = new Color(0.86, 0.95, 1.0)
+const DYPT = new Color(0.34, 0.52, 0.76)
 const VANN = 0x2f7fc4
-// Flata sett nedenfra: lysere og tettere, så den leses som «lys der oppe».
-const VANN_UNDER = 0x9fd3ff
+// Flata sett nedenfra: lys, men tynn nok til at fjellet over skimtes gjennom.
+const VANN_UNDER = 0xbfe4ff
 const STRAND = 0xe8f6ff
 // Dykke-ringen er like stor på skjermen uansett avstand, som trykk-ringene i
 // himmelen: en affordanse måles i piksler.
 const RING_PX = 44
 
 /**
- * Tone terrengets vertekser etter dybde. Vertekser utenfor innsjøen får hvitt,
- * altså uendret tekstur. Skjørt-verteksene bak gitteret får også hvitt.
+ * Tone terrengets vertekser etter dybde og relieff. Vertekser utenfor innsjøen
+ * får hvitt, altså uendret tekstur. Skjørt-verteksene bak gitteret får også
+ * hvitt. Relieffet regnes av det SENKEDE DEM-et (terrengDem), for det er den
+ * formen meshen har.
  */
-export function tonBunn(geometry, material, bunn, cols, rows) {
+export function tonBunn(geometry, material, bunn, grid, terrengDem, zFaktor = 1) {
+  const { cols, rows } = grid
   const n = geometry.getAttribute('position').count
   const farger = new Float32Array(n * 3).fill(1)
   const c = new Color()
   const maks = bunn.maksDybde || 1
+  const relieff = bunnRelieff(terrengDem.data, bunn.maske, grid, zFaktor)
   for (let i = 0; i < cols * rows; i++) {
     if (!bunn.maske[i]) continue
     const t = Math.min(1, Math.max(0, bunn.dybde[i] / maks))
-    c.copy(GRUNT).lerp(DYPT, Math.sqrt(t))
+    c.copy(GRUNT).lerp(DYPT, Math.sqrt(t)).multiplyScalar(relieff[i])
     farger[i * 3] = c.r; farger[i * 3 + 1] = c.g; farger[i * 3 + 2] = c.b
   }
   geometry.setAttribute('color', new BufferAttribute(farger, 3))
@@ -179,7 +184,7 @@ export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor, dykkPunkt 
     settUnderside(paa) {
       if (!flateMat) return
       flateMat.color.setHex(paa ? VANN_UNDER : VANN)
-      flateMat.opacity = paa ? 0.55 : 0.3
+      flateMat.opacity = paa ? 0.22 : 0.3
     },
     /** Hold ringen RING_PX bred på skjermen; skjul den under et dykk. */
     oppdaterRing(camera, hoydePx, synlig, tidS = 0) {

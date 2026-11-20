@@ -52,7 +52,7 @@ import { byggInnsjoBunn, autoDybdeFaktor, senketDem } from './innsjoBunn.js'
 import { buildInnsjoVolum, tonBunn } from './innsjoVolum.js'
 import {
   dypestePunkt, utenInnsjoNaler, undervannsGulv, dykkSekvens, oppSekvens, ekteDybde,
-  undervannsFarge, undervannsDis, undervannsMorke,
+  undervannsFarge, undervannsDis, undervannsMorke, bratteVegg, dykkeTur,
 } from './innsjoDykk.js'
 
 export { TourSceneError }
@@ -130,7 +130,7 @@ export async function create3dScene(container, {
   let innsjoVolum = null
   if (innsjoPlan) {
     const { grov, bunn, faktor } = innsjoPlan
-    tonBunn(terrain.geometry, terrain.material, bunn, grov.cols, grov.rows)
+    tonBunn(terrain.geometry, terrain.material, bunn, grov, innsjoPlan.terrengDem, coords.exaggeration)
     innsjoVolum = buildInnsjoVolum({ bunn, dem: grov, coords, innsjo, faktor, dykkPunkt: innsjoPlan.dykk })
     scene.add(innsjoVolum.group)
     loop.track(innsjoVolum)
@@ -436,9 +436,46 @@ export async function create3dScene(container, {
   // frie riggen; her bor det som ikke er kamera: gulvet, disen, flata sett
   // nedenfra og meldingene til viseren.
 
-  let dykkTilstand = null   // null | 'ned' | 'bunn' | 'opp'
+  let dykkTilstand = null   // null | 'ned' | 'bunn' | 'tur' | 'opp'
   let varUnder = false
   let sisteDykkEmit = 0
+  let vegg   // undefined = ikke regnet ennå, null = ingen
+
+  // Den bratteste veggen regnes først når noen dykker: den skanner hele
+  // strandlinja, og de fleste åpner innsjøen uten å dykke.
+  function finnVegg() {
+    if (vegg !== undefined) return vegg
+    vegg = null
+    try {
+      const { grov, bunn, terrengDem, dykk } = innsjoPlan
+      vegg = bratteVegg(terrengDem.data, bunn.maske, grov, bunn.nivaa, dykk)
+    } catch (e) {
+      console.warn('[3D] Fant ingen vegg for dykketuren:', e)
+    }
+    return vegg
+  }
+
+  function startDykketur({ redusert = false } = {}) {
+    const m = dykkMaal()
+    const v = finnVegg()
+    if (!m || !v || dykkTilstand !== 'bunn') return false
+    const [vx, , vz] = coords.toWorld(v.x, v.y, 0)
+    const p = camera.position
+    dykkTilstand = 'tur'
+    freeRig.spillSekvens(dykkeTur({
+      fra: { x: p.x, y: p.y, z: p.z },
+      mot: { x: vx, z: vz },
+      flateY: m.flateY,
+      gulv: (wx, wz) => undervannsGulv(innsjoPlan.terrengDem, coords, wx, wz, m.flateY),
+      klaring: 6 * coords.exaggeration,
+      redusert,
+    }), {
+      underVann: true,
+      ferdig: () => { if (dykkTilstand === 'tur') dykkTilstand = 'bunn'; sendDykk(true) },
+    })
+    sendDykk(true)
+    return true
+  }
 
   function dykkMaal() {
     const d = innsjoPlan?.dykk
@@ -490,6 +527,7 @@ export async function create3dScene(container, {
       : 0
     emit('dykk', {
       tilstand: dykkTilstand,
+      tur: dykkTilstand === 'bunn' && !!finnVegg(),
       fase: freeRig.sekvensFase,
       under,
       dybde,
@@ -1093,6 +1131,10 @@ export async function create3dScene(container, {
     dykkNed(opts) { return dykkNed(opts) },
     /** Opp til overflaten igjen, og tilbake til innsjø-innrammingen. */
     dykkOpp(opts) { dykkOpp(opts) },
+    /** Fra bunnen: gli til den bratteste veggen og stig langs berget. */
+    dykketur(opts) { return startDykketur(opts) },
+    /** Stopp dykketuren der kameraet er, og se deg rundt. */
+    stoppDykketur() { if (dykkTilstand === 'tur') freeRig.stoppSekvens() },
     /** Fly tilbake til innsjøen. Under vann: opp først. */
     tilInnsjoen() {
       if (!innsjoVolum) return
