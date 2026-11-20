@@ -48,5 +48,8 @@ jobs:
             git -c commit.gpgsign=false commit \
               --author="Deploy <deploy@lende>" \
               -m "Innsjødybder og dybdekurver (auto-generert fra NVE Innsjødatabasen)"
+            # Grena kan ha fått commits mens baken kjørte; baken eier bare
+            # sine egne filer, så en rebase kan ikke komme i konflikt.
+            git pull --rebase origin ${GITHUB_REF_NAME}
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
