@@ -304,13 +304,6 @@ function tilPersonvern() {
         infokort og til tastaturet når du søker.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
-        Prisen for at rotasjon er skrudd på, er at telefonen kan snu når du ikke
-        vil — typisk når du går med den i hånda. Vil du unngå det, lås
-        skjermretningen i telefonens egne hurtiginnstillinger; Lende følger
-        låsen. Vi lar altså <em>deg</em> bestemme: kan du ikke holde
-        telefonen den ene veien, skal appen følge deg.
-      </p>
-      <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Tekststørrelse</strong> settes i hovedmenyen
         (100–200 %), og fra <strong class="text-ink">A-knappen</strong> i
         toppen av hvert infopanel — den viser hvilken størrelse du står på og går
