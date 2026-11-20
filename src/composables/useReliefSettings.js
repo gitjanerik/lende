@@ -13,7 +13,7 @@ import { ref, computed, watch } from 'vue'
 
 const ENABLED_KEY = 'lende-relief-enabled'   // '1' | '0' (global, eksisterende)
 const MODE_KEY = 'lende-relief-mode'         // 'vektor' | 'mjuk' (global, eksisterende)
-const BYMAP_KEY = 'lende-relief-bymap'       // { [mapId]: { enabled?, mode? } }
+const BYMAP_KEY = 'lende-relief-bymap'       // { [mapId]: { enabled? } }
 
 const DEFAULT_ENABLED = true
 const DEFAULT_MODE = 'vektor'
@@ -62,16 +62,38 @@ const reliefEnabled = computed({
   set: (v) => writeOverride({ enabled: !!v }),
 })
 
+// Stilen er GLOBAL (v8.0.30), som styrken. Per kart hoppet den tilbake til
+// «Skarp» hver gang appen byttet kart-id under brukeren — «Gjør dette til
+// hovedkart», «Bygg på nytt» — fordi init-prefs bærer tema og lag, men ikke
+// relieff. Gamle per-kart-verdier leses ikke og ryddes ved første valg.
 const reliefMode = computed({
-  get: () => (isMode(override.value.mode) ? override.value.mode : globalReliefMode.value),
-  set: (v) => { if (isMode(v)) writeOverride({ mode: v }) },
+  get: () => globalReliefMode.value,
+  set: (v) => {
+    if (!isMode(v)) return
+    globalReliefMode.value = v
+    stripMode()
+  },
 })
+
+function stripMode() {
+  let endret = false
+  const next = {}
+  for (const [id, o] of Object.entries(byMap.value)) {
+    if (o && 'mode' in o) {
+      const { mode, ...rest } = o
+      endret = true
+      if (Object.keys(rest).length) next[id] = rest
+    } else next[id] = o
+  }
+  if (!endret) return
+  byMap.value = next
+  try { localStorage.setItem(BYMAP_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+}
 
 function setCurrentMap(id) { currentMapId.value = id || null }
 
 function saveReliefAsDefault() {
   globalReliefEnabled.value = reliefEnabled.value
-  globalReliefMode.value = reliefMode.value
   if (currentMapId.value) {
     const next = { ...byMap.value }
     delete next[currentMapId.value]
@@ -81,7 +103,8 @@ function saveReliefAsDefault() {
 }
 
 function resetRelief() {
-  writeOverride({ enabled: DEFAULT_ENABLED, mode: DEFAULT_MODE })
+  writeOverride({ enabled: DEFAULT_ENABLED })
+  reliefMode.value = DEFAULT_MODE
 }
 
 export function useReliefSettings() {

@@ -342,7 +342,7 @@ const temaSeksjoner = computed(() => {
       <template v-if="reliefTrinn > 0">
         <div class="rounded-lg bg-ink/5 px-3 py-2.5 mb-2">
           <div class="text-[13px] text-ink font-medium mb-2">Relieff-stil</div>
-          <div class="flex gap-2" role="group" aria-label="Relieff-stil for dette kartet">
+          <div class="flex gap-2" role="group" aria-label="Relieff-stil for alle kart">
             <button @click="reliefMode = 'vektor'"
                     :aria-pressed="reliefMode === 'vektor'"
                     class="flex-1 rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors"
