@@ -1287,8 +1287,10 @@ function branchLabel(opt, i) {
                spenner hele bredden, og uten dette ville den svelget nettopp
                det draget nedover som er veien tilbake til kartet.
              · Skjult under en gående tur: der er kameraet turens, og et bytte
-               til natt midt i den er ikke det man ber om ved å se opp. -->
-      <div v-if="phase === 'ready' && serOpp && !stjernemodus && !walking"
+               til natt midt i den er ikke det man ber om ved å se opp.
+             · Skjult i innsjø-visningen: der er det vannet man har åpnet 3D for,
+               og en plakat midt i bildet er bare støy. -->
+      <div v-if="phase === 'ready' && serOpp && !stjernemodus && !walking && !innsjoInfo"
            class="absolute left-0 right-0 top-[32%] z-[9] flex justify-center px-4
                   pointer-events-none">
         <button type="button" @click="toggleNight"
@@ -1775,10 +1777,24 @@ function branchLabel(opt, i) {
             </svg>
             Oversikt
           </button>
+          <!-- Innsjø-volumet: navnet, dybden og forsterkningen. Forsterkningen
+               står skrevet fordi den ellers er en skjult løgn om hvor bratt
+               bunnen er. Den tar hint-plassen, så bildet over er fritt. Trykk
+               flyr tilbake til innsjøen. -->
+          <button v-if="innsjoInfo" type="button" @click="engine?.tilInnsjoen()"
+                  data-innsjo-volum
+                  class="min-w-0 rounded-2xl bg-black/72 backdrop-blur px-3 py-1.5 text-white/90
+                         text-left leading-tight active:scale-[0.97] transition"
+                  :aria-label="`${innsjoInfo.navn ?? 'Innsjøen'} — fly tilbake til innsjøen`">
+            <span class="block text-xs font-semibold truncate">{{ innsjoInfo.navn ?? 'Innsjøen' }}</span>
+            <span class="block text-[0.6875rem] text-white/75">
+              maks {{ innsjoInfo.maksTekst }} m<template v-if="innsjoInfo.faktor > 1"> · dybden vist ×{{ innsjoInfo.faktor }}</template>
+            </span>
+          </button>
           <!-- Ser man opp i himmelen, er det ikke kartet i bildet, og da er det
                ikke åpenbart at samme drag den andre veien er veien ned igjen.
                Hintet erstatter sti-hintet, som ikke er til hjelp der. -->
-          <div v-if="serOpp"
+          <div v-else-if="serOpp"
                class="rounded-full bg-black/70 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/70">
             Ser opp i himmelen — dra nedover for å komme tilbake til kartet
           </div>
@@ -1840,24 +1856,6 @@ function branchLabel(opt, i) {
            class="absolute right-0 bottom-0 z-10 pointer-events-none p-3"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
         <Tour3dHimmelKompass :blikk="blikk" @nord="engine?.seMotNord()"/>
-      </div>
-
-      <!-- Innsjø-volumet: navnet, dybden og forsterkningen. Forsterkningen står
-           skrevet fordi den ellers er en skjult løgn om hvor bratt bunnen er.
-           Trykk flyr tilbake til innsjøen. -->
-      <div v-if="phase === 'ready' && innsjoInfo && !stjernemodus"
-           class="absolute left-0 right-0 bottom-28 z-10 flex justify-center px-4 pointer-events-none">
-        <button type="button" @click="engine?.tilInnsjoen()"
-                data-innsjo-volum
-                class="pointer-events-auto max-w-full rounded-2xl bg-black/72 backdrop-blur ring-1 ring-white/20
-                       px-3.5 py-2 text-white/90 text-left leading-tight active:scale-[0.97] transition"
-                :style="tekstBoks(86)"
-                :aria-label="`${innsjoInfo.navn ?? 'Innsjøen'} — fly tilbake til innsjøen`">
-          <span class="block text-[0.8125rem] font-semibold">{{ innsjoInfo.navn ?? 'Innsjøen' }}</span>
-          <span class="block text-[0.6875rem] text-white/80">
-            maks {{ innsjoInfo.maksTekst }} m<template v-if="innsjoInfo.faktor > 1"> · dybden vist ×{{ innsjoInfo.faktor }}</template>
-          </span>
-        </button>
       </div>
 
       <!-- Skjerping av kartbildet etter at visningen er åpen -->

@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.21: Innsjø-plakaten flyttet ned i 3D, stjernekikkeren skjult
+
+I innsjø-visningen i 3D står plakaten med navn, maksdyp og forsterkning nå i den nederste raden ved siden av «Oversikt», der hintene ellers står, i stedet for å sveve midt i bildet. Stjernekikker-knappen, som dukker opp når man ser opp i himmelen, vises ikke i innsjø-visningen: der har man åpnet 3D for å se på vannet, og en plakat midt i bildet var bare støy.
+
+---
+
 ## 2026-11-20 — v8.0.20: Innsjøer med dybde i Om appen
 
 «Om appen» har fått seksjonen «Innsjøer med dybde». Den forklarer maksdypet i Padling og innsjø-volumet i 3D, og har en søkbar liste over de 518 innsjøene med dybdekurver, med eksempellenker til Bogstadvannet, Tyrifjorden, Gjende, Vansjø og Setten. Fjorda har ingen dybdekurver hos NVE og er derfor ikke med. Et trykk i lista bygger et kart i Padling gjennom «Mine kart» (`useAppMenu.byggKartHer` → AppMenu → `byggFra`), så fremdrift og avbryt er de samme som ellers. Kartstilen settes med den eksisterende engangsnøkkelen `mapview-init-prefs`. En innsjø som får plass i et 8 × 8 km-kart får et kart som dekker hele vannet, i minste hele kilometer. De 82 større får et demo-utsnitt: kandidatpunkter langs de dypeste kurvene prøves, og vinduet med vannandel nærmest halvparten vinner, med et lite fortrinn for dypere vann (`kartUtsnitt`). Et fast stykke fra stranda ble målt først og forkastet: det ga 2 % vann på smale innsjøer og 74 % på Tyrifjorden. Smale innsjøer får et mindre kart når 8 km gir under 20 % vann. Søkelista bakes som `public/data/innsjo-dybde/indeks.json` sammen med kurvene. Navnet er Innsjødatabasens eget, og navnet fra dybdemålingen er et søkbart alias, så Tyrifjorden også finnes som «Holsfjorden».
