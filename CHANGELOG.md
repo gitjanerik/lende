@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.28: Dybde-knappen i alle kartstiler
+
+Innsjøer med bakte dybdekurver får Dybde-knappen i kartet uansett kartstil, ikke bare i Padling — så dykket og svømmeturen er en tur unna fra det kartet man faktisk ser på. 3D bruker kartet slik det står, og ingen inngang bytter lenger kartstil: innsjølista i «Om appen» bygger kartet i brukerens egen stil i stedet for å tvinge fram Padling. Maksdyp-etikettene under navnene er fortsatt Padling. «Om appen» beskriver nå også dykket og svømmeturen.
+
+---
+
 ## 2026-11-20 — v8.0.27: Svømmeturen starter av seg selv, med pause, dybde og distanse igjen
 
 Svømmeturen langs bunnen starter nå av seg selv halvannet sekund etter at dykket har nådd bunnen. Knappen «Stopp her» er erstattet av «Pause»/«Fortsett». På pause står kameraet stille, men du kan fortsatt dra blikket rundt. Under turen viser dybdepillen innsjøens dybde der svømmeren er (`dybdeVed`, interpolert i dybdegitteret) og hvor mange meter av svømmingen som gjenstår, målt langs banen (`svommingIgjen`). Med redusert bevegelse er turen et kutt til sluttposen, og da starter den fortsatt bare på knappen. En pose som avbryter turen gir nå kamerakontrollen tilbake.

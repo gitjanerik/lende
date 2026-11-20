@@ -332,7 +332,9 @@ står en nål på bunnen og kurvene tegner 90-meterskoten under vann. (2) Bunnen
 regnes på terrengets DESIMERTE gitter, fordi verteks-toningen (`tonBunn`) er
 indeksert på det. (3) Viseren åpner i dagmodus med en innsjø, uansett klokka:
 nattmodus skjuler nettopp det volumet finnes for å vise. Knappen på 2D-kartet
-leser `meta.innsjoVolum` (byggeren, ikke DOM-en) og står bare i Padling.
+leser `meta.innsjoVolum` (byggeren, ikke DOM-en) og står i ALLE kartstiler fra
+v8.0.28 — bare maksdyp-etikettene er Padling. 3D-teksturen er det kartet man
+ser, så dykket beholder brukerens kartstil; ingen inngang bytter den.
 
 **DYKKET (v8.0.22) ER EN KAMERAPOSE I SAMME SCENE, ikke en egen visning**
 (`lib/tour3d/innsjoDykk.js`, ren). Tre ting er lette å «rydde» bort: (1) under
@@ -366,7 +368,8 @@ med vilje. En tom «ingen data»-pille ville tatt plassen værraden ga fra seg.
 
 **INNSJØLISTA I «OM APPEN» BYGGER GJENNOM «MINE KART» (v8.0.20)**, ikke selv:
 `useAppMenu.byggKartHer` → AppMenu → `byggFra`-propen → `byggKartFra`, og
-Padling settes med `mapview-init-prefs`. En egen byggeflyt i About ville vært
+kartstilen er brukerens egen (Padling ble tvunget med `mapview-init-prefs` fram
+til v8.0.28; `kartBestilling` har ikke lenger `stil`). En egen byggeflyt i About ville vært
 en andre kopi av fremdrift, avbryt og navigasjon. Kartutsnittet er BAKT
 (`kartUtsnitt` i `innsjoKurver.js`, kjørt i baken) — endres regelen, bakes
 indeksen på nytt av seg selv, fordi fila står i workflowens `paths`.

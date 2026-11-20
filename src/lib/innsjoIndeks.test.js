@@ -24,7 +24,7 @@ describe('eksempler / kartBestilling', () => {
   it('tar bare med eksempler som finnes', () => {
     expect(eksempler(liste, ['Setten', 'Fjorda']).map(i => i.nr)).toEqual([2])
   })
-  it('bestiller Padling i innsjøens egen bredde', () => {
-    expect(kartBestilling(liste[2])).toEqual({ lat: 60, lon: 10, navn: 'Tyrifjorden', km: 8, stil: 'padling' })
+  it('bestiller innsjøens egen bredde, i brukerens egen kartstil', () => {
+    expect(kartBestilling(liste[2])).toEqual({ lat: 60, lon: 10, navn: 'Tyrifjorden', km: 8 })
   })
 })

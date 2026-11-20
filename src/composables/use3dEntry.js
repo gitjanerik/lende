@@ -51,8 +51,6 @@ export function use3dEntry({
   // fliser utenfor utsnittet demontert — uten braketten ville de stille falt ut
   // av både terreng-teksturen og stinettet. Default = identitet.
   medAlleFliserAsync = (fn) => fn(),
-  // Aktiv kartstil (getter). Innsjø-knappene står bare i Padling.
-  aktivStil = () => null,
 }) {
   const view3dOpen = ref(false)
   const view3dLoading = ref(false)
@@ -89,11 +87,11 @@ export function use3dEntry({
     el.style.top = (scr.y - wrap.top) + 'px'
   }
 
-  // Innsjø-volumet: én knapp i hver innsjø med bakte dybdekurver, bare i
-  // Padling. Listen kommer fra byggeren (meta.innsjoVolum), så et kart bygd før
-  // kurvene fantes har ingen knapper før det bygges på nytt.
+  // Innsjø-volumet: én knapp i hver innsjø med bakte dybdekurver, i alle
+  // kartstiler. Listen kommer fra byggeren (meta.innsjoVolum), så et kart bygd
+  // før kurvene fantes har ingen knapper før det bygges på nytt.
   const innsjoPinner = computed(() =>
-    (aktivStil() === 'padling' && !view3dOpen.value ? (meta.value?.innsjoVolum ?? []) : []))
+    (!view3dOpen.value ? (meta.value?.innsjoVolum ?? []) : []))
   const innsjoPinElRefs = []
   function settInnsjoPinEl(el, i) { innsjoPinElRefs[i] = el }
 
@@ -396,7 +394,7 @@ export function use3dEntry({
     // 3D-pin ved start/mål av en planlagt rute
     tour3dPinVisible, tour3dEndPinVisible, tour3dPinElRef, tour3dEndPinElRef,
     positionTour3dPin,
-    // innsjø-volumet i Padling
+    // innsjø-volumet
     innsjoPinner, settInnsjoPinEl,
     // det vieweren får inn
     gpsFor3d, tour3dEstWalk,

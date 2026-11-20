@@ -84,7 +84,7 @@ const props = defineProps({
   // Live GPS-posisjon i SVG-meter, null når posisjonering ikke er aktiv.
   // MapView sender et nytt lite objekt per fix, så watch-en trigges.
   userPos: { type: Object, default: null },
-  // Innsjø-volumet (Padling): { navn, omriss, kurver } i SVG-meter. Null = vanlig 3D.
+  // Innsjø-volumet: { navn, omriss, kurver } i SVG-meter. Null = vanlig 3D.
   innsjo: { type: Object, default: null },
 })
 const emit = defineEmits(['close'])

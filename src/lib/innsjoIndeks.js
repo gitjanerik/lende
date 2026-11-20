@@ -51,5 +51,5 @@ export function eksempler(liste, navn = EKSEMPEL_INNSJOER) {
 
 /** Bestillingen et klikk sender til «Mine kart». */
 export function kartBestilling(i) {
-  return { lat: i.lat, lon: i.lon, navn: i.navn ?? `Innsjø ${i.nr}`, km: i.km, stil: 'padling' }
+  return { lat: i.lat, lon: i.lon, navn: i.navn ?? `Innsjø ${i.nr}`, km: i.km }
 }

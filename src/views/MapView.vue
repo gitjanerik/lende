@@ -2677,7 +2677,6 @@ const {
   // union som pan-grensa bruker, så «det du kan panorere til» og «det du får i
   // 3D» er samme kart.
   mosaicBounds: () => extendZonesBounds(),
-  aktivStil: () => aktivStil.value,
 })
 
 
@@ -3324,7 +3323,7 @@ onUnmounted(() => {
         </svg>
       </div>
 
-      <!-- Innsjø-volumet (Padling): én knapp i hver innsjø med bakte dybdekurver,
+      <!-- Innsjø-volumet: én knapp i hver innsjø med bakte dybdekurver,
            rett under navnet. Samme overlay-mønster som 3D-pinene under. -->
       <button v-for="(p, i) in innsjoPinner" :key="p.nr"
               :ref="(el) => settInnsjoPinEl(el, i)"
