@@ -40,7 +40,7 @@
     "@fontsource-variable/literata": "^5.3.0",
     "@fontsource-variable/newsreader": "^5.3.0",
     "@fontsource-variable/source-serif-4": "^5.3.1",
-    "d3-contour": "^4.0.2",
+    "d3-contour": "^4.0.3",
     "geotiff": "^3.0.5",
     "graphology": "^0.26.0",
     "graphology-shortest-path": "^2.1.0",
@@ -48,19 +48,19 @@
     "polygon-clipping": "^0.15.7",
     "rbush": "^4.0.1",
     "simplify-js": "^1.2.4",
-    "three": "^0.186.1",
-    "vue": "^3.5.44",
-    "vue-router": "^5.4.0"
+    "three": "^0.187.0",
+    "vue": "^3.5.45",
+    "vue-router": "^5.5.1"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.1",
-    "@napi-rs/canvas": "^1.0.13",
-    "@tailwindcss/vite": "^4.3.3",
-    "@vitejs/plugin-vue": "^6.0.10",
-    "linkedom": "^0.18.14",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@napi-rs/canvas": "^1.1.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@vitejs/plugin-vue": "^6.0.11",
+    "linkedom": "^0.18.15",
     "playwright": "^1.64.1",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.3.5",
+    "vite": "^8.3.8",
     "vitest": "^4.1.11"
   }
 }
