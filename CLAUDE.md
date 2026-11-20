@@ -334,6 +334,13 @@ indeksert på det. (3) Viseren åpner i dagmodus med en innsjø, uansett klokka:
 nattmodus skjuler nettopp det volumet finnes for å vise. Knappen på 2D-kartet
 leser `meta.innsjoVolum` (byggeren, ikke DOM-en) og står bare i Padling.
 
+**INNSJØLISTA I «OM APPEN» BYGGER GJENNOM «MINE KART» (v8.0.20)**, ikke selv:
+`useAppMenu.byggKartHer` → AppMenu → `byggFra`-propen → `byggKartFra`, og
+Padling settes med `mapview-init-prefs`. En egen byggeflyt i About ville vært
+en andre kopi av fremdrift, avbryt og navigasjon. Kartutsnittet er BAKT
+(`kartUtsnitt` i `innsjoKurver.js`, kjørt i baken) — endres regelen, bakes
+indeksen på nytt av seg selv, fordi fila står i workflowens `paths`.
+
 ## Viktig arkitektur-merknad — arealdekke: N50 bærer det den blir bedt om
 
 Samme regel som for vann gjelder her: **en kilde er autoritativ for DET DEN

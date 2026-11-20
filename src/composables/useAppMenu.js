@@ -23,6 +23,12 @@ const onsketSheet = ref(null)
 // (nyttTurkart), og kvitterer ut ønsket.
 const onsketNyttTurkart = ref(false)
 
+// «Bygg dette kartet» fra en lenke utenfor menyen (v8.0.20, innsjølista i Om
+// appen): { lat, lon, navn, km, stil }. AppMenu sender den videre til
+// «Mine kart» som `byggFra`, og MapLibrary bygger — samme flyt som
+// «Nytt turkart», så fremdrift og avbryt bor ett sted.
+const onsketKartBygg = ref(null)
+
 export function useAppMenu() {
   const open = () => { menuOpen.value = true }
   const close = () => { menuOpen.value = false }
@@ -30,5 +36,9 @@ export function useAppMenu() {
   // 'kart' | 'rute' | 'nytt' | 'om' — samme navn som AppMenus egne.
   const openMenuSheet = (navn) => { onsketSheet.value = navn }
   const byggNyttTurkartHer = () => { onsketNyttTurkart.value = true }
-  return { menuOpen, open, close, toggle, onsketSheet, openMenuSheet, onsketNyttTurkart, byggNyttTurkartHer }
+  const byggKartHer = (bestilling) => { onsketKartBygg.value = bestilling }
+  return {
+    menuOpen, open, close, toggle, onsketSheet, openMenuSheet, onsketNyttTurkart, byggNyttTurkartHer,
+    onsketKartBygg, byggKartHer,
+  }
 }

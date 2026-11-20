@@ -147,14 +147,16 @@ export async function hentInnsjoKurver(vatnlnr, { basePath = BASE } = {}) {
  * Kartet som lages når innsjøen velges i lista. Får innsjøen plass i et
  * standardkart (med en fjerdedel luft), sentreres kartet på den og gjøres så
  * lite som innsjøen tillater. Er den større, blir det et DEMO-utsnitt: 3D skal
- * vise både vann og land, så kartet legges over stranda nærmest det dypeste
- * punktet vi kjenner — `fraStrandM` ut i vannet, slik at kanten har litt land.
+ * vise både vann og land. Kandidatene er punkter på de dypeste kurvene, og
+ * vinneren er vinduet med vann-andel nærmest `maalAndel`, med et lite fortrinn
+ * for dypere vann. Å legge kartet et fast stykke fra stranda ble målt og
+ * forkastet: smale innsjøer fikk 2 % vann og Tyrifjorden 74 %.
  *
  * @param {number[][][]} omriss  ringer i [lon, lat]
  * @param {{dybde:number, type:number, punkter:number[][]}[]} kurver
- * @returns {{lat:number, lon:number, km:number, demo:boolean} | null}
+ * @returns {{lat:number, lon:number, km:number, demo:boolean, vannAndel?:number} | null}
  */
-export function kartUtsnitt(omriss, kurver, { standardKm = 8, minKm = 2, fraStrandM = 2500 } = {}) {
+export function kartUtsnitt(omriss, kurver, { standardKm = 8, minKm = 2, maalAndel = 0.5, kandidater = 60 } = {}) {
   const alle = omriss.flat()
   if (!alle.length) return null
   const lat0 = alle[0][1] * Math.PI / 180
@@ -177,22 +179,66 @@ export function kartUtsnitt(omriss, kurver, { standardKm = 8, minKm = 2, fraStra
     return { ...tilGrad([(minX + maxX) / 2, (minY + maxY) / 2]), km, demo: false }
   }
 
-  // Det dypeste punktet vi kjenner: midt på den lengste av de dypeste kurvene.
-  const dybdeKurver = kurver.filter(k => k.type === 0 && k.punkter.length > 1)
-  const maks = dybdeKurver.reduce((m, k) => Math.max(m, k.dybde), -Infinity)
-  const dypest = dybdeKurver.filter(k => k.dybde === maks)
-    .sort((a, b) => b.punkter.length - a.punkter.length)[0]
-  const dyp = dypest
-    ? tilM(dypest.punkter[dypest.punkter.length >> 1])
-    : [(minX + maxX) / 2, (minY + maxY) / 2]
-
-  let strand = null, best = Infinity
-  for (const p of alle) {
-    const [x, y] = tilM(p)
-    const d = Math.hypot(x - dyp[0], y - dyp[1])
-    if (d < best) { best = d; strand = [x, y] }
+  const ringerM = omriss.map(r => r.map(tilM))
+  const halv = standardKm * 500
+  const n = 32
+  const andel = ([cx, cy]) => {
+    const lokale = ringerM.map(r => r.map(([x, y]) => [x - cx + halv, cy - y + halv]))
+    const m = rasterMaske(n, n, (2 * halv) / n, lokale)
+    let v = 0
+    for (let i = 0; i < m.length; i++) v += m[i]
+    return v / m.length
   }
-  const t = best > 0 ? Math.min(1, fraStrandM / best) : 0
-  const senter = [strand[0] + (dyp[0] - strand[0]) * t, strand[1] + (dyp[1] - strand[1]) * t]
-  return { ...tilGrad(senter), km: standardKm, demo: true }
+
+  const dybdeKurver = kurver.filter(k => k.type === 0 && k.punkter.length > 1)
+  const maks = dybdeKurver.reduce((m, k) => Math.max(m, k.dybde), 0) || 1
+  // Halvparten av kurvene, de dypeste, er kandidatfeltet. Jevnt utvalg langs dem.
+  const sortert = [...dybdeKurver].sort((a, b) => b.dybde - a.dybde)
+  const felt = sortert.slice(0, Math.max(1, Math.ceil(sortert.length / 2)))
+  const punkter = felt.flatMap(k => k.punkter.map(p => ({ p: tilM(p), dybde: k.dybde })))
+  const steg = Math.max(1, Math.floor(punkter.length / kandidater))
+  let best = null
+  for (let i = 0; i < punkter.length; i += steg) {
+    const { p, dybde } = punkter[i]
+    const a = andel(p)
+    const score = Math.abs(a - maalAndel) - 0.1 * (dybde / maks)
+    if (!best || score < best.score) best = { p, a, score }
+  }
+  if (!best) {
+    const p = [(minX + maxX) / 2, (minY + maxY) / 2]
+    best = { p, a: andel(p) }
+  }
+  // En smal innsjø (Gjende, Bitdalsvatn) fyller lite av et 8 km-kart uansett
+  // hvor det legges. Da er et mindre kart et bedre bilde av den: prøv 6 og 4 km.
+  if (best.a < MIN_VANN && standardKm > 4) {
+    const mindre = kartUtsnitt(omriss, kurver, { standardKm: standardKm - 2, minKm, maalAndel, kandidater })
+    if (mindre.demo && mindre.vannAndel > best.a) return mindre
+  }
+  return { ...tilGrad(best.p), km: standardKm, demo: true, vannAndel: Math.round(best.a * 100) / 100 }
+}
+
+const MIN_VANN = 0.2
+
+// Even-odd scanline på et n × n-gitter med celle `celle` meter; y nedover.
+function rasterMaske(cols, rows, celle, ringer) {
+  const maske = new Uint8Array(cols * rows)
+  const kryss = []
+  for (let r = 0; r < rows; r++) {
+    const y = (r + 0.5) * celle
+    kryss.length = 0
+    for (const ring of ringer) {
+      for (let i = 0, m = ring.length; i < m; i++) {
+        const [x1, y1] = ring[i]
+        const [x2, y2] = ring[(i + 1) % m]
+        if ((y1 <= y && y < y2) || (y2 <= y && y < y1)) kryss.push(x1 + ((y - y1) / (y2 - y1)) * (x2 - x1))
+      }
+    }
+    kryss.sort((a, b) => a - b)
+    for (let k = 0; k + 1 < kryss.length; k += 2) {
+      const c0 = Math.max(0, Math.ceil(kryss[k] / celle - 0.5))
+      const c1 = Math.min(cols - 1, Math.floor(kryss[k + 1] / celle - 0.5))
+      for (let c = c0; c <= c1; c++) maske[r * cols + c] = 1
+    }
+  }
+  return maske
 }

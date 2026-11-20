@@ -20,6 +20,9 @@ on:
     paths:
       - 'scripts/bygg-innsjodybder.mjs'
       - '.github/workflows/bygg-innsjodybder.yml'
+      # Formatet og utsnitt-regelen bor her; endres de, må filene bakes på nytt.
+      - 'src/lib/innsjoKurver.js'
+      - 'src/lib/innsjoDybde.js'
 
 permissions:
   contents: write

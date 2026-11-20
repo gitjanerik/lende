@@ -33,7 +33,7 @@ const { sistOppdatert: osmSistOppdatert } = useOsmOppdatering()
 // Tekststørrelsen er én slider (100–200 %) som skalerer menyen live: rot-fonten
 // er 16 px × faktor, og alt innhold er i em.
 
-const { menuOpen, close, onsketSheet, onsketNyttTurkart } = useAppMenu()
+const { menuOpen, close, onsketSheet, onsketNyttTurkart, onsketKartBygg } = useAppMenu()
 const { uiTextScale, setTextScale } = useUiTextScale()
 const { theme, setTheme } = useUiTheme()
 
@@ -157,7 +157,7 @@ const nyttKartMeta = computed(() =>
 
 const gpsLeter = ref(false)
 const gpsFeil = ref('')          // '' = ingen boks. X-en setter den tilbake hit.
-const byggFraPos = ref(null)     // { lat, lon } — sendes inn i MapLibrary
+const byggFraPos = ref(null)     // { lat, lon } eller en bestilling — sendes inn i MapLibrary
 
 function nyttTurkart({ apneVedFeil = false } = {}) {
   if (gpsLeter.value) return
@@ -279,6 +279,15 @@ watch(onsketNyttTurkart, (v) => {
   if (!v) return
   onsketNyttTurkart.value = false
   nyttTurkart({ apneVedFeil: true })
+})
+
+// Et ferdig bestilt kart (innsjølista i Om appen): rett til «Mine kart», som
+// bygger det. Ingen GPS — stedet følger med bestillingen.
+watch(onsketKartBygg, (b) => {
+  if (!b) return
+  onsketKartBygg.value = null
+  byggFraPos.value = b
+  openSheet('kart')
 })
 
 function openSheet(name) {

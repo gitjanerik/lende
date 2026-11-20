@@ -4,6 +4,7 @@ import { hasAiToken, hentAiModell } from '../lib/lendeAi.js'
 import VersjonSjekk from './VersjonSjekk.vue'
 import { useOsmOppdatering } from '../composables/useOsmOppdatering.js'
 import UtmSoneFigur from './UtmSoneFigur.vue'
+import InnsjoDybdeListe from './InnsjoDybdeListe.vue'
 import { usePwaInstall } from '../composables/usePwaInstall.js'
 
 const { sistOppdatert: osmSistOppdatert, nesteKjoring: osmNesteKjoring } = useOsmOppdatering()
@@ -485,6 +486,43 @@ function tilPersonvern() {
         bryteren står, skriver kartet det ut selv: i boksen nederst til venstre,
         sammen med målestokk og ekvidistanse, står det hvilken nord arket har og
         hvor mange grader det er snakk om.
+      </p>
+      </div>
+    </details>
+
+    <!-- Innsjødybder (v8.0.20): hva Padling og 3D gjør med NVEs dybdekart, og
+         lista som bygger et kart over en av dem. -->
+    <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
+      <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Innsjøer med dybde</h3>
+        <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3">
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        NVE har dybdekartlagt rundt 680 norske innsjøer, de fleste av de store
+        og mange av padlevannene rundt byene. I kartstilen
+        <strong class="text-ink">Padling</strong> står maksdypet under navnet på
+        hver av dem, og innsjøer med dybdekurver får en
+        <strong class="text-ink">Dybde</strong>-knapp.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Knappen åpner innsjøen i <strong class="text-ink">3D som et volum</strong>:
+        bunnen er senket inn i terrenget, så stranda og bunnen er én og samme
+        flate, og vannflata ligger gjennomsiktig over med strandlinja tegnet inn.
+        Dybdekurvene ligger på bunnen, og fargen blir mørkere mot det dypeste.
+        Grunne innsjøer vises med forsterket dybde — hvor mye står i 3D.
+      </p>
+      <p class="text-[13px] leading-relaxed text-ink-2">
+        Velg en innsjø under, så lages et kart i Padling. Får innsjøen plass i
+        et vanlig kart, dekker kartet hele vannet; de store får et utsnitt ved
+        stranda nær det dypeste, så 3D viser både vann og land.
+      </p>
+      <InnsjoDybdeListe />
+      <p class="text-[12px] leading-relaxed text-ink-3">
+        Kilde: NVE Innsjødatabasen (dybdekart, dybdekurver). Mange av kartene er
+        gamle — det eldste fra 1900 — og bunnen mellom kurvene er regnet ut, ikke
+        målt. Ikke for navigasjon.
       </p>
       </div>
     </details>

@@ -63,18 +63,15 @@ describe('kartUtsnitt', () => {
     expect(u.lat).toBeCloseTo(59.965, 3)
   })
 
-  it('legger demo-utsnittet ved stranda nærmest det dypeste', () => {
-    // 30 × 5 km innsjø; dypeste kurve nær østenden.
+  it('legger demo-utsnittet så det får både vann og land', () => {
+    // 30 × 5 km innsjø med dype kurver langs hele midtlinja.
     const omr = [ring(10, 60, 0.54, 0.045)]
-    const kurver = [
-      { dybde: 50, type: 0, punkter: [[10.1, 60.02], [10.11, 60.021]] },
-      { dybde: 120, type: 0, punkter: [[10.5, 60.02], [10.5, 60.022], [10.5, 60.024]] },
-    ]
+    const midt = Array.from({ length: 50 }, (_, i) => [10.02 + i * 0.01, 60.0225])
+    const kurver = [{ dybde: 120, type: 0, punkter: midt }, { dybde: 20, type: 0, punkter: midt }]
     const u = kartUtsnitt(omr, kurver)
     expect(u.demo).toBe(true)
     expect(u.km).toBe(8)
-    expect(u.lon).toBeGreaterThan(10.45)
-    // Midt mellom stranda (østkanten 10.54) og det dype punktet (10.5): innenfor vannet.
-    expect(u.lon).toBeLessThan(10.54)
+    expect(u.vannAndel).toBeGreaterThan(0.3)
+    expect(u.vannAndel).toBeLessThan(0.7)
   })
 })
