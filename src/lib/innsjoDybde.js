@@ -56,17 +56,20 @@ export function samleDybder(rader) {
   return ut
 }
 
-/** Kildeteksten til den genererte modulen, sortert så en ny bake gir ren diff. */
-export function dybdeModulKilde(dybder, { kilde, hentet }) {
+/**
+ * Kildeteksten til den genererte modulen, sortert så en ny bake gir ren diff.
+ * `medKurver` er innsjøene som har en dybdekurve-fil i public/data/innsjo-dybde/.
+ */
+export function dybdeModulKilde(dybder, { kilde, hentet, medKurver = new Set() }) {
   const rader = [...dybder.entries()].sort((a, b) => a[0] - b[0])
-    .map(([nr, d]) => `  ${nr}: [${d.maks}, ${d.snitt ?? 'null'}, ${d.aar ?? 'null'}],`)
+    .map(([nr, d]) => `  ${nr}: [${d.maks}, ${d.snitt ?? 'null'}, ${d.aar ?? 'null'}${medKurver.has(nr) ? ', 1' : ''}],`)
   return [
     '// GENERERT AV scripts/bygg-innsjodybder.mjs — IKKE REDIGER FOR HÅND.',
     '//',
     `// Maksdyp for dybdekartlagte innsjøer. Kilde: ${kilde}`,
-    `// Hentet ${hentet}. ${rader.length} innsjøer.`,
+    `// Hentet ${hentet}. ${rader.length} innsjøer, ${medKurver.size} med dybdekurver.`,
     '//',
-    '//   vatnlnr: [maksdyp m, middeldyp m | null, oppmålt år | null]',
+    '//   vatnlnr: [maksdyp m, middeldyp m | null, oppmålt år | null, 1 = har dybdekurver]',
     '/* eslint-disable */',
     '',
     'export const INNSJO_DYBDER = {',
@@ -76,12 +79,12 @@ export function dybdeModulKilde(dybder, { kilde, hentet }) {
   ].join('\n')
 }
 
-/** @returns {{maks:number, snitt:number|null, aar:number|null} | null} */
+/** @returns {{maks:number, snitt:number|null, aar:number|null, harKurver:boolean} | null} */
 export function dybdeFor(vatnlnr, tabell = INNSJO_DYBDER) {
   const nr = tall(vatnlnr)
   if (nr == null) return null
   const r = tabell[Math.round(nr)]
-  return r ? { maks: r[0], snitt: r[1], aar: r[2] } : null
+  return r ? { maks: r[0], snitt: r[1], aar: r[2], harKurver: r[3] === 1 } : null
 }
 
 /** «maks 38 m» — under 10 m med én desimal, som dybde-tallene i sjøen. */

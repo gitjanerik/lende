@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('./innsjoDybderData.js', () => ({
-  INNSJO_DYBDER: { 5252: [10.5, null, 1979], 522: [288, 93, 1980] },
+  INNSJO_DYBDER: { 5252: [10.5, null, 1979, 1], 522: [288, 93, 1980] },
 }))
 
 const { radTilDybde, samleDybder, dybdeModulKilde, dybdeFor, dybdeEtikett } = await import('./innsjoDybde.js')
@@ -42,15 +42,16 @@ describe('samleDybder', () => {
 describe('dybdeModulKilde', () => {
   it('sorterer på innsjønummer så en ny bake gir ren diff', () => {
     const kilde = dybdeModulKilde(new Map([[9, { maks: 3, snitt: null, aar: null }], [2, { maks: 5, snitt: 2, aar: 1980 }]]),
-      { kilde: 'test', hentet: '2026-11-20' })
-    expect(kilde.indexOf('  2: [5, 2, 1980],')).toBeLessThan(kilde.indexOf('  9: [3, null, null],'))
+      { kilde: 'test', hentet: '2026-11-20', medKurver: new Set([9]) })
+    expect(kilde.indexOf('  2: [5, 2, 1980],')).toBeLessThan(kilde.indexOf('  9: [3, null, null, 1],'))
     expect(kilde).toContain('2 innsjøer')
   })
 })
 
 describe('dybdeFor / dybdeEtikett', () => {
   it('slår opp på vatnlnr også når taggen er en streng', () => {
-    expect(dybdeFor('522')).toEqual({ maks: 288, snitt: 93, aar: 1980 })
+    expect(dybdeFor('522')).toEqual({ maks: 288, snitt: 93, aar: 1980, harKurver: false })
+    expect(dybdeFor(5252).harKurver).toBe(true)
     expect(dybdeFor(undefined)).toBeNull()
     expect(dybdeFor(1)).toBeNull()
   })
@@ -64,7 +65,8 @@ describe('dybdeFor / dybdeEtikett', () => {
 
 describe('den bakte tabellen', () => {
   it('har bare plausible verdier', () => {
-    for (const [nr, [maks, snitt, aar]] of Object.entries(EKTE)) {
+    for (const [nr, [maks, snitt, aar, kurver]] of Object.entries(EKTE)) {
+      if (kurver !== undefined) expect(kurver).toBe(1)
       expect(Number(nr)).toBeGreaterThan(0)
       expect(maks).toBeGreaterThan(0)
       expect(maks).toBeLessThanOrEqual(700)

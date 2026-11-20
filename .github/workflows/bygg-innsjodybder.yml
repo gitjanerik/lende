@@ -1,12 +1,19 @@
 name: Bak innsjødybder (NVE)
 
-# Maksdyp for NVEs ~600 dybdekartlagte innsjøer → src/lib/innsjoDybderData.js.
+# Maksdyp for NVEs ~680 dybdekartlagte innsjøer → src/lib/innsjoDybderData.js,
+# og dybdekurvene deres → public/data/innsjo-dybde/<vatnlnr>.json.
 # Data som endres sjeldnere enn hvert år, så ingen cron: kjør den for hånd når
 # NVE har målt opp nye innsjøer. NVE svarer 403 fra utviklings-sandkassene,
 # derfor CI. Se scripts/bygg-innsjodybder.mjs.
 
 on:
   workflow_dispatch:
+    inputs:
+      bare_mal:
+        description: 'Bare mål størrelsen — skriv ingenting, ikke commit.'
+        type: boolean
+        required: false
+        default: false
   # workflow_dispatch registreres først når fila står på master, så første
   # bake kommer på push — samme grep som probene.
   push:
@@ -20,24 +27,26 @@ permissions:
 jobs:
   bak:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - run: npm run bygg:innsjodybder
+      - run: npm run bygg:innsjodybder -- ${{ inputs.bare_mal && '--mal' || '' }}
+      - run: du -sh public/data/innsjo-dybde 2>/dev/null || true
       - name: Commit hvis endret
+        if: inputs.bare_mal != true
         run: |
           set -e
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/lib/innsjoDybderData.js
+          git add src/lib/innsjoDybderData.js public/data/innsjo-dybde
           if git diff --staged --quiet; then
             echo "Ingen endring i innsjødybdene"
           else
             git -c commit.gpgsign=false commit \
               --author="Deploy <deploy@lende>" \
-              -m "Innsjødybder (auto-generert fra NVE Innsjødatabasen)"
+              -m "Innsjødybder og dybdekurver (auto-generert fra NVE Innsjødatabasen)"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
