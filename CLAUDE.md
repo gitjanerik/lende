@@ -344,6 +344,12 @@ ville et værbytte ha skrudd disen tilbake midt i dykket. (3) Mørket er et
 CSS-overlegg i Viewer3D og ikke en lysmodell, med tak på `MORKE_TAK`. Ekte vann
 er svart lenge før 288 m, men da ser man ingenting.
 
+**INNSJØ-VISNINGEN HAR NVE-RADEN OG IKKE VÆRRADEN (v8.0.24).** `vaerOn` er
+falsk når `props.innsjo` er satt. Stasjonen velges av omrisset fra dybdekurve-fila
+(`omrissWgs`, rå [lon, lat]), ikke av kartets bbox: en stasjon i vannet eller
+innen `ELV_RADIUS_KM` fra strandlinja. Uten stasjon står ingen rad, og det er
+med vilje. En tom «ingen data»-pille ville tatt plassen værraden ga fra seg.
+
 **INNSJØLISTA I «OM APPEN» BYGGER GJENNOM «MINE KART» (v8.0.20)**, ikke selv:
 `useAppMenu.byggKartHer` → AppMenu → `byggFra`-propen → `byggKartFra`, og
 Padling settes med `mapview-init-prefs`. En egen byggeflyt i About ville vært

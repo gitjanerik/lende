@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.24: NVE-målinger i stedet for værvarsel i innsjø-visningen
+
+Innsjø-visningen i 3D viser ikke lenger værvarsel og værhimmel. Har innsjøen en NVE-målestasjon i vannet eller i en elv innen 2 km fra strandlinja, står stasjonens navn i stedet, sammen med siste vanntemperatur, vannføring og lufttemperatur. Vannstand vises når stasjonen ikke måler vannføring. Bare det stasjonen faktisk måler vises. Måler den ikke lufttemperatur, brukes METs varsel for nå, merket «Luft (MET)». En stasjon i selve vannet går foran en elvestasjon like ved. Ellers vinner den nærmeste, med et lite fortrinn for stasjoner som måler vanntemperatur og vannføring (`lib/innsjoStasjon.js`, ren og testet). Finnes det ingen stasjon, står det ingen rad. Stasjonsnavnet lenker til Sildre.
+
+---
+
 ## 2026-11-20 — v8.0.23: Hornindalsvatnet blant eksemplene i Om appen
 
 Hornindalsvatnet, Nord-Europas dypeste innsjø med 514 m, står nå blant eksempellenkene i «Innsjøer med dybde», rett etter Tyrifjorden. Et trykk bygger demo-utsnittet i Padling, som de andre eksemplene. Der kan man dykke ned i innsjøen i 3D.

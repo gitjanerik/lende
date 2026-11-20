@@ -234,6 +234,7 @@ export function use3dEntry({
       navn: innsjo.navn ?? null,
       maks: innsjo.maks ?? null,
       omriss: data.omriss.map(proj),
+      omrissWgs: data.omriss,
       kurver: data.kurver.map(k => ({ dybde: k.dybde, type: k.type, punkter: proj(k.punkter) })),
     }
   }

@@ -36,6 +36,7 @@ import Tour3dNordlysPanel from './Tour3dNordlysPanel.vue'
 import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
 import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
 import Tour3dHimmelKompass from './Tour3dHimmelKompass.vue'
+import Tour3dInnsjoNve from './Tour3dInnsjoNve.vue'
 import RetningsRose from '../kontroller/RetningsRose.vue'
 import ZoomSkyv from '../kontroller/ZoomSkyv.vue'
 import { blikkHoydeGrenserFullt } from '../../lib/tour3d/freeRig.js'
@@ -695,6 +696,7 @@ async function byggMotor() {
     if (nightOn.value) applyNight(true).catch(() => {})
     // Vær-valget er husket fra forrige økt; hentingen er ikke-blokkerende.
     if (vaerOn.value) void hentVaer()
+    if (props.innsjo?.omrissWgs) void hentInnsjoNve()
     if (nightOn.value) byggHimmelListe()
     // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
     if (demoPaa.value) demoStart()
@@ -858,7 +860,8 @@ const nightOn = ref((() => {
 // veien tilbake i samme økt.
 const vaerAvvist = ref(false)
 
-const vaerOn = computed(() => !nightOn.value && !vaerAvvist.value)
+// Innsjø-visningen viser NVE-målingene i stedet: man har åpnet 3D for vannet.
+const vaerOn = computed(() => !nightOn.value && !vaerAvvist.value && !props.innsjo)
 
 async function applyNight(on) {
   if (!engine) return
@@ -884,6 +887,39 @@ const nattSteg = computed(() => (nightOn.value ? 1 : 0))
 // Cachen (~100 m rutenett, 30 min) gjør at åpne-lukke-åpne ikke koster MET noe.
 const vaer = ref(null)
 let vaerHentet = false
+
+const innsjoNveRaa = ref(null)
+const innsjoNve = computed(() => {
+  const r = innsjoNveRaa.value
+  if (!r) return null
+  const met = vaer.value?.naa?.temperaturC
+  if (r.luftTemp == null && Number.isFinite(met)) return { ...r, luftTemp: met, luftKilde: 'met' }
+  return r
+})
+async function hentInnsjoNve() {
+  const omriss = props.innsjo.omrissWgs
+  try {
+    const [{ fetchStationsForBbox, fetchStationLatest, sildreStationUrl }, { velgInnsjoStasjon, omrissBbox }] =
+      await Promise.all([import('../../lib/nveHydApi.js'), import('../../lib/innsjoStasjon.js')])
+    const bbox = omrissBbox(omriss)
+    const valgt = bbox ? velgInnsjoStasjon(await fetchStationsForBbox(bbox), omriss) : null
+    if (!valgt) return
+    const siste = await fetchStationLatest(valgt.stasjon)
+    const tid = [siste.waterTemp, siste.discharge, siste.waterLevel].find(Boolean)?.time ?? null
+    innsjoNveRaa.value = {
+      navn: valgt.stasjon.stationName ?? 'NVE-stasjon',
+      sildreUrl: sildreStationUrl(valgt.stasjon.stationId),
+      iVannet: valgt.iVannet,
+      vannTemp: siste.waterTemp?.value ?? null,
+      vannforing: siste.discharge?.value ?? null,
+      vannstand: siste.waterLevel?.value ?? null,
+      luftTemp: siste.airTemp?.value ?? null,
+      luftKilde: siste.airTemp ? 'nve' : null,
+      tid,
+    }
+    if (!siste.airTemp) void hentVaer()
+  } catch { /* uten NVE-data står ingen rad */ }
+}
 
 async function hentVaer() {
   if (vaerHentet) return
@@ -1692,6 +1728,12 @@ function branchLabel(opt, i) {
            class="relative z-10 px-3 mt-2">
         <div class="flex justify-center" :style="{ zoom: uiTextScale }">
           <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
+        </div>
+      </div>
+      <div v-else-if="phase === 'ready' && innsjoNve && !walking && !stjernemodus && !dykker"
+           class="relative z-10 px-3 mt-2">
+        <div class="flex justify-center" :style="{ zoom: uiTextScale }">
+          <Tour3dInnsjoNve :data="innsjoNve"/>
         </div>
       </div>
 
