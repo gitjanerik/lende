@@ -1262,7 +1262,7 @@ export async function create3dScene(container, {
      * retningen man ba om, ingenting annet.
      */
     seMotNord() {
-      freeRig.seMot(0, (blikkNaa().hoyde * Math.PI) / 180)
+      freeRig.vendMotNord()
     },
 
     /**

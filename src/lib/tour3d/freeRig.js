@@ -727,6 +727,35 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
      * @param {number} hoyde radianer over horisonten
      * @param {{tid?: number, ease?: 'inn-ut'|'ut'}} [opts]
      */
+    /**
+     * Vend blikket mot nord, i den høyden man står i — også under vann og under
+     * en bane, der `seMot` ikke rører kameraet. Under en bane er vendingen et
+     * utslag som et drag: det glir tilbake mens turen går, og blir stående på
+     * pause. Under vann dreies blikkpunktet rundt kameraet.
+     */
+    vendMotNord() {
+      camera.getWorldDirection(_retning)
+      const az = Math.atan2(_retning.x, -_retning.z)
+      if (sekvens?.friBlikk) {
+        vriBlikk(-az, 0)
+        blikkUtslag.sidenSlipp = 0
+        return
+      }
+      if (sekvens) return
+      if (underVann) {
+        const y = Math.max(-1, Math.min(1, _retning.y))
+        const d = camera.position.distanceTo(controls.target) || 1
+        controls.target.set(
+          camera.position.x,
+          camera.position.y + y * d,
+          camera.position.z - Math.sqrt(1 - y * y) * d,
+        )
+        quietUpdate()
+        return
+      }
+      this.seMot(0, Math.asin(Math.max(-1, Math.min(1, _retning.y))))
+    },
+
     seMot(azimut, hoyde, { tid = BLIKK_TID_S, ease = 'inn-ut' } = {}) {
       if (underVann || sekvens) return
       if (!Number.isFinite(azimut) || !Number.isFinite(hoyde)) return

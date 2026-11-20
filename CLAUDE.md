@@ -364,6 +364,12 @@ Tempoet (v8.0.29) er en multiplikator på SEKVENSENS klokke (`freeRig.settTempo`
 steg uten hopp, og det huskes for turer som starter av seg selv. Gjelder bare
 svømmeturen; gåturen har sine egne 64/128/256×.
 
+**KOMPASSET STÅR OGSÅ UNDER DYKKET (v8.0.31)**, samme `Tour3dHimmelKompass`
+som i nattmodus, løftet over turkontrollene under svømmeturen. Trykket går til
+`freeRig.vendMotNord`, ikke `seMot`: `seMot` returnerer under vann og under en
+bane. Under vann dreies blikkpunktet rundt kameraet; under banen legges
+vendingen som et drag-utslag (`vriBlikk`), så den glir tilbake som et drag.
+
 **INNSJØ-MODUS ER EN TILSTAND I VIEWER3D, IKKE PROPEN (v8.0.29).** `innsjoModus`
 starter som `!!props.innsjo` og slås av når dykket avsluttes over flata
 (`paDykk`). Dag/natt følger klokka også her, men stjernekikker-pakka (løftet
