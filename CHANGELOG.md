@@ -1,3 +1,8 @@
+## 2026-11-20 — v8.0.31: Kompasset under dykket
+
+Himmelkompasset fra nattmodus står nå også nede til høyre under dykket — under vann er himmelretningene like borte som om natta. Under svømmeturen løftes det over turkontrollene. Et trykk vender blikket mot nord også under vann, der det før ikke rørte kameraet; under svømmeturen virker trykket som et drag mot nord, som glir tilbake mens turen går og blir stående på pause.
+
+---
 ## 2026-11-20 — v8.0.30: Relieff-stilen hopper ikke lenger tilbake til «Skarp»
 
 Relieff-stilen (skarp/mjuk) er nå én innstilling for alle kart, som styrken. Den var lagret per kart, og hoppet tilbake til «Skarp» hver gang appen byttet kart under brukeren — «Gjør dette til hovedkart» på en naboflis og «Bygg på nytt» gir begge et nytt kart, og tema og lag ble tatt med over, men ikke relieff-stilen. Valget står bare i Kartstil-fana; Format-fanas egen kopi er fjernet, så det ikke lenger finnes to like knapperader som gjør hver sin ting. Naboflisene følger nå også stilen — før var de alltid skarpe, og skjøten mot en mjuk aktiv flis var synlig.

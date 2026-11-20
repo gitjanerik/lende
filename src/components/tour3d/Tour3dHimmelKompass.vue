@@ -1,5 +1,5 @@
 <script setup>
-// Himmelkompasset, nede til høyre i nattmodus.
+// Himmelkompasset, nede til høyre i nattmodus og under dykket.
 //
 // En skive som dreier og en rød markør som står stille øverst: markøren er hvor
 // du ser, og N, Ø, S, V flytter seg under den. Det er konvensjonen fra hvert
@@ -40,7 +40,8 @@ const g = computed(() => kompassGeometri(props.blikk))
 const lest = computed(() => {
   const a = props.blikk?.azimut
   if (!Number.isFinite(a)) return 'Himmelkompass'
-  const hvor = `Du ser mot ${retningsNavn(a)}, ${Math.round(props.blikk?.hoyde ?? 0)}° over horisonten`
+  const h = Math.round(props.blikk?.hoyde ?? 0)
+  const hvor = `Du ser mot ${retningsNavn(a)}, ${Math.abs(h)}° ${h < 0 ? 'under' : 'over'} horisonten`
   return g.value.serNord ? `${hvor}. Du ser alt nordover.` : `${hvor}. Trykk for å vende mot nord.`
 })
 </script>

@@ -2070,9 +2070,14 @@ function branchLabel(opt, i) {
            kompasset skal ligge i hjørnet uansett hva annet som står på skjermen.
            pointer-events-none på hele laget — et trykk i hjørnet skal treffe
            himmelen bak, ikke en måler. -->
-      <div v-if="phase === 'ready' && stjernemodus"
+      <!-- Under dykket står det samme kompasset der: under vann er himmelretningene
+           like borte som om natta. Under svømmeturen løftes det over
+           turkontrollene, som eier bunnen. -->
+      <div v-if="phase === 'ready' && (stjernemodus || dykker)"
            class="absolute right-0 bottom-0 z-10 pointer-events-none p-3"
-           style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
+           :style="{ paddingBottom: dykk?.tilstand === 'tur'
+             ? 'calc(max(env(safe-area-inset-bottom), 12px) + 9.5rem)'
+             : 'max(env(safe-area-inset-bottom), 12px)' }">
         <Tour3dHimmelKompass :blikk="blikk" @nord="engine?.seMotNord()"/>
       </div>
 
