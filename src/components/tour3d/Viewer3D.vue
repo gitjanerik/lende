@@ -402,6 +402,7 @@ const BOBLER = Array.from({ length: 18 }, (_, i) => ({
 }))
 function dykkNed() { engine?.dykkNed({ redusert: reduserBevegelse }) }
 function dykkOpp() { engine?.dykkOpp({ redusert: reduserBevegelse }) }
+function dykketur() { engine?.dykketur({ redusert: reduserBevegelse }) }
 function paDykk(d) {
   const forrige = dykk.value
   dykk.value = d
@@ -1423,6 +1424,31 @@ function branchLabel(opt, i) {
              :style="{ zoom: uiTextScale }">
           {{ Math.round(dykk.dybde) }} m
         </div>
+      </div>
+
+      <!-- Dykketuren: fra bunnen til den bratteste veggen og opp langs berget.
+           Står nederst, der turkontrollene står over vann. -->
+      <div v-if="phase === 'ready' && (dykk?.tur || dykk?.tilstand === 'tur')"
+           class="absolute inset-x-0 z-10 flex justify-center px-3 pointer-events-none"
+           style="bottom: max(env(safe-area-inset-bottom), 16px);">
+        <button v-if="dykk.tilstand === 'tur'" type="button" data-dykketur-stopp
+                @click="engine?.stoppDykketur()"
+                class="pointer-events-auto h-11 px-4 rounded-full bg-black/60 backdrop-blur text-white/90
+                       text-xs font-medium flex items-center gap-1.5 active:scale-95 transition">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="1.5"/>
+          </svg>
+          Stopp her
+        </button>
+        <button v-else type="button" data-dykketur @click="dykketur"
+                class="on-accent pointer-events-auto h-11 px-4 rounded-full bg-sky-700 text-white
+                       text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 20l6-8 4 5 3-4 5 7"/><path d="M14 4l3 3-3 3"/><path d="M5 7h12"/>
+          </svg>
+          Svøm til berget
+        </button>
       </div>
 
       <div v-if="!dykker" class="relative z-10 flex items-start justify-between gap-2 px-3"

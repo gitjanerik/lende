@@ -8,13 +8,14 @@
 
 import { terrainFloorY } from './cameraRigs.js'
 
-// Mørket mettes ved 150 m: 288 m (Tyrifjorden) og 514 m (Hornindalsvatnet) skal
-// være mørkeblå, ikke svarte. Ekte vann er svart lenge før det.
+// Mørket mettes ved 150 m, og taket er lavt med vilje: man dykker for å se
+// formen på bunnen og berget som reiser seg, og ekte vann er svart lenge før
+// 288 m (Tyrifjorden) og 514 m (Hornindalsvatnet).
 export const MORKE_METNING_M = 150
-export const MORKE_TAK = 0.55
+export const MORKE_TAK = 0.3
 
-const GRUNN_FARGE = [0x2f, 0x7f, 0xc4]
-const DYP_FARGE = [0x0b, 0x25, 0x40]
+const GRUNN_FARGE = [0x4f, 0x9f, 0xdc]
+const DYP_FARGE = [0x1d, 0x56, 0x84]
 
 /** 0–1: hvor «dypt» det kjennes ut ved d meter (logaritmisk, mettet). */
 export function dybdeGrad(d) {
@@ -22,7 +23,7 @@ export function dybdeGrad(d) {
   return Math.min(1, Math.log1p(d) / Math.log1p(MORKE_METNING_M))
 }
 
-/** Mørke-overleggets alfa ved d meter. 5 m ≈ 0,18, 30 m ≈ 0,38, 150 m+ = 0,55. */
+/** Mørke-overleggets alfa ved d meter. 5 m ≈ 0,11, 30 m ≈ 0,21, 150 m+ = 0,3. */
 export function undervannsMorke(d) {
   return MORKE_TAK * dybdeGrad(d)
 }
@@ -37,12 +38,157 @@ export function undervannsFarge(d) {
 
 /**
  * Disen under vann, i world-meter. Rekkevidden sideveis krymper med dybden,
- * men flata over skal alltid skimtes: den er det eneste som sier hvor opp er.
+ * men flata over skal alltid skimtes, og helst fjellet over den: flata er det
+ * eneste som sier hvor opp er, og berget som fortsetter over vannet er det man
+ * dykker for å se.
  */
 export function undervannsDis(d, avstandTilFlate) {
   const k = dybdeGrad(d)
-  const sideveis = 400 - 300 * k
-  return { near: 4, far: Math.max(sideveis, 1.6 * Math.max(0, avstandTilFlate) + 120) }
+  const sideveis = 700 - 450 * k
+  return { near: 4, far: Math.max(sideveis, 2.5 * Math.max(0, avstandTilFlate) + 300) }
+}
+
+// Lyset kommer fra nordvest i 45°, som relieffet på kartet.
+const LYS = (() => {
+  const az = (315 * Math.PI) / 180
+  const alt = Math.PI / 4
+  return [Math.sin(az) * Math.cos(alt), Math.cos(az) * Math.cos(alt), Math.sin(alt)]
+})()
+
+/**
+ * Relieff-faktoren for hver celle i innsjøen: 1 på flat bunn, over 1 i lys
+ * skråning, under 1 i skygge. Uten den er bunnen en jevn dybde-gradient, og en
+ * skråning og en flate på samme dybde får samme farge.
+ *
+ * @param {ArrayLike<number>} H  høydene (meter) til det SENKEDE DEM-et
+ * @param {number} zFaktor       den vertikale overdrivelsen i scenen
+ */
+export function bunnRelieff(H, maske, { cols, rows, transform }, zFaktor = 1) {
+  const ut = new Float32Array(cols * rows).fill(1)
+  const pw = Math.abs(transform.pixelWidth)
+  const ph = Math.abs(transform.pixelHeight)
+  const h = (c, r) => H[Math.min(rows - 1, Math.max(0, r)) * cols + Math.min(cols - 1, Math.max(0, c))]
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c
+      if (!maske[i]) continue
+      const dzdx = ((h(c + 1, r) - h(c - 1, r)) * zFaktor) / (2 * pw)
+      // Radene går sørover, så nord-gradienten har motsatt fortegn.
+      const dzdn = ((h(c, r - 1) - h(c, r + 1)) * zFaktor) / (2 * ph)
+      const len = Math.hypot(dzdx, dzdn, 1)
+      const lys = Math.max(0, (-dzdx * LYS[0] - dzdn * LYS[1] + LYS[2]) / len)
+      ut[i] = Math.min(1.35, Math.max(0.3, 1 + 0.9 * (lys / LYS[2] - 1)))
+    }
+  }
+  return ut
+}
+
+/**
+ * Den bratteste veggen i innsjøen: strandcella med mest fall under seg og mest
+ * fjell over seg innen radiusM, og som kan nås i rett linje fra start uten å
+ * krysse land. Det er dit dykketuren går. null når ingen finnes.
+ *
+ * @param {ArrayLike<number>} H  høydene (meter) til det senkede DEM-et
+ * @param {{c:number, r:number}} start  gittercella turen starter i
+ */
+export function bratteVegg(H, maske, { cols, rows, transform }, nivaa, start, { radiusM = 400 } = {}) {
+  const rc = Math.max(1, Math.round(radiusM / Math.abs(transform.pixelWidth)))
+  const kandidater = []
+  for (let r = 1; r < rows - 1; r++) {
+    for (let c = 1; c < cols - 1; c++) {
+      const i = r * cols + c
+      if (!maske[i]) continue
+      if (maske[i - 1] && maske[i + 1] && maske[i - cols] && maske[i + cols]) continue
+      let under = 0
+      let over = 0
+      for (let rr = Math.max(0, r - rc); rr <= Math.min(rows - 1, r + rc); rr++) {
+        for (let cc = Math.max(0, c - rc); cc <= Math.min(cols - 1, c + rc); cc++) {
+          const j = rr * cols + cc
+          const d = H[j] - nivaa
+          if (maske[j]) { if (-d > under) under = -d } else if (d > over) over = d
+        }
+      }
+      kandidater.push({ c, r, score: under + over, under, over })
+    }
+  }
+  kandidater.sort((a, b) => b.score - a.score)
+  for (const k of kandidater) {
+    if (fritt(maske, cols, start, k)) {
+      return { ...k, x: k.c * transform.pixelWidth, y: k.r * transform.pixelHeight }
+    }
+  }
+  return null
+}
+
+// Går den rette linja fra a til b bare gjennom vann?
+function fritt(maske, cols, a, b) {
+  const n = Math.max(Math.abs(b.c - a.c), Math.abs(b.r - a.r)) * 2
+  for (let s = 0; s <= n; s++) {
+    const t = n ? s / n : 0
+    const c = Math.round(a.c + (b.c - a.c) * t)
+    const r = Math.round(a.r + (b.r - a.r) * t)
+    if (!maske[r * cols + c]) return false
+  }
+  return true
+}
+
+/** Asimut (radianer, med klokka fra nord) fra a mot b i world-rommet (Z = sør). */
+export function asimutMot(ax, az, bx, bz) {
+  return Math.atan2(bx - ax, -(bz - az))
+}
+
+/**
+ * Dykketuren: snu mot veggen, gli langs bunnen dit, og stig opp langs berget
+ * til like under flata med blikket opp. Kameraet holder seg en klaring over
+ * bunnen, aldri over flata.
+ *
+ * @param {{fra:{x:number,y:number,z:number}, mot:{x:number,z:number}, flateY:number,
+ *   gulv:(x:number,z:number)=>number, klaring?:number, redusert?:boolean}} p
+ */
+export function dykkeTur({ fra, mot, flateY, gulv, klaring = 6, redusert = false }) {
+  const az = asimutMot(fra.x, fra.z, mot.x, mot.z)
+  const L = Math.hypot(mot.x - fra.x, mot.z - fra.z)
+  const tak = flateY - 3
+  // Glid til et stykke foran veggen, så den fyller bildet uten å stå i det.
+  const foran = Math.min(250, 0.4 * L)
+  const slutt = Math.max(0, L - foran)
+  const punkt = (s) => {
+    const t = L ? s / L : 0
+    return [fra.x + (mot.x - fra.x) * t, fra.z + (mot.z - fra.z) * t]
+  }
+  const yVed = (x, z) => Math.min(tak, gulv(x, z) + klaring)
+  const [ox, oz] = punkt(slutt + foran * 0.45)
+  const opp = { pos: [ox, tak, oz], hoyde: grad(30), azimut: az, tid: 4, ease: 'inn-ut', fase: 'stig' }
+  if (redusert) return [{ ...opp, tid: 0 }]
+
+  const steg = [{ pos: [fra.x, fra.y, fra.z], hoyde: grad(5), azimut: az, tid: 1.2, ease: 'inn-ut', fase: 'snu' }]
+  if (slutt < 30) return [...steg, opp]
+  const n = Math.max(6, Math.min(30, Math.round(slutt / 80)))
+  const fart = slutt / Math.max(8, Math.min(18, slutt / 120))
+  const ys = []
+  for (let i = 1; i <= n; i++) {
+    const [x, z] = punkt((slutt * i) / n)
+    ys.push(yVed(x, z))
+  }
+  // Glatt høyden så kameraet ikke rister over hver kurve, men aldri under gulvet.
+  const glatt = ys.map((_, i) => {
+    let sum = 0, k = 0
+    for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) { sum += ys[j]; k++ }
+    return Math.max(ys[i], Math.min(tak, sum / k))
+  })
+  // Første og siste strekk er kvadratiske over dobbel tid: da møter farten
+  // ved skjøten nøyaktig den lineære farten i midten, uten rykk.
+  const segTid = slutt / n / Math.max(1, fart)
+  for (let i = 0; i < n; i++) {
+    const [x, z] = punkt((slutt * (i + 1)) / n)
+    const kant = i === 0 ? 'inn-kvad' : i === n - 1 ? 'ut-kvad' : 'lineaer'
+    steg.push({
+      pos: [x, glatt[i], z], hoyde: grad(8), azimut: az,
+      tid: kant === 'lineaer' ? segTid : 2 * segTid, ease: kant, fase: 'glid',
+    })
+  }
+  steg.push(opp)
+  return steg
 }
 
 /** Det dypeste punktet i bunnen: gittercella og SVG-meter. */

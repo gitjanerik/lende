@@ -559,6 +559,8 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     'inn-ut': easeInOutCubic,
     ut: (t) => 1 - (1 - t) ** 3,
     lineaer: (t) => t,
+    'inn-kvad': (t) => t * t,
+    'ut-kvad': (t) => 1 - (1 - t) ** 2,
   }
 
   function settBlikk(azimut, hoyde) {
@@ -613,12 +615,19 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       s.fra.pos[1] + (steg.pos[1] - s.fra.pos[1]) * k,
       s.fra.pos[2] + (steg.pos[2] - s.fra.pos[2]) * k,
     )
-    settBlikk(s.azimut, s.fra.hoyde + (steg.hoyde - s.fra.hoyde) * k)
+    const tilAz = steg.azimut ?? s.fra.azimut
+    // Korteste vei rundt, ellers snurrer et bytte fra 350° til 10° hele runden.
+    const dAz = Math.atan2(Math.sin(tilAz - s.fra.azimut), Math.cos(tilAz - s.fra.azimut))
+    settBlikk(s.fra.azimut + dAz * k, s.fra.hoyde + (steg.hoyde - s.fra.hoyde) * k)
     if (s.t < 1) return
-    s.fra = { pos: steg.pos, hoyde: steg.hoyde }
+    s.fra = { pos: steg.pos, hoyde: steg.hoyde, azimut: s.fra.azimut + dAz }
     s.t = 0
     s.i++
     if (s.i < s.steg.length) return
+    avsluttSekvens(s)
+  }
+
+  function avsluttSekvens(s) {
     sekvens = null
     if (s.underVann) settUnderVann(true)
     else {
@@ -894,11 +903,15 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       controls.autoRotate = false
       camera.getWorldDirection(_retning)
       const hoyde = Math.asin(Math.max(-1, Math.min(1, _retning.y)))
+      const azimut = Math.atan2(_retning.x, -_retning.z)
       sekvens = {
         steg, i: 0, t: 0, underVann: ned, ferdig,
-        azimut: azimutFraTheta(controls.getAzimuthalAngle()),
-        fra: { pos: [camera.position.x, camera.position.y, camera.position.z], hoyde },
+        fra: { pos: [camera.position.x, camera.position.y, camera.position.z], hoyde, azimut },
       }
+    },
+    /** Stopp banen der kameraet står, som om den var ferdig. */
+    stoppSekvens() {
+      if (sekvens) avsluttSekvens(sekvens)
     },
     /** Fasen i banen som spilles nå, eller null. */
     get sekvensFase() { return sekvens ? sekvens.steg[sekvens.i]?.fase ?? null : null },

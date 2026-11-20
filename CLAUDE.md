@@ -343,6 +343,11 @@ gjennom flata i første bilde. (2) Disen, bakgrunnen og himmelens synlighet eies
 ville et værbytte ha skrudd disen tilbake midt i dykket. (3) Mørket er et
 CSS-overlegg i Viewer3D og ikke en lysmodell, med tak på `MORKE_TAK`. Ekte vann
 er svart lenge før 288 m, men da ser man ingenting.
+Bunnen må skyggelegges av relieffet (`bunnRelieff`, v8.0.25). Terrenget er
+`MeshBasicMaterial` uten lys, så med bare dybdetoning er bunnen en jevn gradient
+uten form. Dykketuren (`dykkeTur` + `bratteVegg`) er steg i den samme
+`freeRig.spillSekvens`. Stegene kan bære sin egen `azimut`, og freeRig går
+korteste vei rundt.
 
 **INNSJØ-VISNINGEN HAR NVE-RADEN OG IKKE VÆRRADEN (v8.0.24).** `vaerOn` er
 falsk når `props.innsjo` er satt. Stasjonen velges av omrisset fra dybdekurve-fila
