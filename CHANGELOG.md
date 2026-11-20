@@ -1,3 +1,27 @@
+## 2026-11-20 — v8.0.24: NVE-målinger i stedet for værvarsel i innsjø-visningen
+
+Innsjø-visningen i 3D viser ikke lenger værvarsel og værhimmel. Har innsjøen en NVE-målestasjon i vannet eller i en elv innen 2 km fra strandlinja, står stasjonens navn i stedet, sammen med siste vanntemperatur, vannføring og lufttemperatur. Vannstand vises når stasjonen ikke måler vannføring. Bare det stasjonen faktisk måler vises. Måler den ikke lufttemperatur, brukes METs varsel for nå, merket «Luft (MET)». En stasjon i selve vannet går foran en elvestasjon like ved. Ellers vinner den nærmeste, med et lite fortrinn for stasjoner som måler vanntemperatur og vannføring (`lib/innsjoStasjon.js`, ren og testet). Finnes det ingen stasjon, står det ingen rad. Stasjonsnavnet lenker til Sildre.
+
+---
+
+## 2026-11-20 — v8.0.23: Hornindalsvatnet blant eksemplene i Om appen
+
+Hornindalsvatnet, Nord-Europas dypeste innsjø med 514 m, står nå blant eksempellenkene i «Innsjøer med dybde», rett etter Tyrifjorden. Et trykk bygger demo-utsnittet i Padling, som de andre eksemplene. Der kan man dykke ned i innsjøen i 3D.
+
+---
+
+## 2026-11-20 — v8.0.22: Dykk ned i innsjøen i 3D
+
+De blå knappenålene i innsjø-volumet er byttet ut med et dykk. En pulserende ring over det dypeste punktet, eller knappen «Dykk» i bunnraden, tar kameraet gjennom vannflata og ned til bunnen. Der ser man opp mot flata, og man kan se seg rundt ved å dra. Det blir mørkere jo dypere man er. Mørket øker raskt de første metrene og flater ut ved 150 m, så Tyrifjorden på 288 m blir mørkeblå og ikke svart. Disen tykner med dybden, men flata over skal alltid kunne skimtes, for den viser hvor opp er. Under vann er himmel, skyer, regn og lyn skjult. Flata sett nedenfra er lyseblå, det kommer bobler på vei ned og opp, og det blinker kort når man bryter gjennom vannflata. Under vann står bare «Til overflaten» og dybden i meter igjen på skjermen. Escape tar deg også opp. Med redusert bevegelse er dykket et rent kutt uten bobler. Kameraet følger den senkede bunnen og ikke det ekte terrenget, ellers ville gulvet ha løftet det rett opp gjennom flata. Banen spilles av den frie riggen (`freeRig.spillSekvens`), og disen eies av `sceneCore.setUnderVann`. Regnestykkene står i `lib/tour3d/innsjoDykk.js` (ren, testet).
+
+---
+
+## 2026-11-20 — v8.0.21: Innsjø-plakaten flyttet ned i 3D, stjernekikkeren skjult
+
+I innsjø-visningen i 3D står plakaten med navn, maksdyp og forsterkning nå i den nederste raden ved siden av «Oversikt», der hintene ellers står, i stedet for å sveve midt i bildet. Stjernekikker-knappen, som dukker opp når man ser opp i himmelen, vises ikke i innsjø-visningen: der har man åpnet 3D for å se på vannet, og en plakat midt i bildet var bare støy.
+
+---
+
 ## 2026-11-20 — v8.0.20: Innsjøer med dybde i Om appen
 
 «Om appen» har fått seksjonen «Innsjøer med dybde». Den forklarer maksdypet i Padling og innsjø-volumet i 3D, og har en søkbar liste over de 518 innsjøene med dybdekurver, med eksempellenker til Bogstadvannet, Tyrifjorden, Gjende, Vansjø og Setten. Fjorda har ingen dybdekurver hos NVE og er derfor ikke med. Et trykk i lista bygger et kart i Padling gjennom «Mine kart» (`useAppMenu.byggKartHer` → AppMenu → `byggFra`), så fremdrift og avbryt er de samme som ellers. Kartstilen settes med den eksisterende engangsnøkkelen `mapview-init-prefs`. En innsjø som får plass i et 8 × 8 km-kart får et kart som dekker hele vannet, i minste hele kilometer. De 82 større får et demo-utsnitt: kandidatpunkter langs de dypeste kurvene prøves, og vinduet med vannandel nærmest halvparten vinner, med et lite fortrinn for dypere vann (`kartUtsnitt`). Et fast stykke fra stranda ble målt først og forkastet: det ga 2 % vann på smale innsjøer og 74 % på Tyrifjorden. Smale innsjøer får et mindre kart når 8 km gir under 20 % vann. Søkelista bakes som `public/data/innsjo-dybde/indeks.json` sammen med kurvene. Navnet er Innsjødatabasens eget, og navnet fra dybdemålingen er et søkbart alias, så Tyrifjorden også finnes som «Holsfjorden».

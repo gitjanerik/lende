@@ -6,7 +6,7 @@ const BASE =
 
 // Eksemplene i teksten i «Om appen». Står de ikke i indeksen (ingen kurver),
 // faller de bare bort fra teksten.
-export const EKSEMPEL_INNSJOER = ['Bogstadvannet', 'Tyrifjorden', 'Gjende', 'Vansjø', 'Setten', 'Fjorda']
+export const EKSEMPEL_INNSJOER = ['Bogstadvannet', 'Tyrifjorden', 'Hornindalsvatnet', 'Gjende', 'Vansjø', 'Setten', 'Fjorda']
 
 let lofte = null
 export function hentInnsjoIndeks({ basePath = BASE } = {}) {

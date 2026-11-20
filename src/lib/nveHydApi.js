@@ -39,6 +39,7 @@ function apiHeaders(apiKey) {
 export const PARAM_WATER_LEVEL = 1000  // Vannstand (m)
 export const PARAM_DISCHARGE = 1001    // Vannføring (m³/s)
 export const PARAM_WATER_TEMP = 1003   // Vanntemperatur (°C)
+export const PARAM_AIR_TEMP = 17       // Lufttemperatur (°C)
 
 // Offentlig stasjonsside hos NVE (Sildre) for en gitt stasjons-id.
 export function sildreStationUrl(stationId) {
@@ -327,13 +328,13 @@ export async function fetchStationsForBbox(bbox, { apiKey, signal } = {}) {
 }
 
 /**
- * Hent siste vannføring / vannstand / vanntemperatur for én stasjon. Kun
+ * Hent siste vannføring / vannstand / vanntemperatur / lufttemperatur for én stasjon. Kun
  * parametere stasjonen faktisk måler spørres. Returnerer et objekt med de
  * verdiene som fantes (kan være tomt).
  *
  * @param {object} station  stasjons-objekt fra stasjonslista (har seriesList)
  * @param {{ apiKey?: string, signal?: AbortSignal }} [opts]
- * @returns {Promise<{ discharge?: {value,time}, waterLevel?: {value,time}, waterTemp?: {value,time} }>}
+ * @returns {Promise<{ discharge?: {value,time}, waterLevel?: {value,time}, waterTemp?: {value,time}, airTemp?: {value,time} }>}
  */
 export async function fetchStationLatest(station, { apiKey, signal } = {}) {
   const out = {}
@@ -343,6 +344,7 @@ export async function fetchStationLatest(station, { apiKey, signal } = {}) {
     ['discharge', PARAM_DISCHARGE],
     ['waterLevel', PARAM_WATER_LEVEL],
     ['waterTemp', PARAM_WATER_TEMP],
+    ['airTemp', PARAM_AIR_TEMP],
   ].filter(([, pr]) => stationHasParameter(station, pr))
   const results = await Promise.all(
     wanted.map(([, pr]) => fetchLatest(id, pr, apiKey, signal).catch(() => null)),

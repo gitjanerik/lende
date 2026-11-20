@@ -12,7 +12,7 @@
 // brukeren tar over (`onTakeOver`). Terrengklaringen, innrammingen og
 // overgangstiden deles med følge-riggen (cameraRigs.js).
 
-import { Vector3, Quaternion, Matrix4, MOUSE } from 'three'
+import { Vector3, Quaternion, Matrix4, MOUSE, Euler } from 'three'
 import {
   terrainYAt, terrainFloorY, clearSightLine, easeInOutCubic, framePose, TRANSITION_S,
 } from './cameraRigs.js'
@@ -311,6 +311,13 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   // FORFLYTNING av kamera OG blikkpunkt, ikke en ny vinkel, så retning, tilt og
   // avstand er fortsatt nøyaktig brukerens egne.
   let terrengLoft = 0
+  // Gulvet kan byttes (innsjø-dykket: den senkede bunnen). null = terrengets.
+  let gulvFn = null
+  // Under vann ser man seg rundt fra ett punkt; orbiten står da med blikkpunktet
+  // en meter foran kameraet, og vippen er av.
+  let underVann = false
+  // Pågående kamerabane (spillSekvens): steg med pose, tid og fase.
+  let sekvens = null
   const listeners = []
 
   const on = (target, event, fn, opts) => {
@@ -422,7 +429,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   on(domElement, 'pointercancel', slippPeker)
 
   on(domElement, 'pointermove', (e) => {
-    if (dragY === null || !controls.enabled || transition) { dragY = e.clientY; return }
+    if (dragY === null || !controls.enabled || transition || underVann || sekvens) { dragY = e.clientY; return }
     const dy = e.clientY - dragY
     dragY = e.clientY
     if (!erRotasjon(e)) return
@@ -473,7 +480,9 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
    * terreng (se terrainFloorY), så man kommer helt ut og ser arket fra sida.
    */
   function hevOverTerreng(dt) {
-    const gulv = terrainFloorY(dem, coords, camera.position.x, camera.position.z)
+    const gulv = gulvFn
+      ? gulvFn(camera.position.x, camera.position.z)
+      : terrainFloorY(dem, coords, camera.position.x, camera.position.z)
     if (!Number.isFinite(gulv)) return
     // BARE DELTAEN FLYTTES, og løftet er ÉN variabel. Alternativet — ta løftet
     // av først i frama og legge det på til slutt — trenger et flagg for om det
@@ -522,6 +531,8 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
   function applyPose({ pos, target }, { animate = false } = {}) {
     // Enhver programmatisk pose er et blikk NED i kartet, så himmelvippen skal
     // ikke overleve den. «Oversikt» skal alltid gi oversikt.
+    sekvens = null
+    if (underVann) settUnderVann(false)
     nullstillVipp()
     // Posen er ABSOLUTT og har sin egen klaring (overviewPose/framePose løfter
     // selv). Beholdt løftet ville neste frame trukket det fra en pose som aldri
@@ -540,6 +551,82 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
     camera.position.copy(pos)
     controls.target.copy(target)
     quietUpdate()
+  }
+
+  const _euler = new Euler(0, 0, 0, 'YXZ')
+  const _retning = new Vector3()
+  const EASE = {
+    'inn-ut': easeInOutCubic,
+    ut: (t) => 1 - (1 - t) ** 3,
+    lineaer: (t) => t,
+  }
+
+  function settBlikk(azimut, hoyde) {
+    // Kameraet ser langs −Z (nord) uten rotasjon; asimut er med klokka sett
+    // ovenfra, og en positiv Y-rotasjon dreier mot klokka. Derfor −azimut.
+    _euler.set(hoyde, -azimut, 0, 'YXZ')
+    camera.quaternion.setFromEuler(_euler)
+  }
+
+  const STANDARD = {
+    minDistance: controls.minDistance,
+    maxDistance: controls.maxDistance,
+    rotateSpeed: controls.rotateSpeed,
+  }
+
+  // Under vann står kameraet stille og ser seg rundt. Orbiten gjør det med et
+  // blikkpunkt en meter foran og polarvinkelen åpen helt opp mot flata. Negativ
+  // rotasjonsfart gjør draget til «grip vannet»: drag ned, se opp.
+  function settUnderVann(paa) {
+    underVann = paa
+    nullstillVipp()
+    terrengLoft = 0
+    if (paa) {
+      camera.getWorldDirection(_retning)
+      controls.target.copy(camera.position).add(_retning)
+      controls.minDistance = 0.5
+      controls.maxDistance = 2
+      controls.minPolarAngle = (80 * Math.PI) / 180
+      controls.maxPolarAngle = (175 * Math.PI) / 180
+      controls.enablePan = false
+      controls.enableZoom = false
+      controls.rotateSpeed = -0.5
+    } else {
+      controls.minDistance = STANDARD.minDistance
+      controls.maxDistance = STANDARD.maxDistance
+      controls.minPolarAngle = 0
+      controls.maxPolarAngle = POLAR_MAKS
+      controls.enablePan = true
+      controls.enableZoom = true
+      controls.rotateSpeed = STANDARD.rotateSpeed
+    }
+    controls.autoRotate = false
+  }
+
+  function sekvensSteg(dt) {
+    const s = sekvens
+    const steg = s.steg[s.i]
+    s.t += steg.tid > 0 ? dt / steg.tid : 1
+    const k = s.t >= 1 ? 1 : (EASE[steg.ease] ?? easeInOutCubic)(s.t)
+    camera.position.set(
+      s.fra.pos[0] + (steg.pos[0] - s.fra.pos[0]) * k,
+      s.fra.pos[1] + (steg.pos[1] - s.fra.pos[1]) * k,
+      s.fra.pos[2] + (steg.pos[2] - s.fra.pos[2]) * k,
+    )
+    settBlikk(s.azimut, s.fra.hoyde + (steg.hoyde - s.fra.hoyde) * k)
+    if (s.t < 1) return
+    s.fra = { pos: steg.pos, hoyde: steg.hoyde }
+    s.t = 0
+    s.i++
+    if (s.i < s.steg.length) return
+    sekvens = null
+    if (s.underVann) settUnderVann(true)
+    else {
+      camera.getWorldDirection(_retning)
+      controls.target.copy(camera.position).addScaledVector(_retning, 200)
+    }
+    quietUpdate()
+    s.ferdig?.()
   }
 
   // Åpningsposen settes bare når den frie riggen ER kameraet fra start; åpnes
@@ -566,6 +653,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
      * @param {{tid?: number, ease?: 'inn-ut'|'ut'}} [opts]
      */
     seMot(azimut, hoyde, { tid = BLIKK_TID_S, ease = 'inn-ut' } = {}) {
+      if (underVann || sekvens) return
       if (!Number.isFinite(azimut) || !Number.isFinite(hoyde)) return
       controls.enabled = true
       controls.autoRotate = false
@@ -613,6 +701,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
      * fortsatt ÉN eier: den bor her, som draget, så de to ikke kan komme i utakt.
      */
     settBlikkHoyde(hoyde) {
+      if (underVann || sekvens) return
       if (!Number.isFinite(hoyde)) return
       controls.enabled = true
       controls.autoRotate = false
@@ -643,6 +732,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
      * @param {number} hoyde radianer over horisonten (negativ = ned i kartet)
      */
     settBlikkRetning(azimut, hoyde) {
+      if (underVann || sekvens) return
       if (!Number.isFinite(hoyde)) return
       controls.enabled = true
       controls.autoRotate = false
@@ -788,6 +878,34 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       applyPose({ pos: pose.pos.clone(), target: pose.target.clone() }, { animate })
     },
 
+    /**
+     * Spill en kamerabane (se innsjoDykk.dykkSekvens). Asimuten er fast — den
+     * kameraet står i nå — og hvert steg sier hvor kameraet skal stå og hvor
+     * høyt det ser når steget er ferdig. `underVann` setter kameraet i
+     * se-seg-rundt-modus på slutten.
+     */
+    spillSekvens(steg, { underVann: ned = false, ferdig = null } = {}) {
+      if (!steg?.length) return
+      if (underVann) settUnderVann(false)
+      transition = null
+      blikkAnim = null
+      nullstillVipp()
+      terrengLoft = 0
+      controls.autoRotate = false
+      camera.getWorldDirection(_retning)
+      const hoyde = Math.asin(Math.max(-1, Math.min(1, _retning.y)))
+      sekvens = {
+        steg, i: 0, t: 0, underVann: ned, ferdig,
+        azimut: azimutFraTheta(controls.getAzimuthalAngle()),
+        fra: { pos: [camera.position.x, camera.position.y, camera.position.z], hoyde },
+      }
+    },
+    /** Fasen i banen som spilles nå, eller null. */
+    get sekvensFase() { return sekvens ? sekvens.steg[sekvens.i]?.fase ?? null : null },
+    get underVann() { return underVann },
+    /** Bytt gulvet: fn(wx, wz) → laveste world-Y. null = terrengets eget. */
+    settGulv(fn) { gulvFn = typeof fn === 'function' ? fn : null },
+
     /** Kameraets posisjon i kartets SVG-meter — brukes til «bort fra kamera». */
     cameraSvgXY() {
       const { x, y } = coords.toSvg(camera.position.x, camera.position.z)
@@ -803,6 +921,7 @@ export async function createFreeRig({ camera, dem, coords, domElement, autoRotat
       if (controls.target.x > mx) controls.target.x = mx
       if (controls.target.z < -mz) controls.target.z = -mz
       if (controls.target.z > mz) controls.target.z = mz
+      if (sekvens) { sekvensSteg(dt); return }
       if (transition) {
         transition.t += dt / TRANSITION_S
         const k = transition.t >= 1 ? 1 : easeInOutCubic(transition.t)

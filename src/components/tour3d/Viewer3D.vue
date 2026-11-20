@@ -36,6 +36,7 @@ import Tour3dNordlysPanel from './Tour3dNordlysPanel.vue'
 import Tour3dHimmelSok from './Tour3dHimmelSok.vue'
 import Tour3dHimmelKort from './Tour3dHimmelKort.vue'
 import Tour3dHimmelKompass from './Tour3dHimmelKompass.vue'
+import Tour3dInnsjoNve from './Tour3dInnsjoNve.vue'
 import RetningsRose from '../kontroller/RetningsRose.vue'
 import ZoomSkyv from '../kontroller/ZoomSkyv.vue'
 import { blikkHoydeGrenserFullt } from '../../lib/tour3d/freeRig.js'
@@ -381,6 +382,40 @@ useFokusFelle(overleggRef, () => true)
 let engine = null
 // Satt når motoren er bygd med et innsjø-volum (engine.innsjo).
 const innsjoInfo = ref(null)
+
+// Dykket: tilstanden kommer fra motoren ('dykk'), viseren eier bare overleggene.
+const dykk = ref(null)
+const dykker = computed(() => !!(dykk.value?.tilstand || dykk.value?.under))
+const dykkMelding = ref('')
+const dykkBlink = ref(false)
+const reduserBevegelse = typeof matchMedia === 'function'
+  && matchMedia('(prefers-reduced-motion: reduce)').matches
+const dykkBobler = computed(() => !reduserBevegelse && !!dykk.value?.under
+  && (dykk.value.fase === 'ned' || dykk.value.fase === 'opp'))
+const BOBLER = Array.from({ length: 18 }, (_, i) => ({
+  i,
+  x: (i * 37 + 11) % 96,
+  r: 4 + ((i * 7) % 11),
+  d: ((i * 13) % 17) / 10,
+  t: 1.4 + ((i * 5) % 9) / 10,
+  drift: ((i * 29) % 21) - 10,
+}))
+function dykkNed() { engine?.dykkNed({ redusert: reduserBevegelse }) }
+function dykkOpp() { engine?.dykkOpp({ redusert: reduserBevegelse }) }
+function paDykk(d) {
+  const forrige = dykk.value
+  dykk.value = d
+  if (d.under && !forrige?.under && d.tilstand === 'ned' && !reduserBevegelse) {
+    dykkBlink.value = true
+    setTimeout(() => { dykkBlink.value = false }, 450)
+  }
+  const navn = innsjoInfo.value?.navn ?? 'innsjøen'
+  if (d.tilstand === 'bunn' && forrige?.tilstand !== 'bunn') {
+    dykkMelding.value = `Du er på bunnen av ${navn}, ${innsjoInfo.value?.maksTekst ?? ''} m`
+  } else if (!d.tilstand && forrige?.tilstand === 'opp') {
+    dykkMelding.value = `Tilbake ved overflaten av ${navn}`
+  }
+}
 let abort = null
 let poppedByHistory = false
 let toastTimer = 0
@@ -439,7 +474,9 @@ function applyPinGroups() {
 // --- livssyklus ------------------------------------------------------------
 
 function onKeydown(e) {
-  if (e.key === 'Escape') requestClose()
+  if (e.key !== 'Escape') return
+  if (dykker.value) { dykkOpp(); return }
+  requestClose()
 }
 function onPopstate() {
   poppedByHistory = true
@@ -608,6 +645,7 @@ async function byggMotor() {
     engine.on('globe-avsluttet', () => { kortMinimert.value = true })
     engine.on('globe-trekk', ({ trekk }) => { globeTrekk.value = trekk ?? [] })
     engine.on('blikk', (b) => { blikk.value = b })
+    engine.on('dykk', paDykk)
     // Severdighet turen stopper ved av seg selv.
     engine.on('feature-enter', ({ feature }) => { stopFeature.value = feature })
     engine.on('feature-exit', () => { stopFeature.value = null })
@@ -658,6 +696,7 @@ async function byggMotor() {
     if (nightOn.value) applyNight(true).catch(() => {})
     // Vær-valget er husket fra forrige økt; hentingen er ikke-blokkerende.
     if (vaerOn.value) void hentVaer()
+    if (props.innsjo?.omrissWgs) void hentInnsjoNve()
     if (nightOn.value) byggHimmelListe()
     // Vær-demoen slås på i Utvikler-fanen og overstyrer varselet.
     if (demoPaa.value) demoStart()
@@ -821,7 +860,8 @@ const nightOn = ref((() => {
 // veien tilbake i samme økt.
 const vaerAvvist = ref(false)
 
-const vaerOn = computed(() => !nightOn.value && !vaerAvvist.value)
+// Innsjø-visningen viser NVE-målingene i stedet: man har åpnet 3D for vannet.
+const vaerOn = computed(() => !nightOn.value && !vaerAvvist.value && !props.innsjo)
 
 async function applyNight(on) {
   if (!engine) return
@@ -847,6 +887,39 @@ const nattSteg = computed(() => (nightOn.value ? 1 : 0))
 // Cachen (~100 m rutenett, 30 min) gjør at åpne-lukke-åpne ikke koster MET noe.
 const vaer = ref(null)
 let vaerHentet = false
+
+const innsjoNveRaa = ref(null)
+const innsjoNve = computed(() => {
+  const r = innsjoNveRaa.value
+  if (!r) return null
+  const met = vaer.value?.naa?.temperaturC
+  if (r.luftTemp == null && Number.isFinite(met)) return { ...r, luftTemp: met, luftKilde: 'met' }
+  return r
+})
+async function hentInnsjoNve() {
+  const omriss = props.innsjo.omrissWgs
+  try {
+    const [{ fetchStationsForBbox, fetchStationLatest, sildreStationUrl }, { velgInnsjoStasjon, omrissBbox }] =
+      await Promise.all([import('../../lib/nveHydApi.js'), import('../../lib/innsjoStasjon.js')])
+    const bbox = omrissBbox(omriss)
+    const valgt = bbox ? velgInnsjoStasjon(await fetchStationsForBbox(bbox), omriss) : null
+    if (!valgt) return
+    const siste = await fetchStationLatest(valgt.stasjon)
+    const tid = [siste.waterTemp, siste.discharge, siste.waterLevel].find(Boolean)?.time ?? null
+    innsjoNveRaa.value = {
+      navn: valgt.stasjon.stationName ?? 'NVE-stasjon',
+      sildreUrl: sildreStationUrl(valgt.stasjon.stationId),
+      iVannet: valgt.iVannet,
+      vannTemp: siste.waterTemp?.value ?? null,
+      vannforing: siste.discharge?.value ?? null,
+      vannstand: siste.waterLevel?.value ?? null,
+      luftTemp: siste.airTemp?.value ?? null,
+      luftKilde: siste.airTemp ? 'nve' : null,
+      tid,
+    }
+    if (!siste.airTemp) void hentVaer()
+  } catch { /* uten NVE-data står ingen rad */ }
+}
 
 async function hentVaer() {
   if (vaerHentet) return
@@ -1287,8 +1360,10 @@ function branchLabel(opt, i) {
                spenner hele bredden, og uten dette ville den svelget nettopp
                det draget nedover som er veien tilbake til kartet.
              · Skjult under en gående tur: der er kameraet turens, og et bytte
-               til natt midt i den er ikke det man ber om ved å se opp. -->
-      <div v-if="phase === 'ready' && serOpp && !stjernemodus && !walking"
+               til natt midt i den er ikke det man ber om ved å se opp.
+             · Skjult i innsjø-visningen: der er det vannet man har åpnet 3D for,
+               og en plakat midt i bildet er bare støy. -->
+      <div v-if="phase === 'ready' && serOpp && !stjernemodus && !walking && !innsjoInfo"
            class="absolute left-0 right-0 top-[32%] z-[9] flex justify-center px-4
                   pointer-events-none">
         <button type="button" @click="toggleNight"
@@ -1314,7 +1389,43 @@ function branchLabel(opt, i) {
            Høyrestilt raden vokste mot venstre, og med seks knapper falt den
            første ut av skjermen på smale telefoner (S22+, buet kant).
            Venstrestilt vokser den innover i stedet. -->
-      <div class="relative z-10 flex items-start justify-between gap-2 px-3"
+      <!-- DYKKET. Mørket og boblene er CSS oppå lerretet, ikke geometri: de
+           koster ingenting på en telefon, og mørket er en følelse av dybde, ikke
+           en lysmodell. Under vann står bare veien opp og dybden igjen. -->
+      <div v-if="dykk?.under" aria-hidden="true"
+           class="absolute inset-0 z-[5] pointer-events-none transition-[background-color] duration-300"
+           :style="{ backgroundColor: `rgba(4, 16, 32, ${dykk.morke})` }"></div>
+      <div v-if="dykkBobler" aria-hidden="true"
+           class="absolute inset-0 z-[6] pointer-events-none overflow-hidden"
+           :class="dykk.fase === 'opp' ? 'dykk-bobler--opp' : ''">
+        <span v-for="b in BOBLER" :key="b.i" class="dykk-boble"
+              :style="{ left: `${b.x}%`, width: `${b.r}px`, height: `${b.r}px`,
+                        animationDelay: `${b.d}s`, animationDuration: `${b.t}s`, '--drift': `${b.drift}px` }"></span>
+      </div>
+      <div v-if="dykkBlink" aria-hidden="true" class="dykk-blink absolute inset-0 z-[6] pointer-events-none"></div>
+      <div class="sr-only" role="status" aria-live="polite">{{ dykkMelding }}</div>
+
+      <div v-if="phase === 'ready' && dykker"
+           class="relative z-10 flex items-center gap-2 px-3"
+           style="padding-top: max(env(safe-area-inset-top), 10px);">
+        <button type="button" data-dykk-opp @click="dykkOpp"
+                :disabled="dykk?.tilstand === 'opp'"
+                class="h-11 px-3.5 rounded-full bg-black/60 backdrop-blur text-white/90 text-xs font-medium
+                       flex items-center gap-1.5 active:scale-95 disabled:opacity-60 transition">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 19V5"/><polyline points="5 12 12 5 19 12"/>
+          </svg>
+          Til overflaten
+        </button>
+        <div v-if="dykk?.under"
+             class="rounded-full bg-black/45 backdrop-blur px-3 py-1.5 text-xs font-semibold text-white/85 tabular-nums"
+             :style="{ zoom: uiTextScale }">
+          {{ Math.round(dykk.dybde) }} m
+        </div>
+      </div>
+
+      <div v-if="!dykker" class="relative z-10 flex items-start justify-between gap-2 px-3"
            style="padding-top: max(env(safe-area-inset-top), 10px);">
         <div class="flex items-center gap-1 min-w-0 flex-wrap">
           <!-- SOL/MÅNE STÅR FØRST, helt til venstre (v6.1.0). Den er
@@ -1523,7 +1634,7 @@ function branchLabel(opt, i) {
            ZOOMEN LIGGER PÅ EN INNPAKNING INNENFOR `px-3`, ikke på raden selv:
            en zoomet `px-3` skalerer polstringen og dytter innholdet utenfor
            skjermen (samme grunn som Info/POI-raden). -->
-      <div v-if="phase === 'ready' && nordlysOn && !walking && nordlys"
+      <div v-if="phase === 'ready' && nordlysOn && !walking && nordlys && !dykker"
            class="relative z-10 px-3 mt-2">
         <div class="flex justify-center" :style="{ zoom: uiTextScale }">
           <Tour3dNordlysPanel :nordlys="nordlys" :skydekke="nordlysSkydekke"
@@ -1613,10 +1724,16 @@ function branchLabel(opt, i) {
            så forelderen MÅ være full bredde OG stå i samme zoom-lag som raden.
            Legges zoomen på `px-3`-boksen i stedet, måler raden en forelder i et
            annet enhetsrom enn seg selv. -->
-      <div v-if="phase === 'ready' && vaerOn && !walking && !stjernemodus"
+      <div v-if="phase === 'ready' && vaerOn && !walking && !stjernemodus && !dykker"
            class="relative z-10 px-3 mt-2">
         <div class="flex justify-center" :style="{ zoom: uiTextScale }">
           <Tour3dVaerRad :vaer="vaer" @lukk="vaerAvvist = true"/>
+        </div>
+      </div>
+      <div v-else-if="phase === 'ready' && innsjoNve && !walking && !stjernemodus && !dykker"
+           class="relative z-10 px-3 mt-2">
+        <div class="flex justify-center" :style="{ zoom: uiTextScale }">
+          <Tour3dInnsjoNve :data="innsjoNve"/>
         </div>
       </div>
 
@@ -1631,7 +1748,7 @@ function branchLabel(opt, i) {
            ligger på hver sin innpakning og ikke på raden: raden er
            `justify-between` over hele bredden, og en zoomet rad ville skalert
            polstringen og dyttet begge boksene utenfor skjermen. -->
-      <div v-if="phase === 'ready' && !stjernemodus"
+      <div v-if="phase === 'ready' && !stjernemodus && !dykker"
            class="relative z-10 flex items-start justify-between gap-2 px-3 mt-2">
         <!-- INGEN `overflow` HER, og det er ikke en forglemmelse: hjelpekroppen
              er et nedtrekk under pilla, altså absolutt plassert, og en
@@ -1684,7 +1801,7 @@ function branchLabel(opt, i) {
       </div>
 
       <!-- Bunn: kryssvalg, framdrift og turkontroller -->
-      <div v-if="phase === 'ready' && !stjernemodus"
+      <div v-if="phase === 'ready' && !stjernemodus && !dykker"
            class="relative z-10 mt-auto px-3 flex flex-col gap-2"
            style="padding-bottom: max(env(safe-area-inset-bottom), 12px);">
 
@@ -1775,10 +1892,36 @@ function branchLabel(opt, i) {
             </svg>
             Oversikt
           </button>
+          <!-- Innsjø-volumet: navnet, dybden og forsterkningen. Forsterkningen
+               står skrevet fordi den ellers er en skjult løgn om hvor bratt
+               bunnen er. Den tar hint-plassen, så bildet over er fritt. Trykk
+               flyr tilbake til innsjøen. -->
+          <!-- Dykket starter her eller fra ringen over det dypeste punktet. -->
+          <button v-if="innsjoInfo && engine?.kanDykke" type="button" data-dykk @click="dykkNed"
+                  class="on-accent shrink-0 h-11 px-3.5 rounded-full bg-sky-700 text-white text-xs font-semibold
+                         flex items-center gap-1.5 active:scale-95 transition"
+                  :aria-label="`Dykk ned til det dypeste punktet, ${innsjoInfo.maksTekst} meter`">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v11"/><polyline points="7 9 12 14 17 9"/>
+              <path d="M3 19c2 0 2-1.5 4.5-1.5S10 19 12 19s2.5-1.5 4.5-1.5S19 19 21 19"/>
+            </svg>
+            Dykk
+          </button>
+          <button v-if="innsjoInfo" type="button" @click="engine?.tilInnsjoen()"
+                  data-innsjo-volum
+                  class="min-w-0 rounded-2xl bg-black/72 backdrop-blur px-3 py-1.5 text-white/90
+                         text-left leading-tight active:scale-[0.97] transition"
+                  :aria-label="`${innsjoInfo.navn ?? 'Innsjøen'} — fly tilbake til innsjøen`">
+            <span class="block text-xs font-semibold truncate">{{ innsjoInfo.navn ?? 'Innsjøen' }}</span>
+            <span class="block text-[0.6875rem] text-white/75">
+              maks {{ innsjoInfo.maksTekst }} m<template v-if="innsjoInfo.faktor > 1"> · dybden vist ×{{ innsjoInfo.faktor }}</template>
+            </span>
+          </button>
           <!-- Ser man opp i himmelen, er det ikke kartet i bildet, og da er det
                ikke åpenbart at samme drag den andre veien er veien ned igjen.
                Hintet erstatter sti-hintet, som ikke er til hjelp der. -->
-          <div v-if="serOpp"
+          <div v-else-if="serOpp"
                class="rounded-full bg-black/70 backdrop-blur px-3 py-1.5 text-[0.6875rem] text-white/70">
             Ser opp i himmelen — dra nedover for å komme tilbake til kartet
           </div>
@@ -1842,24 +1985,6 @@ function branchLabel(opt, i) {
         <Tour3dHimmelKompass :blikk="blikk" @nord="engine?.seMotNord()"/>
       </div>
 
-      <!-- Innsjø-volumet: navnet, dybden og forsterkningen. Forsterkningen står
-           skrevet fordi den ellers er en skjult løgn om hvor bratt bunnen er.
-           Trykk flyr tilbake til innsjøen. -->
-      <div v-if="phase === 'ready' && innsjoInfo && !stjernemodus"
-           class="absolute left-0 right-0 bottom-28 z-10 flex justify-center px-4 pointer-events-none">
-        <button type="button" @click="engine?.tilInnsjoen()"
-                data-innsjo-volum
-                class="pointer-events-auto max-w-full rounded-2xl bg-black/72 backdrop-blur ring-1 ring-white/20
-                       px-3.5 py-2 text-white/90 text-left leading-tight active:scale-[0.97] transition"
-                :style="tekstBoks(86)"
-                :aria-label="`${innsjoInfo.navn ?? 'Innsjøen'} — fly tilbake til innsjøen`">
-          <span class="block text-[0.8125rem] font-semibold">{{ innsjoInfo.navn ?? 'Innsjøen' }}</span>
-          <span class="block text-[0.6875rem] text-white/80">
-            maks {{ innsjoInfo.maksTekst }} m<template v-if="innsjoInfo.faktor > 1"> · dybden vist ×{{ innsjoInfo.faktor }}</template>
-          </span>
-        </button>
-      </div>
-
       <!-- Skjerping av kartbildet etter at visningen er åpen -->
       <div v-if="phase === 'ready' && buildMsg"
            class="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 rounded-full
@@ -1898,5 +2023,34 @@ function branchLabel(opt, i) {
 }
 @media (prefers-reduced-motion: reduce) {
   .pulse-play { animation: none; }
+}
+
+.dykk-boble {
+  position: absolute;
+  bottom: -24px;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 240, 255, 0.7);
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.08) 60%);
+  animation-name: dykk-stig;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+/* På vei opp passerer man boblene: de går raskere. */
+.dykk-bobler--opp .dykk-boble { animation-duration: 0.9s !important; }
+@keyframes dykk-stig {
+  from { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 0.9; }
+  to { transform: translate(var(--drift, 0px), -110vh); opacity: 0; }
+}
+.dykk-blink {
+  background: rgba(220, 240, 255, 0.55);
+  animation: dykk-blink 450ms ease-out forwards;
+}
+@keyframes dykk-blink {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dykk-boble, .dykk-blink { animation: none; display: none; }
 }
 </style>
