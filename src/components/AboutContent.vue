@@ -573,7 +573,7 @@ function tilPersonvern() {
               den 1. hver måned fra Geofabriks Norge-uttrekk til fliser på
               omtrent 5 × 5 km, som et nytt kart henter på sekunder. De er
               derfor inntil en måned gamle. Kan flisene ikke leses, hentes
-              dataene rett fra Overpass i stedet, som før.
+              dataene direkte fra OpenStreetMap i stedet.
               <span class="block mt-1 text-ink-3">
                 <template v-if="osmSistOppdatert">Sist oppdatert: {{ osmSistOppdatert }}. </template>Neste kjøring: {{ osmNesteKjoring }}.
               </span></li>
@@ -748,9 +748,9 @@ function tilPersonvern() {
             <li>Severdighetene langs ruta hentes fra kartets egen navneindeks
               (virker offline), <strong class="text-ink">NVE HydAPI</strong> og
               Riksantikvarens kulturminnedata.</li>
-            <li>3D-modulen lastes først når du trenger den, så appen er like lett
-              som før — har du åpnet et kart på nett, ligger den klar også uten
-              dekning.</li>
+            <li>3D-modulen lastes først når du trenger den, så den gjør ikke
+              resten av appen tyngre — har du åpnet et kart på nett, ligger den
+              klar også uten dekning.</li>
           </ul>
         </div>
       </div>
