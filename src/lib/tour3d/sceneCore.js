@@ -349,7 +349,7 @@ export async function createSceneCore(container, {
    * dem med i det hele tatt.
    */
   function oppdaterSkySynlighet() {
-    const synlig = vaerAktiv && !nightOn
+    const synlig = vaerAktiv && !nightOn && !underVann
     clouds.group.visible = synlig
     skyskygge.uniforms.uSkyggeStyrke.value = synlig ? skyggeGrunn : 0
   }
@@ -376,6 +376,10 @@ export async function createSceneCore(container, {
   // setter dem tilbake til nøyaktig disse.
   const disNear = scene.fog.near
   const disFar = scene.fog.far
+  // Under vann (innsjø-dykket) eier dykket disen. Det som sto der før lagres og
+  // settes tilbake når kameraet er over flata igjen.
+  let underVann = null
+  let foerVann = null
   let tordenPaa = false
   // Torden er et kort løft av dis- og bakgrunnsfargen — ingen geometri, ingen
   // lyskilde. Rate-begrenset og av ved prefers-reduced-motion: et lyn som
@@ -395,7 +399,7 @@ export async function createSceneCore(container, {
   const lynfarge = new Color('#e8f1ff')
 
   function oppdaterTorden(dt) {
-    if (!tordenPaa || reduserBevegelse) return
+    if (!tordenPaa || reduserBevegelse || underVann) return
     if (lynIgjen > 0) {
       lynIgjen -= dt
       if (lynIgjen <= 0) {
@@ -669,8 +673,13 @@ export async function createSceneCore(container, {
       // Sikt: tåke er redusert sikt, ikke flere skyer. Uten dette ser tåke ut
       // som overskyet, og det gjorde den fram til v5.22.1.
       const sikt = preg?.siktFaktor ?? 1
-      scene.fog.near = disNear * sikt
-      scene.fog.far = disFar * sikt
+      if (underVann) {
+        foerVann.near = disNear * sikt
+        foerVann.far = disFar * sikt
+      } else {
+        scene.fog.near = disNear * sikt
+        scene.fog.far = disFar * sikt
+      }
       // Skyskygger krever ÅPNINGER i skydekket. Ved fullt dekke er bakken jevnt
       // skyggelagt, og enkeltflekker ville lest som feil; i tåke finnes ingen
       // retningsbestemt sol i det hele tatt.
@@ -678,6 +687,10 @@ export async function createSceneCore(container, {
       skyggeGrunn = 0.30 * (1 - dekning * 0.6) * (sikt < 0.3 ? 0.15 : 1)
       oppdaterSkySynlighet()
       nedbor.setNedbor(preg?.nedbor ?? null, preg?.nedborTetthet ?? 0)
+      if (underVann) {
+        foerVann.nedbor = nedbor.group.visible
+        nedbor.group.visible = false
+      }
       vaerVindX = preg?.driftX ?? 1
       vaerVindZ = preg?.driftZ ?? 0
       // Grunnfargen for torden-blinket må følge natt/dag, ellers blinker
@@ -693,6 +706,40 @@ export async function createSceneCore(container, {
      * Gardinene vises BARE om natta; se oppdaterNordlysSynlighet. Preget kan
      * derfor settes når som helst, og slår inn i det natta slås på.
      */
+    /**
+     * Kameraet er under en innsjøflate: disen får vannets farge og rekkevidde,
+     * og himmel, skyer, nedbør og lyn skjules. `null` setter alt tilbake slik
+     * det var. Kalles hver frame under dykket — ingen allokering.
+     * @param {{farge:number, near:number, far:number} | null} t
+     */
+    setUnderVann(t) {
+      if (t) {
+        if (!underVann) {
+          foerVann = { near: scene.fog.near, far: scene.fog.far, nedbor: nedbor.group.visible }
+          nedbor.group.visible = false
+          lynIgjen = 0
+          lyn.slukk()
+        }
+        underVann = t
+        scene.fog.color.setHex(t.farge)
+        scene.background.setHex(t.farge)
+        scene.fog.near = t.near
+        scene.fog.far = t.far
+        sky.mesh.visible = false
+        oppdaterSkySynlighet()
+        return
+      }
+      if (!underVann) return
+      underVann = null
+      scene.fog.near = foerVann.near
+      scene.fog.far = foerVann.far
+      nedbor.group.visible = foerVann.nedbor
+      foerVann = null
+      scene.fog.color.copy(grunnfarge)
+      scene.background.copy(grunnfarge)
+      sky.mesh.visible = true
+      oppdaterSkySynlighet()
+    },
     setNordlys(preg) {
       nordlysPregNaa = preg ?? null
       oppdaterNordlysSynlighet()

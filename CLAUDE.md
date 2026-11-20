@@ -334,6 +334,16 @@ indeksert på det. (3) Viseren åpner i dagmodus med en innsjø, uansett klokka:
 nattmodus skjuler nettopp det volumet finnes for å vise. Knappen på 2D-kartet
 leser `meta.innsjoVolum` (byggeren, ikke DOM-en) og står bare i Padling.
 
+**DYKKET (v8.0.22) ER EN KAMERAPOSE I SAMME SCENE, ikke en egen visning**
+(`lib/tour3d/innsjoDykk.js`, ren). Tre ting er lette å «rydde» bort: (1) under
+vann er gulvet den SENKEDE bunnen (`undervannsGulv` via `freeRig.settGulv`). Det
+ekte DEM-et har innsjøspeilet flatt, så det vanlige gulvet løfter kameraet opp
+gjennom flata i første bilde. (2) Disen, bakgrunnen og himmelens synlighet eies av
+`sceneCore.setUnderVann`. `setVaer` skriver i `foerVann` mens man er under, ellers
+ville et værbytte ha skrudd disen tilbake midt i dykket. (3) Mørket er et
+CSS-overlegg i Viewer3D og ikke en lysmodell, med tak på `MORKE_TAK`. Ekte vann
+er svart lenge før 288 m, men da ser man ingenting.
+
 **INNSJØLISTA I «OM APPEN» BYGGER GJENNOM «MINE KART» (v8.0.20)**, ikke selv:
 `useAppMenu.byggKartHer` → AppMenu → `byggFra`-propen → `byggKartFra`, og
 Padling settes med `mapview-init-prefs`. En egen byggeflyt i About ville vært

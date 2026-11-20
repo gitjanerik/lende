@@ -50,6 +50,10 @@ import { featureType } from './exploreData.js'
 import { decimateForTerrain } from './terrainGrid.js'
 import { byggInnsjoBunn, autoDybdeFaktor, senketDem } from './innsjoBunn.js'
 import { buildInnsjoVolum, tonBunn } from './innsjoVolum.js'
+import {
+  dypestePunkt, utenInnsjoNaler, undervannsGulv, dykkSekvens, oppSekvens, ekteDybde,
+  undervannsFarge, undervannsDis, undervannsMorke,
+} from './innsjoDykk.js'
 
 export { TourSceneError }
 
@@ -97,7 +101,9 @@ export async function create3dScene(container, {
       const bunn = byggInnsjoBunn(grov, innsjo)
       if (bunn) {
         const faktor = autoDybdeFaktor(bunn, grov)
-        innsjoPlan = { grov, bunn, faktor, terrengDem: senketDem(grov, bunn, faktor) }
+        innsjoPlan = {
+          grov, bunn, faktor, terrengDem: senketDem(grov, bunn, faktor), dykk: dypestePunkt(bunn, grov),
+        }
       }
     } catch (e) {
       console.warn('[3D] Innsjøbunnen kunne ikke bygges:', e)
@@ -125,7 +131,7 @@ export async function create3dScene(container, {
   if (innsjoPlan) {
     const { grov, bunn, faktor } = innsjoPlan
     tonBunn(terrain.geometry, terrain.material, bunn, grov.cols, grov.rows)
-    innsjoVolum = buildInnsjoVolum({ bunn, dem: grov, coords, innsjo, faktor })
+    innsjoVolum = buildInnsjoVolum({ bunn, dem: grov, coords, innsjo, faktor, dykkPunkt: innsjoPlan.dykk })
     scene.add(innsjoVolum.group)
     loop.track(innsjoVolum)
     innsjoVolum.setResolution(container.clientWidth, container.clientHeight)
@@ -171,7 +177,9 @@ export async function create3dScene(container, {
   // ---- Nåler, markører, GPS ------------------------------------------------
 
   const pins = createPinLayer({ scene, dem, coords, project: core.project })
-  if (features?.length) pins.setFeatures(features)
+  // Innsjøens egne vann-nåler viker for dykke-ringen; alle andre står.
+  const utenVannNaler = (list) => utenInnsjoNaler(list ?? [], innsjoPlan?.bunn, innsjoPlan?.grov)
+  if (features?.length) pins.setFeatures(utenVannNaler(features))
 
   const highlight = buildHighlightMarker()
   scene.add(highlight.group)
@@ -421,6 +429,113 @@ export async function create3dScene(container, {
     // kameraet tilbake på neste frame, uten å flytte bildet.
     if (trip && camMode === 'free') reattachPending = true
   })
+
+  // ---- Dykket i innsjøen ---------------------------------------------------
+  //
+  // Kameraet går ned til det dypeste punktet og ser opp. Banen spilles av den
+  // frie riggen; her bor det som ikke er kamera: gulvet, disen, flata sett
+  // nedenfra og meldingene til viseren.
+
+  let dykkTilstand = null   // null | 'ned' | 'bunn' | 'opp'
+  let varUnder = false
+  let sisteDykkEmit = 0
+
+  function dykkMaal() {
+    const d = innsjoPlan?.dykk
+    if (!d || !innsjoVolum) return null
+    const [x, , z] = coords.toWorld(d.x, d.y, 0)
+    const flateY = innsjoVolum.flateY
+    return { x, z, flateY, bunnY: undervannsGulv(innsjoPlan.terrengDem, coords, x, z, flateY) }
+  }
+
+  function dykkNed({ redusert = false } = {}) {
+    const m = dykkMaal()
+    if (!m || dykkTilstand) return false
+    if (trip) { playback?.pause(); detachCamera(); reattachPending = false }
+    highlight.hide()
+    dykkTilstand = 'ned'
+    freeRig.settGulv((wx, wz) => (camera.position.y < m.flateY
+      ? undervannsGulv(innsjoPlan.terrengDem, coords, wx, wz, m.flateY)
+      : -Infinity))
+    freeRig.spillSekvens(dykkSekvens({ ...m, redusert }), {
+      underVann: true,
+      ferdig: () => { dykkTilstand = 'bunn'; sendDykk(true) },
+    })
+    sendDykk(true)
+    return true
+  }
+
+  function dykkOpp({ redusert = false } = {}) {
+    if (!dykkTilstand || dykkTilstand === 'opp') return
+    const p = camera.position
+    dykkTilstand = 'opp'
+    freeRig.spillSekvens(oppSekvens({ x: p.x, z: p.z, flateY: innsjoVolum.flateY, redusert }), {
+      ferdig: () => {
+        dykkTilstand = null
+        freeRig.settGulv(null)
+        sendDykk(true)
+        const { senter, radius } = innsjoVolum
+        freeRig.flyTo(senter.x, senter.y, senter.z, { radiusM: Math.max(150, radius * 0.9) })
+      },
+    })
+    sendDykk(true)
+  }
+
+  function sendDykk(straks = false, nowMs = 0) {
+    if (!straks && nowMs - sisteDykkEmit < TREKK_EMIT_MS) return
+    sisteDykkEmit = nowMs
+    const under = !!innsjoVolum && camera.position.y < innsjoVolum.flateY
+    const dybde = under
+      ? ekteDybde({ camY: camera.position.y, flateY: innsjoVolum.flateY, coords, faktor: innsjoPlan.faktor })
+      : 0
+    emit('dykk', {
+      tilstand: dykkTilstand,
+      fase: freeRig.sekvensFase,
+      under,
+      dybde,
+      morke: under ? undervannsMorke(dybde) : 0,
+    })
+  }
+
+  // Disen og flata følger kameraet hver frame — gjennom flata skal byttet skje
+  // i samme bilde som kameraet krysser den.
+  function oppdaterUnderVann(nowMs) {
+    if (!innsjoVolum) return
+    const flateY = innsjoVolum.flateY
+    const under = camera.position.y < flateY
+    if (under) {
+      const d = ekteDybde({ camY: camera.position.y, flateY, coords, faktor: innsjoPlan.faktor })
+      const { near, far } = undervannsDis(d, flateY - camera.position.y)
+      core.setUnderVann({ farge: undervannsFarge(d), near, far })
+    } else if (varUnder) {
+      core.setUnderVann(null)
+    }
+    if (under !== varUnder) {
+      varUnder = under
+      innsjoVolum.settUnderside(under)
+      sendDykk(true, nowMs)
+    } else if (dykkTilstand) {
+      sendDykk(false, nowMs)
+    }
+    innsjoVolum.oppdaterRing(camera, container.clientHeight, !dykkTilstand && !under, nowMs / 1000)
+  }
+
+  // Et trykk innenfor ringen starter dykket. Målt i skjermrom, som nålene.
+  function treffDykkRing(e) {
+    const p = innsjoVolum?.ringPunkt
+    if (!p || dykkTilstand || camera.position.y < innsjoVolum.flateY) return false
+    const s = core.project(p.x, p.y, p.z)
+    if (s.behind) return false
+    const rect = core.renderer.domElement.getBoundingClientRect()
+    const dx = e.clientX - rect.left - s.x
+    const dy = e.clientY - rect.top - s.y
+    if (Math.hypot(dx, dy) > 34) return false
+    return dykkNed({ redusert: reduserBevegelse() })
+  }
+
+  function reduserBevegelse() {
+    return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  }
 
   // ---- Turer fra stinettet -------------------------------------------------
 
@@ -682,6 +797,9 @@ export async function create3dScene(container, {
     // viseren at kortet skal LEGGES SAMMEN — ikke lukkes. Da står navnet igjen,
     // og «sett i fokus» i den minimerte pilla er veien tilbake etter panorering.
     if (core.globeAapen) { avsluttGlobe(); return }
+    // Under vann finnes ingen nåler eller stier å trykke på.
+    if (dykkTilstand) return
+    if (treffDykkRing(e)) return
     const rect = core.renderer.domElement.getBoundingClientRect()
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
@@ -845,6 +963,7 @@ export async function create3dScene(container, {
       waypoints?.update(camera)
       core.updateAmbient(dt, timeS)
       pins.update(camera)
+      oppdaterUnderVann(timeS * 1000)
 
       core.render()
 
@@ -945,7 +1064,7 @@ export async function create3dScene(container, {
 
   return {
     // --- nåler ---
-    setFeatures(list) { pins.setFeatures(list ?? []) },
+    setFeatures(list) { pins.setFeatures(utenVannNaler(list)) },
     setPinsVisible(v) {
       pins.setVisible(v)
       waypoints?.setPinsVisible(v)
@@ -968,9 +1087,16 @@ export async function create3dScene(container, {
     innsjo: innsjoPlan
       ? { navn: innsjo.navn ?? null, faktor: innsjoPlan.faktor, maksDybde: innsjo.maks ?? innsjoPlan.bunn.maksDybde }
       : null,
-    /** Fly tilbake til innsjøen. */
+    /** Kan man dykke her (innsjø-volum med en bunn)? */
+    get kanDykke() { return !!innsjoPlan?.dykk },
+    /** Dykk ned til det dypeste punktet. */
+    dykkNed(opts) { return dykkNed(opts) },
+    /** Opp til overflaten igjen, og tilbake til innsjø-innrammingen. */
+    dykkOpp(opts) { dykkOpp(opts) },
+    /** Fly tilbake til innsjøen. Under vann: opp først. */
     tilInnsjoen() {
       if (!innsjoVolum) return
+      if (dykkTilstand) { dykkOpp({ redusert: reduserBevegelse() }); return }
       const { senter, radius } = innsjoVolum
       freeRig.flyTo(senter.x, senter.y, senter.z, { radiusM: Math.max(150, radius * 0.9) })
     },
@@ -979,6 +1105,11 @@ export async function create3dScene(container, {
     /** Fugleperspektiv over hele kartet. En planlagt tur beholdes. */
     overview() {
       highlight.hide()
+      if (dykkTilstand) {
+        dykkTilstand = null
+        freeRig.settGulv(null)
+        sendDykk(true)
+      }
       // «Oversikt» er den ene knappen som alltid skal gi oversikt — da kan den
       // ikke etterlate en måne på 34° midt i bildet.
       velgHimmel(null)

@@ -11,7 +11,7 @@
 //   • dybdekurvene på bunnen, så formen kan leses uten å fly rundt.
 
 import {
-  BufferGeometry, BufferAttribute, Color, DoubleSide, Group, Mesh, MeshBasicMaterial,
+  BufferGeometry, BufferAttribute, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, RingGeometry,
 } from 'three'
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
@@ -21,6 +21,12 @@ import { settLinjeSegmenter } from './linjeSegmenter.js'
 const GRUNT = new Color(0.82, 0.93, 1.0)
 const DYPT = new Color(0.12, 0.26, 0.5)
 const VANN = 0x2f7fc4
+// Flata sett nedenfra: lysere og tettere, så den leses som «lys der oppe».
+const VANN_UNDER = 0x9fd3ff
+const STRAND = 0xe8f6ff
+// Dykke-ringen er like stor på skjermen uansett avstand, som trykk-ringene i
+// himmelen: en affordanse måles i piksler.
+const RING_PX = 44
 
 /**
  * Tone terrengets vertekser etter dybde. Vertekser utenfor innsjøen får hvitt,
@@ -56,7 +62,7 @@ function linjer(segmenter, { color, linewidth, opacity }) {
  *   dem er det DESIMERTE gitteret bunnen er regnet på; innsjo har omriss og
  *   kurver i SVG-meter.
  */
-export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor }) {
+export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor, dykkPunkt = null }) {
   const { cols, rows, transform } = dem
   const pw = transform.pixelWidth
   const ph = transform.pixelHeight
@@ -91,6 +97,7 @@ export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor }) {
       idx.push(ia, id, ib, ib, id, ie)
     }
   }
+  let flateMat = null
   if (idx.length) {
     const geo = new BufferGeometry()
     geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
@@ -99,6 +106,7 @@ export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor }) {
     const mat = new MeshBasicMaterial({
       color: VANN, transparent: true, opacity: 0.3, depthWrite: false, side: DoubleSide,
     })
+    flateMat = mat
     const flate = new Mesh(geo, mat)
     flate.renderOrder = 2
     group.add(flate)
@@ -115,7 +123,7 @@ export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor }) {
     }
   }
   if (strand.length) {
-    const l = linjer(strand, { color: 0xe8f6ff, linewidth: 2, opacity: 0.9 })
+    const l = linjer(strand, { color: STRAND, linewidth: 2, opacity: 0.9 })
     group.add(l.obj); geometries.push(l.geo); lineMats.push(l.mat)
   }
 
@@ -137,6 +145,26 @@ export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor }) {
     group.add(l.obj); geometries.push(l.geo); lineMats.push(l.mat)
   }
 
+  // Dykke-ringen: to ringer flatt i vannflata over det dypeste punktet.
+  let ring = null
+  if (dykkPunkt) {
+    const [rx, , rz] = coords.toWorld(dykkPunkt.x, dykkPunkt.y, 0)
+    ring = new Group()
+    for (const [inn, ut, opasitet] of [[0.86, 1, 0.95], [0.3, 0.4, 0.8]]) {
+      const geo = new RingGeometry(inn, ut, 48)
+      const mat = new MeshBasicMaterial({
+        color: STRAND, transparent: true, opacity: opasitet, depthWrite: false, side: DoubleSide, fog: false,
+      })
+      const m = new Mesh(geo, mat)
+      m.rotation.x = -Math.PI / 2
+      m.renderOrder = 3
+      ring.add(m)
+      geometries.push(geo); materials.push(mat)
+    }
+    ring.position.set(rx, yFlate + 0.5, rz)
+    group.add(ring)
+  }
+
   // Midtpunkt og radius for kamera-innrammingen.
   const [cx, , cz] = coords.toWorld(((c0 + c1) / 2) * pw, ((r0 + r1) / 2) * ph, 0)
   const radius = Math.max((c1 - c0) * Math.abs(pw), (r1 - r0) * Math.abs(ph)) / 2
@@ -145,7 +173,26 @@ export function buildInnsjoVolum({ bunn, dem, coords, innsjo, faktor }) {
     group,
     senter: { x: cx, y: yFlate, z: cz },
     radius,
+    flateY: yFlate,
     setResolution(w, h) { for (const m of lineMats) m.resolution.set(w, h) },
+    /** Flata sett nedenfra eller ovenfra. */
+    settUnderside(paa) {
+      if (!flateMat) return
+      flateMat.color.setHex(paa ? VANN_UNDER : VANN)
+      flateMat.opacity = paa ? 0.55 : 0.3
+    },
+    /** Hold ringen RING_PX bred på skjermen; skjul den under et dykk. */
+    oppdaterRing(camera, hoydePx, synlig, tidS = 0) {
+      if (!ring) return
+      ring.visible = synlig
+      if (!synlig) return
+      const avstand = camera.position.distanceTo(ring.position)
+      const verdenPrPx = (2 * avstand * Math.tan((camera.fov * Math.PI) / 360)) / Math.max(1, hoydePx)
+      const puls = 1 + 0.08 * Math.sin(tidS * 3)
+      ring.scale.setScalar((RING_PX / 2) * verdenPrPx * puls)
+    },
+    /** Ringens skjermposisjon-kandidat: world-punktet den står i. */
+    get ringPunkt() { return ring ? ring.position : null },
     dispose() {
       for (const g of geometries) g.dispose()
       for (const m of materials) m.dispose()
