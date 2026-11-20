@@ -8130,9 +8130,9 @@ const SJEKKER = [
         await p2.goto(`${BASE}/om`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
         await p2.waitForFunction(() => !!document.querySelector('[data-utm-figur]'),
           null, { timeout: 30_000 })
-        // Figuren bor i «Nord er nord», som er lukket fra v8.0.13 — åpne den
+        // Figuren bor i «To slags nord», som er lukket fra v8.0.13 — åpne den
         // med et ekte trykk på overskriften, som en bruker ville gjort.
-        await p2.locator('summary', { hasText: 'Nord er nord' }).first().click()
+        await p2.locator('summary', { hasText: 'To slags nord' }).first().click()
 
         const les = () => p2.evaluate(() => {
           const f = document.querySelector('[data-utm-figur]')

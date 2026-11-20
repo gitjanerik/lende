@@ -319,7 +319,7 @@ function tilPersonvern() {
       </div>
     </details>
 
-    <!-- Nord er nord: meridiankonvergensen, hvorfor arket står litt på skrå og
+    <!-- To slags nord: meridiankonvergensen, hvorfor arket står litt på skrå og
          hva bryteren i Eksport-fanen gjør. Står som egen seksjon fordi den
          gjelder BÅDE kartet på skjermen og fila du deler.
          Sone-avsnittene svarer på det spørsmålet tallene reiser av seg selv:
@@ -328,7 +328,7 @@ function tilPersonvern() {
          som en inkonsekvens. -->
     <details class="om-seksjon rounded-2xl bg-ink/5 border border-ink/10" data-seksjon>
       <summary class="om-summary flex items-center justify-between gap-3 p-4 cursor-pointer select-none list-none">
-        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">Nord er nord</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-ink-3">To slags nord</h3>
         <svg viewBox="0 0 24 24" class="om-pil w-4 h-4 shrink-0 text-ink-4" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       </summary>
