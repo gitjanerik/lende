@@ -142,3 +142,57 @@ export async function hentInnsjoKurver(vatnlnr, { basePath = BASE } = {}) {
     return null
   }
 }
+
+/**
+ * Kartet som lages når innsjøen velges i lista. Får innsjøen plass i et
+ * standardkart (med en fjerdedel luft), sentreres kartet på den og gjøres så
+ * lite som innsjøen tillater. Er den større, blir det et DEMO-utsnitt: 3D skal
+ * vise både vann og land, så kartet legges over stranda nærmest det dypeste
+ * punktet vi kjenner — `fraStrandM` ut i vannet, slik at kanten har litt land.
+ *
+ * @param {number[][][]} omriss  ringer i [lon, lat]
+ * @param {{dybde:number, type:number, punkter:number[][]}[]} kurver
+ * @returns {{lat:number, lon:number, km:number, demo:boolean} | null}
+ */
+export function kartUtsnitt(omriss, kurver, { standardKm = 8, minKm = 2, fraStrandM = 2500 } = {}) {
+  const alle = omriss.flat()
+  if (!alle.length) return null
+  const lat0 = alle[0][1] * Math.PI / 180
+  const kx = 111320 * Math.cos(lat0)
+  const ky = 110540
+  const tilM = ([lon, lat]) => [lon * kx, lat * ky]
+  const tilGrad = ([x, y]) => ({ lon: x / kx, lat: y / ky })
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  for (const p of alle) {
+    const [x, y] = tilM(p)
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+  const spenn = Math.max(maxX - minX, maxY - minY) * 1.25
+  if (spenn <= standardKm * 1000) {
+    const km = Math.max(minKm, Math.ceil(spenn / 1000))
+    return { ...tilGrad([(minX + maxX) / 2, (minY + maxY) / 2]), km, demo: false }
+  }
+
+  // Det dypeste punktet vi kjenner: midt på den lengste av de dypeste kurvene.
+  const dybdeKurver = kurver.filter(k => k.type === 0 && k.punkter.length > 1)
+  const maks = dybdeKurver.reduce((m, k) => Math.max(m, k.dybde), -Infinity)
+  const dypest = dybdeKurver.filter(k => k.dybde === maks)
+    .sort((a, b) => b.punkter.length - a.punkter.length)[0]
+  const dyp = dypest
+    ? tilM(dypest.punkter[dypest.punkter.length >> 1])
+    : [(minX + maxX) / 2, (minY + maxY) / 2]
+
+  let strand = null, best = Infinity
+  for (const p of alle) {
+    const [x, y] = tilM(p)
+    const d = Math.hypot(x - dyp[0], y - dyp[1])
+    if (d < best) { best = d; strand = [x, y] }
+  }
+  const t = best > 0 ? Math.min(1, fraStrandM / best) : 0
+  const senter = [strand[0] + (dyp[0] - strand[0]) * t, strand[1] + (dyp[1] - strand[1]) * t]
+  return { ...tilGrad(senter), km: standardKm, demo: true }
+}

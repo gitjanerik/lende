@@ -48,3 +48,33 @@ describe('byggKurveFil / lesKurveFil', () => {
     expect(lesKurveFil({ v: 99 })).toBeNull()
   })
 })
+
+import { kartUtsnitt } from './innsjoKurver.js'
+
+describe('kartUtsnitt', () => {
+  const ring = (lon0, lat0, dLon, dLat) =>
+    [[lon0, lat0], [lon0 + dLon, lat0], [lon0 + dLon, lat0 + dLat], [lon0, lat0 + dLat], [lon0, lat0]]
+
+  it('sentrerer en liten innsjø og lager så lite kart som den tillater', () => {
+    const u = kartUtsnitt([ring(10.6, 59.96, 0.02, 0.01)], [])
+    expect(u.demo).toBe(false)
+    expect(u.km).toBe(2)
+    expect(u.lon).toBeCloseTo(10.61, 3)
+    expect(u.lat).toBeCloseTo(59.965, 3)
+  })
+
+  it('legger demo-utsnittet ved stranda nærmest det dypeste', () => {
+    // 30 × 5 km innsjø; dypeste kurve nær østenden.
+    const omr = [ring(10, 60, 0.54, 0.045)]
+    const kurver = [
+      { dybde: 50, type: 0, punkter: [[10.1, 60.02], [10.11, 60.021]] },
+      { dybde: 120, type: 0, punkter: [[10.5, 60.02], [10.5, 60.022], [10.5, 60.024]] },
+    ]
+    const u = kartUtsnitt(omr, kurver)
+    expect(u.demo).toBe(true)
+    expect(u.km).toBe(8)
+    expect(u.lon).toBeGreaterThan(10.45)
+    // Midt mellom stranda (østkanten 10.54) og det dype punktet (10.5): innenfor vannet.
+    expect(u.lon).toBeLessThan(10.54)
+  })
+})

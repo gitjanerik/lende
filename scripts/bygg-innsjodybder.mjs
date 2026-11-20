@@ -2,6 +2,8 @@
 // Baker NVEs dybdedata for oppmålte innsjøer:
 //   • src/lib/innsjoDybderData.js       maksdyp/snittdyp/år per innsjø (lag 4)
 //   • public/data/innsjo-dybde/<nr>.json dybdekurver (lag 2) + omriss (lag 3)
+//   • public/data/innsjo-dybde/indeks.json  søkelista i «Om appen»: navn, kart-
+//     utsnittet et klikk bygger (kartUtsnitt), maksdyp og areal
 //
 // Kildene er målt av probe-innsjo-dybde (nov. 2026): Innsjodatabase2 lag 4
 // «Dybdekart» har `maksdyp_m`, `middeldyp_m`, `oppmaltaar`; lag 2 «DybdeKurve»
@@ -17,7 +19,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { samleDybder, dybdeModulKilde } from '../src/lib/innsjoDybde.js'
-import { byggKurveFil } from '../src/lib/innsjoKurver.js'
+import { byggKurveFil, lesKurveFil, kartUtsnitt } from '../src/lib/innsjoKurver.js'
 
 const TJENESTE = 'https://kart.nve.no/enterprise/rest/services/Innsjodatabase2/MapServer'
 const UT = new URL('../src/lib/innsjoDybderData.js', import.meta.url)
@@ -73,6 +75,7 @@ if (forrige > 0 && dybder.size < forrige * 0.8) {
 const geo = { outSR: '4326', geometryPrecision: '6', returnGeometry: 'true', f: 'geojson' }
 const nrListe = [...dybder.keys()].sort((a, b) => a - b)
 const filer = new Map()
+const utsnitt = new Map()
 let feil = 0, totalBytes = 0
 const storste = []
 let neste = 0
@@ -83,12 +86,17 @@ async function arbeider() {
       const where = `vatnlnr = ${nr}`
       const [kurver, omriss] = await Promise.all([
         alle(2, { where, outFields: 'dybde_m,objekttype', ...geo }, f => f),
-        alle(3, { where, outFields: 'objectid', ...geo }, f => f),
+        alle(3, { where, outFields: 'innsjonavn', ...geo }, f => f),
       ])
       const fil = byggKurveFil(nr, kurver, omriss)
       if (!fil.kurver.length || !fil.omriss.length) continue
       const tekst = JSON.stringify(fil)
       filer.set(nr, tekst)
+      const lest = lesKurveFil(fil)
+      utsnitt.set(nr, {
+        ...kartUtsnitt(lest.omriss, lest.kurver),
+        maaltNavn: omriss.find(f => f.properties?.innsjonavn)?.properties.innsjonavn ?? null,
+      })
       totalBytes += tekst.length
       storste.push([nr, tekst.length])
     } catch (e) {
@@ -109,14 +117,53 @@ if (!MAL && totalBytes > TAK_MB * 1e6) {
   throw new Error(`${(totalBytes / 1e6).toFixed(1)} MB er over taket på ${TAK_MB} MB — ingenting skrives. Kjør med --mal og øk toleransen.`)
 }
 
+// ── Navnene: Innsjødatabasens eget navn (lag 5), som er det kartet viser.
+// Navnet fra dybdemålingen er ofte et annet — Tyrifjorden ble målt som
+// «Holsfjorden» — så det blir et søkbart alias.
+const navn = new Map()
+const areal = new Map()
+const nrMedKurver = [...filer.keys()]
+for (let i = 0; i < nrMedKurver.length; i += 100) {
+  const bit = nrMedKurver.slice(i, i + 100)
+  const rad = await alle(5, {
+    where: `vatnlnr IN (${bit.join(',')})`, outFields: 'vatnlnr,navn,areal_km2', returnGeometry: 'false', f: 'json',
+  }, f => f.attributes)
+  for (const a of rad) {
+    if (a.navn && !navn.has(a.vatnlnr)) navn.set(a.vatnlnr, a.navn)
+    if (Number.isFinite(a.areal_km2)) areal.set(a.vatnlnr, Math.max(areal.get(a.vatnlnr) ?? 0, a.areal_km2))
+  }
+}
+const indeks = nrMedKurver.map((nr) => {
+  const u = utsnitt.get(nr)
+  const n = navn.get(nr) ?? u.maaltNavn ?? null
+  return {
+    nr,
+    navn: n,
+    alias: u.maaltNavn && u.maaltNavn !== n ? u.maaltNavn : undefined,
+    lat: Math.round(u.lat * 1e5) / 1e5,
+    lon: Math.round(u.lon * 1e5) / 1e5,
+    km: u.km,
+    demo: u.demo || undefined,
+    maks: dybder.get(nr)?.maks ?? null,
+    km2: areal.has(nr) ? Math.round(areal.get(nr) * 100) / 100 : null,
+  }
+}).sort((a, b) => (a.navn ?? '~').localeCompare(b.navn ?? '~', 'nb'))
+console.log(`Indeks: ${indeks.length} innsjøer, ${indeks.filter(i => i.navn).length} med navn, ${indeks.filter(i => i.demo).length} som demo-utsnitt`)
+for (const vil of ['Tyrifjorden', 'Bogstadvannet', 'Gjende', 'Vansjø', 'Setten', 'Fjorda', 'Mjøsa', 'Femunden']) {
+  const t = indeks.find(i => i.navn === vil || i.alias === vil)
+  console.log(`  ${vil}: ${t ? `nr ${t.nr}, ${t.km} km${t.demo ? ' (demo)' : ''}, maks ${t.maks} m` : 'IKKE MED'}`)
+}
+
 if (MAL) {
   console.log('--mal: ingenting skrevet')
 } else {
   mkdirSync(KURVE_DIR, { recursive: true })
-  for (const navn of readdirSync(KURVE_DIR)) {
-    if (!filer.has(Number(navn.replace(/\.json$/, '')))) rmSync(new URL(navn, KURVE_DIR))
+  for (const fil of readdirSync(KURVE_DIR)) {
+    const m = fil.match(/^(\d+)\.json$/)
+    if (m && !filer.has(Number(m[1]))) rmSync(new URL(fil, KURVE_DIR))
   }
   for (const [nr, tekst] of filer) writeFileSync(new URL(`${nr}.json`, KURVE_DIR), tekst)
+  writeFileSync(new URL('indeks.json', KURVE_DIR), JSON.stringify({ v: 1, innsjoer: indeks }))
   const hentet = new Date().toISOString().slice(0, 10)
   writeFileSync(UT, dybdeModulKilde(dybder, {
     kilde: 'NVE Innsjødatabasen, lag «Dybdekart»', hentet, medKurver: new Set(filer.keys()),
