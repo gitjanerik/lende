@@ -545,8 +545,8 @@ function tilPersonvern() {
           <h4 class="text-sm font-semibold text-ink">Teknikken</h4>
           <ul class="text-[13px] leading-relaxed text-ink-2 space-y-1.5 list-disc pl-5">
             <li><strong class="text-ink">Høydekurver</strong> beregnes fra Kartverkets
-              høydemodell (WCS DTM) med d3-contour, glattet med Chaikin og forenklet
-              med Douglas–Peucker. Du velger hver 5, 10, 20, 25 eller 50 m, og jo
+              høydemodell. De glattes så de ikke blir hakkete, og punkter som
+              ikke endrer formen tas bort, så kartet holder seg lett. Du velger hver 5, 10, 20, 25 eller 50 m, og jo
               bredere arket er, jo grovere må kurvene være for å leses: 5 m opp til
               og med 4 km bredde, 10 m til og med 6 km, 20 m til og med 10 km.
               25 og 50 m går alltid.</li>
