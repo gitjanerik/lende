@@ -411,9 +411,11 @@ function paDykk(d) {
     setTimeout(() => { dykkBlink.value = false }, 450)
   }
   const navn = innsjoInfo.value?.navn ?? 'innsjøen'
-  if (d.tilstand === 'bunn' && forrige?.tilstand !== 'bunn') {
+  if (d.tilstand === 'bunn' && forrige?.tilstand === 'ned') {
     dykkMelding.value = `Du er på bunnen av ${navn}, ${innsjoInfo.value?.maksTekst ?? ''} m`
-  } else if (!d.tilstand && forrige?.tilstand === 'opp') {
+  } else if (d.tilstand === 'tur' && forrige?.tilstand !== 'tur') {
+    dykkMelding.value = 'Dykketuren går. Dra eller bruk piltastene for å se deg rundt.'
+  } else if (!d.tilstand && (forrige?.tilstand === 'opp' || forrige?.tilstand === 'tur')) {
     dykkMelding.value = `Tilbake ved overflaten av ${navn}`
   }
 }
@@ -1426,11 +1428,17 @@ function branchLabel(opt, i) {
         </div>
       </div>
 
-      <!-- Dykketuren: fra bunnen til den bratteste veggen og opp langs berget.
-           Står nederst, der turkontrollene står over vann. -->
+      <!-- Dykketuren: langs den dype renna, eller til den bratteste veggen, og
+           opp til fugleperspektiv over dykke-ringen. Står nederst, der
+           turkontrollene står over vann. -->
       <div v-if="phase === 'ready' && (dykk?.tur || dykk?.tilstand === 'tur')"
-           class="absolute inset-x-0 z-10 flex justify-center px-3 pointer-events-none"
+           class="absolute inset-x-0 z-10 flex flex-col items-center gap-2 px-3 pointer-events-none"
            style="bottom: max(env(safe-area-inset-bottom), 16px);">
+        <p v-if="dykk.tilstand === 'tur'" aria-hidden="true"
+           class="rounded-full bg-black/40 backdrop-blur px-3 py-1 text-xs text-white/80"
+           :style="{ zoom: uiTextScale }">
+          Dra for å se deg rundt
+        </p>
         <button v-if="dykk.tilstand === 'tur'" type="button" data-dykketur-stopp
                 @click="engine?.stoppDykketur()"
                 class="pointer-events-auto h-11 px-4 rounded-full bg-black/60 backdrop-blur text-white/90
@@ -1447,7 +1455,7 @@ function branchLabel(opt, i) {
                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 20l6-8 4 5 3-4 5 7"/><path d="M14 4l3 3-3 3"/><path d="M5 7h12"/>
           </svg>
-          Svøm til berget
+          {{ dykk.tur === 'renne' ? 'Svøm langs renna' : 'Svøm til berget' }}
         </button>
       </div>
 

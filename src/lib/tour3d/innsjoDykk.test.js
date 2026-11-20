@@ -3,7 +3,7 @@ import { makeCoords } from './coords.js'
 import {
   dybdeGrad, undervannsMorke, undervannsFarge, undervannsDis, dypestePunkt,
   iInnsjoen, utenInnsjoNaler, undervannsGulv, dykkSekvens, oppSekvens, ekteDybde,
-  MORKE_TAK, bunnRelieff, bratteVegg, dykkeTur, asimutMot,
+  MORKE_TAK, bunnRelieff, bratteVegg, dykkeTur, asimutMot, dypRenne, fuglePose,
 } from './innsjoDykk.js'
 
 // 4 × 3 celler à 10 m; innsjøen er de fire midtre, dypest i (2,1).
@@ -193,5 +193,74 @@ describe('dykkeTur', () => {
   it('asimutMot: nord 0, øst π/2 (Z er sør)', () => {
     expect(asimutMot(0, 0, 0, -10)).toBeCloseTo(0)
     expect(asimutMot(0, 0, 10, 0)).toBeCloseTo(Math.PI / 2)
+  })
+})
+
+describe('dypRenne', () => {
+  // 20 × 7 celler à 50 m: en smal renne langs rad 3, dypest i kolonne 4.
+  const g = { cols: 20, rows: 7, transform: { pixelWidth: 50, pixelHeight: 50 } }
+  const lag = (dybdeVed) => {
+    const maske = new Uint8Array(140)
+    const dybde = new Float32Array(140)
+    for (let r = 1; r <= 5; r++) for (let c = 1; c <= 18; c++) {
+      maske[r * 20 + c] = 1
+      dybde[r * 20 + c] = dybdeVed(c, r)
+    }
+    return { maske, dybde }
+  }
+  it('følger renna til den fjerneste dype enden', () => {
+    const bunn = lag((c, r) => (r === 3 ? 100 - Math.abs(c - 4) * 2 : 10))
+    const r = dypRenne(bunn, g, { c: 4, r: 3 })
+    expect(r).not.toBeNull()
+    expect(r.punkter[0]).toEqual([200, 150])
+    expect(r.punkter.at(-1)).toEqual([900, 150])
+    expect(r.punkter.every(([, y]) => y === 150)).toBe(true)
+    expect(r.lengde).toBeCloseTo(700)
+  })
+  it('gir null for en rund gryte', () => {
+    const bunn = lag((c, r) => Math.max(1, 100 - 15 * Math.hypot(c - 4, r - 3)))
+    expect(dypRenne(bunn, g, { c: 4, r: 3 })).toBeNull()
+  })
+})
+
+describe('dykkeTur med renne og fugleperspektiv', () => {
+  const p = {
+    fra: { x: 0, y: -400, z: 0 }, flateY: 0, gulv: () => -400,
+    rute: [[0, 0], [500, 0], [1000, 500], [1500, 500]],
+    ring: { x: 0, z: 0 },
+  }
+  it('glir langs renna, stiger opp og ser tilbake på ringen ovenfra', () => {
+    const s = dykkeTur(p)
+    expect(s.map(t => t.fase).filter((f, i, a) => f !== a[i - 1]))
+      .toEqual(['snu', 'glid', 'stig', 'gjennom', 'fugl'])
+    const glid = s.filter(t => t.fase === 'glid')
+    expect(glid.at(-1).pos[0]).toBeCloseTo(1500)
+    expect(glid.some(t => t.pos[2] > 100)).toBe(true)
+    const stig = s.find(t => t.fase === 'stig')
+    expect(stig.pos[0]).toBeCloseTo(1500)
+    const fugl = s.at(-1)
+    expect(fugl.pos[1]).toBeGreaterThan(p.flateY + 100)
+    expect(fugl.hoyde).toBeLessThan(0)
+    // Blikket peker mot ringen.
+    expect(fugl.azimut).toBeCloseTo(asimutMot(fugl.pos[0], fugl.pos[2], 0, 0))
+  })
+  it('redusert bevegelse er ett kutt rett til fugleposen', () => {
+    const s = dykkeTur({ ...p, redusert: true })
+    expect(s).toHaveLength(1)
+    expect(s[0].fase).toBe('fugl')
+  })
+})
+
+describe('fuglePose', () => {
+  it('står mellom ringen og der turen kom opp, høyt nok over land', () => {
+    const f = fuglePose({ fra: { x: 1000, z: 0 }, ring: { x: 0, z: 0 }, flateY: 0, land: () => 900 })
+    expect(f.pos[0]).toBeCloseTo(800)
+    expect(f.pos[1]).toBeGreaterThanOrEqual(1100)
+    expect(f.azimut).toBeCloseTo(-Math.PI / 2)
+  })
+  it('går bakover langs blikket når turen ender over ringen', () => {
+    const f = fuglePose({ fra: { x: 0, z: 0 }, ring: { x: 0, z: 0 }, flateY: 0, azimut: 0 })
+    expect(f.pos[2]).toBeGreaterThan(0)
+    expect(f.azimut).toBeCloseTo(0)
   })
 })

@@ -1,3 +1,9 @@
+## 2026-11-20 — v8.0.26: Se deg rundt under dykketuren, svøm langs renna og avslutt i fugleperspektiv
+
+Under dykketuren kan du nå dra for å se deg rundt mens kameraet svømmer, eller bruke piltastene. Blikket glir tilbake til retningen turen ser i to sekunder etter at du slipper. Har innsjøen en lang, dyp renne, svømmer turen langs den i stedet for inn mot land, og knappen heter da «Svøm langs renna». Renna er den dypeste vannveien fra dykkepunktet til det fjerneste punktet som fortsatt er minst halve maksdybden, og den teller bare når den er lang og smal (`dypRenne`). En rund gryte gir fortsatt turen mot den bratteste veggen. Uansett vei stiger turen opp til slutt, går gjennom flata og ender i fugleperspektiv med blikket tilbake på dykke-ringen over det dypeste punktet (`fuglePose`). Der står kameraet høyt nok over terrenget, og det kan dreies rundt ringen etterpå.
+
+---
+
 ## 2026-11-20 — v8.0.25: Relieff på innsjøbunnen, lysere dykk og dykketur til berget
 
 Bunnen under vann var en jevn blå gradient. Den ble farget etter dybde alene, og terrenget i 3D har ingen lyssetting, så en skråning og en flate på samme dybde fikk samme farge. Nå skyggelegges bunnen også etter helning, med lys fra nordvest i 45° som relieffet på kartet (`bunnRelieff`), så rygger, renner og stup synes. Dykket er lysere: mørket har tak på 0,3 i stedet for 0,55, disen er lysere blå og rekker lenger, og flata sett nedenfra er tynnere, så fjellet over vannet skimtes gjennom den. På bunnen kommer knappen «Svøm til berget». Den snur kameraet mot den bratteste veggen i innsjøen, glir langs bunnen dit noen meter over bunnen, og stiger til slutt opp langs berget til like under flata med blikket opp. Veggen er strandcella med mest fall under og mest fjell over seg innen 400 m, og som kan nås i rett linje uten å krysse land (`bratteVegg`). «Stopp her» avbryter turen og lar deg se deg rundt der du er. Med redusert bevegelse er turen et kutt til sluttposen.
