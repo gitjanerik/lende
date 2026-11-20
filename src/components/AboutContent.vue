@@ -270,7 +270,7 @@ function tilPersonvern() {
         Slår du på kartlaget <strong class="text-ink">Vannmålestasjoner</strong>,
         dukker NVEs hydrologiske stasjoner opp som blå medaljonger med hvite bølger. Trykk på en, så
         henter Lende siste <strong class="text-ink">vannføring, vannstand og
-        vanntemperatur</strong> fra NVE HydAPI, med lenke videre til stasjonens side.
+        vanntemperatur</strong> fra NVE, med lenke videre til stasjonens side.
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         Det gjør turen til litt av en oppdagelsesferd — hva heter tjernet, hva
@@ -533,12 +533,12 @@ function tilPersonvern() {
         <div class="space-y-2">
           <h4 class="text-sm font-semibold text-ink">Hva det er</h4>
           <p class="text-[13px] leading-relaxed text-ink-2">
-            Et ISOM 2017-2-inspirert sportskart som bygges på sekunder for et
-            hvilket som helst punkt i Norge. Terreng, vann, vegetasjon, stier og
-            veier settes sammen til ett lesbart turkart i print-kvalitet — og
-            hele kartet er <strong class="text-ink">vektor</strong> (SVG) —
-            alt unntatt det mjuke relieffet, som er et bilde — så det er
-            knivskarpt uansett zoom og klar for utskrift i 1:10 000.
+            Et turkart i samme stil som orienteringskart, bygget på sekunder for
+            et hvilket som helst punkt i Norge. Terreng, vann, vegetasjon, stier og
+            veier settes sammen til ett lesbart kart i print-kvalitet. Hele kartet
+            er <strong class="text-ink">tegnet som linjer og flater</strong>, ikke
+            som et bilde — bortsett fra den myke terrengskyggen — så det er
+            knivskarpt uansett zoom og klart for utskrift i 1:10 000.
           </p>
         </div>
         <div class="space-y-2">
@@ -551,27 +551,28 @@ function tilPersonvern() {
               og med 4 km bredde, 10 m til og med 6 km, 20 m til og med 10 km.
               25 og 50 m går alltid.</li>
             <li><strong class="text-ink">Vegetasjon</strong> kommer fra
-              <strong class="text-ink">N50 Arealdekke</strong> — skog, myr og isbre
-              bakt til statiske fliser — supplert med OpenStreetMap. Bærer arket
-              ekte N50-skog, males bakgrunnen som åpen mark; ellers hevder
-              Turkart-temaet skog i bakgrunnen.</li>
+              Kartverkets kart over skog, myr og isbre, som ligger ferdig
+              klargjort i appen, supplert med OpenStreetMap. Der Kartverket viser
+              skog, er resten av kartet åpen mark; der det mangler skogdata,
+              tegner Turkart-stilen skog som bakgrunn.</li>
             <li><strong class="text-ink">Stier og veier</strong> hentes fra tre
               kilder: OpenStreetMap, Kartverkets
               <strong class="text-ink">Turrutebasen</strong> for merkede fotruter,
-              og <strong class="text-ink">N50 Samferdsel</strong>, som er bakt til
-              statiske fliser fordi OSM er tynt i norsk utmark. Bygg kommer fra
+              og Kartverkets egne sti- og veidata, som ligger ferdig klargjort i
+              appen fordi OpenStreetMap har hull i norsk utmark. Bygg kommer fra
               OpenStreetMap; <strong class="text-ink">vann og kyst</strong> fra
-              DEM-en, NVE Innsjødatabasen, N50 og Sjøkart.</li>
-            <li><strong class="text-ink">OpenStreetMap-dataene</strong> bakes
-              den 1. hver måned fra Geofabriks Norge-uttrekk til fliser på
-              omtrent 5 × 5 km, som et nytt kart henter på sekunder. De er
-              derfor inntil en måned gamle. Kan flisene ikke leses, hentes
+              høydemodellen, NVEs innsjødatabase, Kartverket og sjøkartet.</li>
+            <li><strong class="text-ink">OpenStreetMap-dataene</strong> lastes
+              ned den 1. hver måned og deles opp i ruter på omtrent 5 × 5 km,
+              som et nytt kart henter på sekunder. De er derfor inntil en måned
+              gamle. Kan rutene ikke leses, hentes
               dataene direkte fra OpenStreetMap i stedet.
               <span class="block mt-1 text-ink-3">
                 <template v-if="osmSistOppdatert">Sist oppdatert: {{ osmSistOppdatert }}. </template>Neste kjøring: {{ osmNesteKjoring }}.
               </span></li>
-            <li>Alt symboliseres via en datadrevet ISOM-katalog og rendres som ett
-              skalerbart SVG med zoom-trappet detaljnivå og togglebare kartlag.</li>
+            <li>Alt tegnes med orienteringskartenes symboler. Flere detaljer
+              kommer fram jo nærmere du zoomer, og kartlagene kan slås av og på
+              hver for seg.</li>
           </ul>
         </div>
         <div class="space-y-2">
@@ -644,10 +645,10 @@ function tilPersonvern() {
           <p class="text-[13px] leading-relaxed text-ink-2">
             <strong class="text-ink">Er det nordlys ute, står det på
             himmelen.</strong> I nattmodus henter Lende nordlysvarselet fra
-            <strong class="text-ink">NOAA</strong>s OVATION-modell og legger
+            <strong class="text-ink">NOAA</strong>, USAs vær- og havbyrå, og legger
             grønne gardiner over den nordlige himmelen — loddrette stråler som
             folder seg langsomt, slik nordlyset gjør fordi det følger jordas
-            magnetfeltlinjer. Fargene er de virkelige utslippslinjene: grønt fra
+            magnetfeltlinjer. Fargene er nordlysets virkelige farger: grønt fra
             oksygen rundt 120 km, rødfiolett høyere oppe, og en blå frynse
             nederst når det tar av. Stjernene skinner gjennom, som de skal.
             Panelet øverst sier <strong class="text-ink">hvor sterkt det er,
@@ -686,24 +687,22 @@ function tilPersonvern() {
             som ødelegger nattsynet minst.
           </p>
           <ul class="text-[13px] leading-relaxed text-ink-2 space-y-1.5 list-disc pl-5">
-            <li><strong class="text-ink">Det finnes ingen stjerne-API her.</strong>
+            <li><strong class="text-ink">Himmelen hentes ikke fra nettet.</strong>
               Alt regnes ut på telefonen din, av samme grunn som kartene lagres
-              lokalt: en klar natt på fjellet har sjelden dekning. Stjernene er en
-              bakt katalog på 191 av de klareste fra
-              <strong class="text-ink">HYG</strong> (Hipparcos + Yale), flyttet
-              fra J2000 til i kveld med presesjon.</li>
+              lokalt: en klar natt på fjellet har sjelden dekning. Stjernene er
+              191 av de klareste fra stjernekatalogen
+              <strong class="text-ink">HYG</strong>, justert for at
+              stjernehimmelen sakte forskyver seg over århundrene.</li>
             <!-- v7.9.8: sto «stjernene til under ett buesekund». Det finnes ingen
                  uavhengig stjerne-fasit i repoet — bare planetene (25 punkter mot
                  astronomy-engine, planeter.test.js) og soltidene (mot Yr) er ankret
                  mot en annen implementasjon. Presesjonstesten er ankret i GEOMETRI,
                  ikke i en fasit. Skal tallet tilbake, må fasiten bakes inn først. -->
-            <li>Sol, måne, månefase og lyssidens retning kommer fra Meeus'
-              <em>Astronomical Algorithms</em>; planetene fra
-              <strong class="text-ink">JPL</strong>s baneelementer løst med
-              Keplers likning. Planetene er sammenliknet mot en uavhengig
-              implementasjon og stemmer til noen få bueminutter. Stjernene er
-              HYGs egne koordinater, flyttet til i kveld med Meeus' rigorøse
-              presesjonsformel.</li>
+            <li>Sol, måne og månefase regnes ut med formlene i Jean Meeus'
+              <em>Astronomical Algorithms</em>, og planetene fra banene NASAs
+              <strong class="text-ink">JPL</strong> publiserer. Planetene er
+              sjekket mot et annet beregningsprogram og står der de skal, med et
+              avvik på under en tjuedel av månens bredde.</li>
             <li>Globene bruker overflatekart fra
               <strong class="text-ink">NASA</strong>,
               <strong class="text-ink">USGS</strong> og
@@ -734,12 +733,12 @@ function tilPersonvern() {
             <strong class="text-ink">oppleve turen før du går den</strong>.
           </p>
           <ul class="text-[13px] leading-relaxed text-ink-2 space-y-1.5 list-disc pl-5">
-            <li>Terrenget bygges i sanntid med <strong class="text-ink">Three.js</strong>
-              (WebGL) fra samme Kartverket-høydemodell som turkartet — og selve
-              kartet drapes over som tekstur, så 3D-landskapet ser ut som kartet
-              du kjenner, under en himmel med drivende skyer.</li>
+            <li>Terrenget bygges fra samme høydemodell fra Kartverket som
+              turkartet, og selve kartet legges over som et teppe, så
+              3D-landskapet ser ut som kartet du kjenner, under en himmel med
+              drivende skyer.</li>
             <li>Severdighetene langs ruta hentes fra kartets egen navneindeks
-              (virker offline), <strong class="text-ink">NVE HydAPI</strong> og
+              (virker offline), <strong class="text-ink">NVE</strong> og
               Riksantikvarens kulturminnedata.</li>
             <li>3D-modulen lastes først når du trenger den, så den gjør ikke
               resten av appen tyngre — har du åpnet et kart på nett, ligger den
@@ -761,22 +760,21 @@ function tilPersonvern() {
           <p class="text-[13px] leading-relaxed text-ink-2">
             En planlegger for grus- og stiruter: sett start og mål, få et forslag
             langs sti- og grusnettet med <strong class="text-ink">høydeprofil</strong>,
-            cue-liste og lengde — og eksporter hele turen som
+            veibeskrivelse og lengde — og eksporter hele turen som
             <strong class="text-ink">GPX</strong> til klokke eller GPS.
           </p>
         </div>
         <div class="space-y-2">
           <h4 class="text-sm font-semibold text-ink">Teknikken</h4>
           <ul class="text-[13px] leading-relaxed text-ink-2 space-y-1.5 list-disc pl-5">
-            <li>Sti- og veinettet bygges til en graf med <strong class="text-ink">graphology</strong>
-              og korteste vei beregnes over den.</li>
-            <li><strong class="text-ink">BRouter</strong> gir grus-vennlig ruting der
-              nettet er godt kartlagt, med et grus-overlegg som farger underlaget.
-              Punktene du setter — start, via og mål — sendes til
-              <em>brouter.de</em> når du ber om en rute. Selve profilen (hvor
-              gjerne ruten velger grus) er vår egen og lastes opp med
-              forespørselen.</li>
-            <li>Høydeprofilen leses ut av samme DEM som turkartet, og hele ruten kan
+            <li>Lende kobler stiene og veiene på kartet sammen til et nett og
+              finner korteste vei gjennom det.</li>
+            <li>Ruteforslagene med mest mulig grus kommer fra tjenesten
+              <strong class="text-ink">BRouter</strong>, og underlaget vises i
+              farger på kartet. Punktene du setter — start, via og mål — sendes
+              til <em>brouter.de</em> når du ber om en rute, sammen med Lendes
+              egne innstillinger for hvor gjerne ruta skal velge grus.</li>
+            <li>Høydeprofilen leses ut av samme høydemodell som turkartet, og hele ruten kan
               gjøres om til et turkart sentrert på strekket.</li>
           </ul>
         </div>
@@ -795,7 +793,7 @@ function tilPersonvern() {
         Bygget med <strong class="text-ink">Vue 3</strong>, <strong class="text-ink">Vite</strong>
         og <strong class="text-ink">Tailwind CSS</strong>. Kartgeometri behandles med
         d3-contour, polygon-clipping og graphology. Appen kjører fullt og helt i
-        nettleseren som en installerbar PWA — ingen konto og ingen database hos oss.
+        nettleseren og kan installeres som app — ingen konto og ingen database hos oss.
         Kartdata hentes direkte fra kildene, og ruteberegningen i Ruteplanleggeren
         går til BRouter (brouter.de). Værvarsel, kulturminner og vannmålestasjoner
         hentes gjennom Lendes egen lille server, fordi de kildene ikke kan spørres
@@ -809,7 +807,7 @@ function tilPersonvern() {
           samme vilkår — GPX-filene bærer henvisningen.</p>
         <p>Ruteberegning: <strong class="text-ink-2">BRouter</strong> (brouter.de),
           MIT-lisens, drevet på donasjoner.</p>
-        <p>Høydemodell, N50 og sjøkart: <strong class="text-ink-2">Kartverket</strong> (NLOD / CC BY 4.0).</p>
+        <p>Høydemodell, kartdata og sjøkart: <strong class="text-ink-2">Kartverket</strong> (NLOD / CC BY 4.0).</p>
         <p>Værvarsel: <strong class="text-ink-2">MET Norway</strong> (NLOD 2.0 / CC BY 4.0).</p>
         <p>Nordlysvarsel, Kp-indeks og solvind:
           <strong class="text-ink-2">NOAA Space Weather Prediction Center</strong>
@@ -853,8 +851,8 @@ function tilPersonvern() {
       </p>
       <p class="text-[13px] leading-relaxed text-ink-2">
         <strong class="text-ink">Det du lager, blir på enheten din.</strong>
-        Kart, ruter, GPS-spor, markeringer og stjernemerkinger lagres i
-        nettleseren (IndexedDB), og innstillingene dine i localStorage. Du
+        Kart, ruter, GPS-spor, markeringer, stjernemerkinger og innstillinger
+        lagres i nettleseren på enheten. Du
         sletter alt ved å slette kartene i appen eller tømme nettstedsdataene
         for denne siden.
       </p>
