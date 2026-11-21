@@ -317,7 +317,9 @@ export function dykkeTur({ fra, mot = null, rute = null, ring = null, flateY, gu
   const azSlutt = slutt < 30 ? asimutMot(fra.x, fra.z, Q[0], Q[1]) : azVed(slutt)
   const azStart = slutt < 30 ? azSlutt : azVed(0)
 
-  const opp = { pos: [Q[0], tak, Q[1]], hoyde: grad(30), azimut: azSlutt, tid: ring ? 3.5 : 4, ease: 'inn-ut', fase: 'stig' }
+  // Oppstigningen har dobbel tid fra v8.0.32, som nedstigningen: dybdetallet
+  // skal rekke å synke mens man ser på det.
+  const opp = { pos: [Q[0], tak, Q[1]], hoyde: grad(30), azimut: azSlutt, tid: ring ? 7 : 8, ease: 'inn-ut', fase: 'stig' }
   const ende = []
   if (ring) {
     const fugl = fuglePose({ fra: { x: Q[0], z: Q[1] }, ring, flateY, land, azimut: azSlutt })
@@ -455,7 +457,10 @@ const grad = (g) => (g * Math.PI) / 180
 export function dykkSekvens({ x, z, flateY, bunnY, redusert = false }) {
   if (redusert) return [{ pos: [x, bunnY, z], hoyde: grad(55), tid: 0, fase: 'bunn' }]
   const dyp = Math.max(1, flateY - bunnY)
-  const ned = 1.0 + 0.5 * Math.min(1, dyp / 300)
+  // Dobbel tid fra v8.0.32: 280 m i Tyrifjorden på halvannet sekund var for
+  // fort til å se dybdetallet stige. Inn-ut-kurven gir en rolig start og en
+  // myk landing, så tallet går sakte først, fort midtveis og sakte igjen.
+  const ned = 2 * (1.0 + 0.5 * Math.min(1, dyp / 300))
   return [
     { pos: [x, flateY + 60, z], hoyde: grad(-70), tid: 1.0, ease: 'inn-ut', fase: 'inn' },
     { pos: [x, flateY - Math.min(4, dyp * 0.2), z], hoyde: grad(-70), tid: 0.35, ease: 'lineaer', fase: 'flate' },

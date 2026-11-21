@@ -364,6 +364,10 @@ Tempoet (v8.0.29) er en multiplikator på SEKVENSENS klokke (`freeRig.settTempo`
 steg uten hopp, og det huskes for turer som starter av seg selv. Gjelder bare
 svømmeturen; gåturen har sine egne 64/128/256×.
 
+**NED- OG OPPSTIGNINGEN ER TREG MED VILJE (v8.0.32):** dobbel tid mot før
+(`dykkSekvens` 'ned', `dykkeTur` 'stig'), inn-ut-kurve. Ellers rekker man ikke
+å se dybdetallet endre seg — 280 m i Tyrifjorden gikk på halvannet sekund.
+
 **KOMPASSET STÅR OGSÅ UNDER DYKKET (v8.0.31)**, samme `Tour3dHimmelKompass`
 som i nattmodus, løftet over turkontrollene under svømmeturen. Trykket går til
 `freeRig.vendMotNord`, ikke `seMot`: `seMot` returnerer under vann og under en

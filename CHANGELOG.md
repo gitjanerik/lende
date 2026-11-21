@@ -1,3 +1,8 @@
+## 2026-11-20 — v8.0.32: Roligere ned- og oppstigning i dykket
+
+Nedstigningen tar dobbelt så lang tid — rundt tre sekunder for de 280 metrene i Tyrifjorden i stedet for halvannet — så man rekker å se dybdetallet stige. Oppstigningen når svømmeturen avsluttes har fått dobbel tid på samme måte. Begge starter rolig, går fortest midtveis og bremser mykt inn.
+
+---
 ## 2026-11-20 — v8.0.31: Kompasset under dykket
 
 Himmelkompasset fra nattmodus står nå også nede til høyre under dykket — under vann er himmelretningene like borte som om natta. Under svømmeturen løftes det over turkontrollene. Et trykk vender blikket mot nord også under vann, der det før ikke rørte kameraet; under svømmeturen virker trykket som et drag mot nord, som glir tilbake mens turen går og blir stående på pause.
