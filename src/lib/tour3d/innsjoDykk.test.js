@@ -93,7 +93,8 @@ describe('kamerabanen', () => {
     const grunn = dykkSekvens({ ...p, bunnY: 90 })[2].tid
     const dyp = dykkSekvens({ ...p, bunnY: -400 })[2].tid
     expect(dyp).toBeGreaterThan(grunn)
-    expect(dyp).toBeLessThanOrEqual(1.5)
+    expect(grunn).toBeGreaterThanOrEqual(2)
+    expect(dyp).toBeLessThanOrEqual(3)
   })
   it('redusert bevegelse er ett kutt, begge veier', () => {
     expect(dykkSekvens({ ...p, redusert: true })).toHaveLength(1)
