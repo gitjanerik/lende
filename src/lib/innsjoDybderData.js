@@ -1,7 +1,7 @@
 // GENERERT AV scripts/bygg-innsjodybder.mjs — IKKE REDIGER FOR HÅND.
 //
 // Maksdyp for dybdekartlagte innsjøer. Kilde: NVE Innsjødatabasen, lag «Dybdekart»
-// Hentet 2026-11-20. 678 innsjøer, 518 med dybdekurver.
+// Hentet 2026-11-23. 678 innsjøer, 518 med dybdekurver.
 //
 //   vatnlnr: [maksdyp m, middeldyp m | null, oppmålt år | null, 1 = har dybdekurver]
 /* eslint-disable */
